@@ -74,6 +74,27 @@ The desktop app syncs with the first two: the on-prem address when it answers, t
 
 Everything binds to `127.0.0.1`. For a superuser shell, use `docker compose exec -u postgres onprem-db psql` (or `cloud-db`); superuser logins over the network are refused.
 
+## Test accounts
+
+`test-accounts.cs` sets up example accounts through the web app's own pages, as a person would: the bootstrap admin from `.env` (its new password and authenticator), a clinician it invites at **Staff** (setup link, password, authenticator), and a patient that clinician adds to their panel and issues an enrollment code to, registered at the portal and confirmed from Mailpit. The patient comes from the synthetic clinic, so seed it first ("Synthetic data and the benchmark" in the root README). Opening that patient's chart records an emergency access with the reason "Setting up a test portal account on the local stack", and adds the patient to the clinician's panel; both appear in the audit log.
+
+Run `setup` before anyone signs in as the bootstrap admin by hand: once the admin has been set up by hand, `setup` can't take it over.
+
+| Account | Email | Password |
+|---|---|---|
+| Admin | `admin@example.com` (`EHR_BOOTSTRAP_ADMIN_EMAIL`) | `local-admin-test-1234` |
+| Clinician | `clinician@example.com` | `local-clinician-test-1234` |
+| Patient, MRN `SYN0000001` | `patient@example.com` | `local-patient-test-1234` |
+
+These are example accounts for this local stack with synthetic data only, the same on every machine; never create them on a server anyone else can reach. The script refuses any address but the stack's.
+
+| Command | What it does |
+|---|---|
+| `dotnet run test-accounts.cs -- setup` | Creates the accounts. Run again, it signs in with each account in the file, creates any not made yet, and finishes an authenticator enrollment or email confirmation left half done; it never deletes or resets anything, and says what to do about an account the stack has but the file doesn't. `--help` lists the options, such as another email, password or MRN. |
+| `dotnet run test-accounts.cs -- code` | Prints each account's email and password, and the staff accounts' current authenticator codes. |
+
+The authenticator secrets and recovery codes are made by the stack at enrollment, so they differ on every machine and are never committed: they are kept, with each account's email and password, in `test-accounts.json` in this folder, which is gitignored and, on macOS, readable only by you (on Windows it has the folder's permissions). A code changes every 30 seconds; run `code` as you sign in, or add the secret from the file to an authenticator app. A reset (`down -v`) deletes the accounts and the seeded clinic with everything else, so delete `test-accounts.json` with it and seed the clinic again; `setup` says so when an account in the file can't sign in.
+
 ## Simulated latency
 
 `.env` sets the latency added in each direction, so a round trip costs twice the value. The defaults are 30 ms for the internet (off-site browsers to the cloud) and 40 ms for the WAN (cloud and backup to on-prem). Change them in `.env` and run `docker compose up -d` again.
