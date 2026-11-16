@@ -1,4 +1,3 @@
-using Ehr.Data;
 using Ehr.Data.Accounts;
 using Ehr.Domain.Audit;
 using Ehr.Domain.Authorization;
@@ -8,7 +7,6 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -40,13 +38,15 @@ public static class AccountServiceCollectionExtensions
         });
 
         // The explicit store types matter: the default registration would give both kinds of account the same claim,
-        // login and token entities, which can only map to one table.
+        // login and token entities, which can only map to one table. ProtectedTokenStore encrypts the authenticator key
+        // and recovery codes before they are saved; the host configures where Data Protection keeps its keys.
+        services.AddDataProtection();
         services.AddIdentityCore<StaffUser>()
-            .AddUserStore<UserOnlyStore<StaffUser, EhrDbContext, Guid, StaffUserClaim, StaffUserLogin, StaffUserToken>>()
+            .AddUserStore<ProtectedTokenStore<StaffUser, StaffUserClaim, StaffUserLogin, StaffUserToken>>()
             .AddClaimsPrincipalFactory<StaffClaimsPrincipalFactory>()
             .AddDefaultTokenProviders();
         services.AddIdentityCore<PatientUser>()
-            .AddUserStore<UserOnlyStore<PatientUser, EhrDbContext, Guid, PatientUserClaim, PatientUserLogin, PatientUserToken>>()
+            .AddUserStore<ProtectedTokenStore<PatientUser, PatientUserClaim, PatientUserLogin, PatientUserToken>>()
             .AddClaimsPrincipalFactory<PatientClaimsPrincipalFactory>()
             .AddDefaultTokenProviders();
 
