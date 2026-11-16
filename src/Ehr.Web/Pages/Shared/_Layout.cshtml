@@ -11,7 +11,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     @* The htmx features that run JavaScript from attributes stay off, so a strict CSP can be added later. *@
-    <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
+    <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false,"historyCacheSize":0}'>
     <title>@ViewData["Title"]</title>
     <link rel="stylesheet" href="~/_content/Ehr.Design/css/ehr.css">
     @if (ViewData["UseHtmx"] is not false)

@@ -72,12 +72,21 @@ public class IndexModel(PhiReader phi, PatientAssignments assignments) : PageMod
         if (Search.IsEmpty)
         {
             // Fields emptied as the clinician types list nobody: the panel would be up to PanelLimit more reads at every
-            // pause, and Clear brings it back.
-            if (!Live)
+            // pause, and Clear brings it back. The form submitted with every field empty lists nobody either, and asks
+            // for something to search by (UC 3): only the page with no criteria at all, where signing in, Clear and the
+            // way back from a chart land, lists the panel.
+            if (Live)
             {
-                (PanelPatients, PanelMore) = await phi.PanelAsync(PanelLimit, HttpContext.RequestAborted);
+                return;
             }
 
+            if (Request.Query.ContainsKey("name") || Request.Query.ContainsKey("birthdate") || Request.Query.ContainsKey("mrn"))
+            {
+                Problems = ["Enter a name, date of birth, or MRN to search."];
+                return;
+            }
+
+            (PanelPatients, PanelMore) = await phi.PanelAsync(PanelLimit, HttpContext.RequestAborted);
             return;
         }
 
