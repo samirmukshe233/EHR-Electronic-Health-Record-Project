@@ -546,10 +546,12 @@
     stopButton.addEventListener("click", stop);
     cancelButton.addEventListener("click", cancel);
 
-    // Keyboard first (NFR-12): Alt+D starts dictation, and stops it while recording. By key position, since Alt changes
-    // the letter typed on a Mac.
+    // Keyboard first (NFR-12): Alt+Shift+D starts dictation, and stops it while recording. Not Alt+D, which Chrome,
+    // Edge and Firefox use on Windows to jump to the address bar: a page can take it over, but then the clinician loses
+    // it, and Firefox can be set to stop pages overriding its shortcuts. No browser assigns Alt+Shift+D. By key
+    // position, since Option changes the letter typed on a Mac.
     document.addEventListener("keydown", (event) => {
-        if (event.altKey && !event.ctrlKey && !event.metaKey && event.code === "KeyD") {
+        if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.code === "KeyD") {
             event.preventDefault();
             if (!stopButton.disabled) {
                 stop();

@@ -2,6 +2,9 @@
 @model DictateModel
 @inject Ehr.Web.Forwarding.OnPremStatus OnPrem
 @{
+    // This page's address carries the patient and the search the clinician came from. Without htmx, nothing keeps it
+    // in the browser's sessionStorage history, as on the chart.
+    ViewData["UseHtmx"] = false;
     ViewData["Title"] = $"Dictate: {Model.Patient.FamilyName}, {Model.Patient.GivenName}";
     // The patient and the search the clinician came from, in one dictionary: asp-all-route-data replaces asp-route-*.
     var chartRoute = Model.Search.RouteData();
@@ -36,14 +39,16 @@ else
         <noscript><p class="notice error">Dictation needs JavaScript. You can still type the note.</p></noscript>
 
         <div class="actions">
-            <button type="button" data-dictation-start aria-keyshortcuts="Alt+D">Dictate</button>
+            <button type="button" data-dictation-start aria-keyshortcuts="Alt+Shift+D">Dictate</button>
             <button type="button" data-dictation-stop disabled>Stop</button>
             <button type="button" data-dictation-cancel disabled>Cancel</button>
         </div>
         <p class="dictation-status" role="status" aria-live="polite" data-dictation-status>Select Dictate and speak your note.</p>
 
         <h2>Transcript</h2>
-        <div class="transcript" aria-live="polite" data-dictation-transcript><p class="placeholder">Your words appear here as you speak.</p></div>
+        @* Not a live region: the script rebuilds the transcript every second, and a screen reader would read all of it again
+           each time. The status line above announces what changes. *@
+        <div class="transcript" data-dictation-transcript><p class="placeholder">Your words appear here as you speak.</p></div>
         <p class="notice" data-dictation-unclear hidden>Highlighted passages may be wrong: they were too quiet, too noisy, or the speech model wasn't sure. Say them again, or type them during review.</p>
 
         <h2>Proposed fields</h2>
