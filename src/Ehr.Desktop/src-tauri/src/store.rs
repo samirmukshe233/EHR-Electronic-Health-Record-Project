@@ -1176,4 +1176,97 @@ mod tests {
 
         assert_eq!(database.open().watermark().unwrap(), "12345");
     }
+
+    /// TC-NF-02 (NFR-02, with NFR-04): opening a cached chart offline takes under 5 ms. This times what the
+    /// offline_chart command does when a clinician picks a chart from their offline panel: the chart, its drafts and
+    /// its recordings, read from the encrypted database and decoded. Drawing the page in the web view isn't included.
+    /// The desktop app keeps only the clinician's own panel, never the clinic's 50,000 patients, so the database holds
+    /// a large panel: 500 charts, each with a full history, and drafts for many of them. Timed only in a release
+    /// build, which is what clinicians run: `cargo test --release` (CI runs it on macOS and Windows).
+    #[test]
+    #[cfg_attr(
+        debug_assertions,
+        ignore = "timed in a release build: cargo test --release"
+    )]
+    fn opening_a_cached_chart_takes_under_5_ms() {
+        use std::time::{Duration, Instant};
+
+        use ehr_desktop::drafts;
+
+        const PANEL: usize = 500;
+        const OPENS: usize = 30;
+        let limit = Duration::from_millis(5);
+
+        let database = TempDatabase::new();
+        let mut store = database.open();
+        let clinician = Uuid::now_v7();
+        let panel: Vec<charts::Chart> = (0..PANEL).map(synthetic_chart).collect();
+        store.replace_panel(clinician, &panel).unwrap();
+        for chart in panel.iter().step_by(5) {
+            drafts::save(&store.connection, clinician, chart.id, "Test note").unwrap();
+        }
+        let patient = panel[PANEL / 2].id;
+
+        // One warm-up open, as the test case says, then the timed ones.
+        let open = |store: &Store| {
+            let (chart, notes) = store.offline_chart(clinician, patient).unwrap();
+            let recordings = store.recordings(clinician, patient).unwrap();
+            (chart.id, notes.len(), recordings.len())
+        };
+        assert_eq!(open(&store), (patient, 1, 0));
+        let mut times = Vec::with_capacity(OPENS);
+        for _ in 0..OPENS {
+            let started = Instant::now();
+            std::hint::black_box(open(&store));
+            times.push(started.elapsed());
+        }
+
+        let slowest = *times.iter().max().unwrap();
+        println!(
+            "TC-NF-02: {OPENS} opens of one chart in a panel of {PANEL}; slowest {slowest:?}; all: {times:?}"
+        );
+        assert!(
+            slowest < limit,
+            "the slowest open took {slowest:?}, over {limit:?}"
+        );
+    }
+
+    /// A synthetic chart with a full history: allergies, medications, conditions and visits.
+    fn synthetic_chart(number: usize) -> charts::Chart {
+        charts::Chart {
+            id: Uuid::now_v7(),
+            name: format!("Synthetic{number}, Patient{number}"),
+            mrn: format!("SYN{number:07}"),
+            birth_date: "1980-01-01".to_owned(),
+            gender: "unknown".to_owned(),
+            allergies: (0..10)
+                .map(|i| charts::Allergy {
+                    display: format!("Allergen {i}"),
+                    reaction: Some("Hives".to_owned()),
+                    criticality: Some("low".to_owned()),
+                })
+                .collect(),
+            medications: (0..20)
+                .map(|i| charts::Medication {
+                    display: format!("Medication {i} 10 mg tablet"),
+                    dosage: Some("1 tablet by mouth daily".to_owned()),
+                })
+                .collect(),
+            conditions: (0..20)
+                .map(|i| charts::Condition {
+                    display: format!("Condition {i}"),
+                    onset_date: Some("2020-01-01".to_owned()),
+                })
+                .collect(),
+            visits: (0..20)
+                .map(|i| charts::Visit {
+                    period_start: format!("2026-01-{:02}T09:00:00Z", i + 1),
+                    reason: Some("Follow-up visit".to_owned()),
+                    systolic_mm_hg: Some(120),
+                    diastolic_mm_hg: Some(80),
+                    heart_rate_per_minute: Some(70),
+                })
+                .collect(),
+        }
+    }
 }
