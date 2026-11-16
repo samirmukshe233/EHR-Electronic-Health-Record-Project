@@ -116,6 +116,7 @@ internal static partial class RenderBenchmark
                 await SignOrdersAsync(app, clinicianId, panel);
                 var session = new CookieContainer();
                 using var client = await SignInAsync(app, session, email, password, key);
+                await SettleAsync(database);
                 var results = await MeasureEachAsync(client, times, "", panel, patients);
                 if (database is null)
                 {
@@ -123,6 +124,7 @@ internal static partial class RenderBenchmark
                 }
                 else
                 {
+                    await SettleAsync(database);
                     results.AddRange(await MeasureOffSiteAsync(app, database, session, panel, patients));
                 }
 
@@ -141,6 +143,32 @@ internal static partial class RenderBenchmark
                 await database.DisposeAsync();
             }
         }
+    }
+
+    // Before each set of rows, in the PostgreSQL the benchmark started itself: lets the database finish the housekeeping
+    // that what came before left it (the seed's 50,000 patients before the on-site rows; the on-site rows' audit events,
+    // some 200,000, before the off-site ones), so that isn't billed to the first row measured. Without it the first
+    // off-site row, the chart, sometimes ran while PostgreSQL was still vacuuming, analyzing and checkpointing after
+    // the on-site rows, which a replica on its own server wouldn't be doing for them; its p99 went from about 13 ms to
+    // over 30 in one run of two. VACUUM (ANALYZE) and CHECKPOINT do that work now instead of during the rows, and the
+    // .NET heap is collected for the same reason. Not with --stack: that database is somebody's, and is left alone.
+    static async Task SettleAsync(MigratedDatabase? database)
+    {
+        if (database is null)
+        {
+            return;
+        }
+
+        await using var connection = new NpgsqlConnection(database.SuperuserConnectionString);
+        await connection.OpenAsync();
+        foreach (var statement in new[] { "VACUUM (ANALYZE)", "CHECKPOINT" })
+        {
+            await using var command = new NpgsqlCommand(statement, connection) { CommandTimeout = 600 };
+            await command.ExecuteNonQueryAsync();
+        }
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
     }
 
     // Every kind of request, each row's name after the prefix. The random numbers start from the same seed each time, so

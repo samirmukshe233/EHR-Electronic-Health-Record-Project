@@ -62,7 +62,9 @@ A run at 50,000 patients with `--assert`, durability on, nothing else running, o
 | Search, name and date of birth | 1.4 / 4.3 | 5.1 | 5.0 / 9.2 | 14.1 |
 | As you type, first 3 letters | 4.8 / 11.2 | 11.7 | 5.5 / 10.5 | 15.2 |
 
-Off-site, the queue's write and flush took 4.0 to 4.4 ms at p50. The off-site chart and panel get the full-time warning (p99 21.2 and 20.8 ms, the flush included), which doesn't fail the run; their 20 ms target is for the cloud server. An earlier run, made while other builds, tests and benchmarks were running on the same machine, failed six off-site rows in their tails only, so CI's shared runners may be close to the line for these rows.
+Off-site, the queue's write and flush took 4.0 to 4.4 ms at p50. The off-site chart and panel get the full-time warning (p99 21.2 and 20.8 ms, the flush included), which doesn't fail the run; their 20 ms target is for the cloud server. An earlier run, made while other builds, tests and benchmarks were running on the same machine, failed six off-site rows in their tails only.
+
+After UC 1 was merged in, one quiet run of two failed the first off-site row, the chart (p99 32.4 ms excluding the commit, with a median of 5.5 ms). The benchmark uses one PostgreSQL for both sites, and the off-site rows began the moment the on-site rows had written their 200,000 or so audit events, while PostgreSQL was still vacuuming, analyzing and checkpointing after them. A replica on its own server wouldn't be doing that for the on-site rows. The benchmark now lets the database finish that work before each set of rows (`SettleAsync`: `VACUUM (ANALYZE)`, `CHECKPOINT`, and a collected .NET heap), and never with `--stack`. The gate, its limit and the sampling are unchanged. Three runs in a row then passed, with the off-site chart at 8.9, 10.8 and 12.6 ms and no gated row above 13.0 ms.
 
 ## Restore drill
 
