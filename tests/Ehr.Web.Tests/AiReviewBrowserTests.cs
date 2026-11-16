@@ -6,6 +6,13 @@ using static Ehr.Web.Tests.Browser;
 namespace Ehr.Web.Tests;
 
 // Real DOM, focus and fetch behavior with deterministic synthetic audio/model results; no real microphone or models.
+//
+// In a collection that doesn't run beside the others. The other test classes start and stop PostgreSQL containers,
+// and on Linux each one adds or removes a network interface on the machine. Chromium notices, and aborts whatever it
+// is loading or sending with net::ERR_NETWORK_CHANGED: on CI that failed these tests at a different step each run
+// (a page that wouldn't load, a save that never arrived), though never on a Mac, where Docker's interfaces are inside
+// a virtual machine. Run after the parallel classes have finished, nothing changes the network under the browser.
+[Collection(BrowserTests.Collection)]
 public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
 {
     const string FakeRecorder = """
@@ -205,4 +212,10 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
 
         Assert.Contains("0 of 3", await page.Locator("[data-review-progress]").TextContentAsync());
     }
+}
+
+[CollectionDefinition(Collection, DisableParallelization = true)]
+public sealed class BrowserTests
+{
+    public const string Collection = "Browser tests";
 }
