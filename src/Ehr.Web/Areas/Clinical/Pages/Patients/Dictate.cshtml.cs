@@ -12,10 +12,11 @@ namespace Ehr.Web.Areas.Clinical.Pages.Patients;
 // and after Stop shows the History, Assessment and Plan the model proposed and validation let through, each awaiting
 // review. Nothing is saved here (FR-13): reviewing the fields is UC 13, and saving and signing the note is UC 14.
 //
-// The same gate as the chart: a patient off the clinician's panel first asks for a reason (Reason, BreakGlass), and the
-// patient's name for the banner is one recorded read through the PHI reader. Off-site with the clinic's server down the
-// page still opens, but offers no dictation, since the dictation service runs beside the on-prem app (UC 2).
-public class DictateModel(PhiReader phi, PatientAssignments assignments, BreakGlass breakGlass) : PageModel
+// The same rule as the chart's "New note": only for a patient on the clinician's panel. Anyone else, a clinician under
+// emergency access included, is sent back to the chart before anything about the patient is read. The patient's name
+// for the banner is one recorded read through the PHI reader. Off-site with the clinic's server down the page still
+// opens, but offers no dictation, since the dictation service runs beside the on-prem app (UC 2).
+public class DictateModel(PhiReader phi, PatientAssignments assignments) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public SearchQuery Search { get; set; } = SearchQuery.None;
@@ -24,10 +25,9 @@ public class DictateModel(PhiReader phi, PatientAssignments assignments, BreakGl
 
     public async Task<IActionResult> OnGetAsync(Guid id)
     {
-        if (!await assignments.IsOnPanelAsync(id, HttpContext.RequestAborted)
-            && await breakGlass.ActiveUntilAsync(id, HttpContext.RequestAborted) is null)
+        if (!await assignments.IsOnPanelAsync(id, HttpContext.RequestAborted))
         {
-            return RedirectToPage("Reason", Search.ChartRouteValues(id));
+            return RedirectToPage("Chart", Search.ChartRouteValues(id));
         }
 
         var patient = await phi.PatientAsync(id, HttpContext.RequestAborted);
