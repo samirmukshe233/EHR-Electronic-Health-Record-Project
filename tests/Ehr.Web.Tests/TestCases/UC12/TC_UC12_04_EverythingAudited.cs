@@ -24,10 +24,10 @@ namespace Ehr.Web.Tests.TestCases.UC12;
 //   2. Open the chart again (view 2).
 //   3. Choose "Add to my patients" on the chart (view 3, then the change, then view 4 as the chart shows again).
 //   4. Read the patient's audit events, and the admin's audit page for the patient.
-// Expected result: Every one of the patient's events is the clinician's: one break_glass, with the reason, for the
-//   break_glass_accesses row; one insert of that break_glass_accesses row; four reads; one insert of a
-//   patient_assignments row. Nothing else. The admin's page lists break_glass, insert and read events for the patient,
-//   with the reason.
+// Expected result: Apart from the test's own insert of the patient, every one of the patient's events is the
+//   clinician's: one break_glass, with the reason, for the break_glass_accesses row; one insert of that
+//   break_glass_accesses row; four reads; one insert of a patient_assignments row. Nothing else. The admin's page lists
+//   break_glass, insert and read events for the patient, with the reason.
 // Creator: Luke Garcia
 public class TC_UC12_04_EverythingAudited(WebApps apps) : IClassFixture<WebApps>
 {
@@ -58,8 +58,10 @@ public class TC_UC12_04_EverythingAudited(WebApps apps) : IClassFixture<WebApps>
             Assert.Contains("Remove from my patients", await ReadAsync(added));
         }
 
-        // 4. The log, as stored.
+        // 4. The log, as stored: everything but the test's own insert of the patient, which has no actor.
         var events = await EventsAsync(patient);
+        Assert.Single(events, e => e.Actor is null && e.Action == AuditActions.Insert && e.Table == "patients");
+        events.RemoveAll(e => e.Actor is null && e.Action == AuditActions.Insert && e.Table == "patients");
         Assert.All(events, e => Assert.Equal<Guid?>(clinician.Id, e.Actor));
         List<(string Action, string? Table, int Count)> expected =
         [
