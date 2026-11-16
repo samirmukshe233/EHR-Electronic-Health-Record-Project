@@ -40,11 +40,27 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
         return context;
     }
 
-    static Task<IBrowser> LaunchAsync(IPlaywright playwright) => playwright.Chromium.LaunchAsync(new()
+    // On a machine without Playwright's Chromium, these tests are skipped and say how to install it, so `dotnet test`
+    // still passes for everyone. In CI, which installs it (ci.yml), a missing browser fails them: they must not be
+    // skipped there unnoticed.
+    static async Task<IBrowser> LaunchAsync(IPlaywright playwright)
     {
-        Headless = true,
-        ExecutablePath = Environment.GetEnvironmentVariable("PLAYWRIGHT_CHROMIUM_EXECUTABLE"),
-    });
+        try
+        {
+            return await playwright.Chromium.LaunchAsync(new()
+            {
+                Headless = true,
+                ExecutablePath = Environment.GetEnvironmentVariable("PLAYWRIGHT_CHROMIUM_EXECUTABLE"),
+            });
+        }
+        catch (PlaywrightException error) when (error.Message.Contains("Executable doesn't exist", StringComparison.Ordinal)
+            && !string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            Assert.Skip("Not run: Playwright's Chromium isn't installed on this machine. After a Release build, install it with: "
+                + "pwsh tests/Ehr.Web.Tests/bin/Release/net10.0/playwright.ps1 install chromium");
+            throw;
+        }
+    }
 
     static async Task StartAndReviewAsync(IPage page, string url)
     {
