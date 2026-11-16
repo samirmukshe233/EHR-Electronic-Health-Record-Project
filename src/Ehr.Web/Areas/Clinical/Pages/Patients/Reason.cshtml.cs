@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Ehr.Domain.Patients;
+using Ehr.Web.Forwarding;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,9 @@ namespace Ehr.Web.Areas.Clinical.Pages.Patients;
 
 // Where the chart sends a clinician whose patient this isn't: the stated reason emergency access requires (BreakGlass).
 // Nothing about the patient is shown here; the search results the clinician came from already were a recorded read.
-// That search travels along to the chart (SearchQuery), for the way back to it.
+// That search travels along to the chart (SearchQuery), for the way back to it. Off-site with the clinic's server
+// unreachable, the reason typed is shown again on the "Not saved" page (UC 2).
+[ShownIfNotSaved(nameof(Reason))]
 public class ReasonModel(BreakGlass breakGlass, PatientAssignments assignments) : PageModel
 {
     [BindProperty(SupportsGet = true)]

@@ -1,5 +1,7 @@
 using System.Net;
 using Ehr.Bench;
+using Ehr.Data.Audit;
+using Ehr.Domain.Audit;
 using Ehr.Testing;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
@@ -159,6 +161,27 @@ public class BenchmarkTests(WebApps apps) : IClassFixture<WebApps>
         var requests = groups.SelectMany(group => Enumerable.Repeat(group, group.Count)).ToList();
         return new RenderBenchmark.Result(
             name, [.. requests.Select(r => r.Total)], [.. requests.Select(r => r.Audit)], [.. requests.Select(r => r.Commit)]);
+    }
+
+    // UC 2 (Tahseen Arnan): off-site, the page waits for the disk in its audit queue's append, not in the database, so
+    // that counts as the commit, and the gate leaves it out as it does an on-prem page's commit.
+    [Fact]
+    public void Off_site_the_audit_queues_append_counts_as_the_commit()
+    {
+        var times = new RenderBenchmark.DatabaseTimes();
+        var queue = new RenderBenchmark.TimedAuditQueue(new SlowQueue(), times);
+
+        queue.Enqueue([]);
+
+        Assert.True(times.CommitMilliseconds >= SlowQueue.Milliseconds, $"{times.CommitMilliseconds} ms");
+        Assert.Equal(0, times.AuditMilliseconds);
+    }
+
+    sealed class SlowQueue : IAuditQueue
+    {
+        public const int Milliseconds = 30;
+
+        public void Enqueue(IReadOnlyCollection<AuditEvent> auditEvents) => Thread.Sleep(Milliseconds);
     }
 
     [Fact]

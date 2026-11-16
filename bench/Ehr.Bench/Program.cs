@@ -11,9 +11,9 @@ namespace Ehr.Bench;
 //       connection string comes from the environment, so its password stays out of the command line and the repository.
 //
 //   dotnet run -c Release --project bench/Ehr.Bench -- [--patients 50000] [--stack] [--assert]
-//       measures the search and chart pages' server render time (RenderBenchmark), in a PostgreSQL 18 it starts and
-//       seeds itself, or with --stack against a primary already seeded with that many patients. --assert exits with 1
-//       when a p99 excluding the commit is 20 ms or more.
+//       measures the search and chart pages' server render time (RenderBenchmark), on-site and off-site, in a
+//       PostgreSQL 18 it starts and seeds itself, or with --stack, on-site only, against a primary already seeded with
+//       that many patients. --assert exits with 1 when a p99 excluding the commit is 20 ms or more.
 //
 // An explicit Main rather than top-level statements: those would make a Program class here, which would hide the web
 // app's own Program, the one WebApplicationFactory starts.

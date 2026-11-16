@@ -1,12 +1,21 @@
 @page "/quick-texts"
 @model IndexModel
+@inject Ehr.Web.Forwarding.OnPremStatus OnPrem
 @{
     ViewData["Title"] = "Quick text";
 }
 <h1>Quick text</h1>
 <p>Shared phrases, each inserted by typing its shortcut.</p>
 
-<partial name="_AddForm" model="new QuickTextForm()" />
+@if (OnPrem.IsReachable)
+{
+    <partial name="_AddForm" model="new QuickTextForm()" />
+}
+else
+{
+    @* UC 2 (Tahseen Arnan): off-site with the clinic's server unreachable, nothing could be saved. *@
+    <p>Phrases can't be added or changed while the clinic's server can't be reached.</p>
+}
 
 <ul id="quick-texts" class="quick-texts">
     @foreach (var quickText in Model.QuickTexts)

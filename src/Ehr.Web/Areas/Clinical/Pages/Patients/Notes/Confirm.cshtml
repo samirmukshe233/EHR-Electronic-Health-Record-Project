@@ -1,6 +1,7 @@
 @page "/patients/{patientId:guid}/notes/drafts/{draftId:guid}/confirm"
 @using Ehr.Domain.Notes
 @model Ehr.Web.Areas.Clinical.Pages.Patients.Notes.ConfirmModel
+@inject Ehr.Web.Forwarding.OnPremStatus OnPrem
 @{
     ViewData["Title"] = "Confirm signature";
 }
@@ -12,7 +13,12 @@
 <div id="note-errors" class="notice error" role="alert" hidden="@(Model.Errors.Count == 0)">
     @foreach (var error in Model.Errors) { <p>@error</p> }
 </div>
-@if (Model.Errors.Count == 0)
+@if (!OnPrem.IsReachable)
+{
+    @* UC 2 (Tahseen Arnan): off-site with the clinic's server unreachable, signing couldn't be saved. *@
+    <p>This note can't be signed while the clinic's server can't be reached.</p>
+}
+else if (Model.Errors.Count == 0)
 {
     <form method="post" data-note-sign>
         <input type="hidden" asp-for="Version" />
