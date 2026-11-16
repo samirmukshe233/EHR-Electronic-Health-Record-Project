@@ -46,7 +46,7 @@ In `tests/Ehr.Security.Tests`:
 
 The render benchmark measures "Portal results, the patient's own" against NFR-01.
 
-- TC-UC6-14 (NFR-01): pending: added after the UC 1/UC 2 test case PR merges.
+- TC-UC6-14 (NFR-01): `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_14_Nfr01_OnSiteNavigation.cs`. The results page on-site: p99 of the whole request, the commit included, under 15 ms at 50,000 patients with durability on. It runs only against a run of the render benchmark (`tests/Ehr.Web.Tests/TestCases/PerformanceResults.cs` says how) and is skipped in the normal test run.
 - TC-UC6-15 (NFR-11, any modern browser): a manual test case with the browser results from PR #43, `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_15_Nfr11_ModernBrowsers.md`.
 
 ## Human review
