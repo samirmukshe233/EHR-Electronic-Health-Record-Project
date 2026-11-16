@@ -1,0 +1,194 @@
+using System.Security.Claims;
+using System.Text.Json;
+using Ehr.Data;
+using Ehr.Data.Patients;
+using Ehr.Domain.Notes;
+using Ehr.Domain.Phi;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+
+namespace Ehr.Web.Api.Dictation;
+
+public static partial class DictationApi
+{
+    public sealed record NoteDictationRequest(Guid ReviewId, Guid PatientId, Guid? DraftId, long? Version);
+    public sealed record StageReviewRequest(long Version);
+
+    static void MapNoteReview(RouteGroupBuilder sessions)
+    {
+        sessions.MapPost("/for-note", StartForNoteAsync);
+        sessions.MapPost("/review/{reviewId:guid}/stage", StageReviewAsync);
+        sessions.MapPost("/review/{reviewId:guid}/discard", DiscardReviewAsync);
+    }
+
+    static void IdentifyReviewUser(HttpContext context) =>
+        context.RequestServices.GetRequiredService<UserContext>().UserId = Guid.Parse(context.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    static async Task<IResult> StartForNoteAsync(NoteDictationRequest input, HttpContext context, DictationSidecar sidecar,
+        EhrDbContext db, PhiReader phi, NoteReviews reviews)
+    {
+        IdentifyReviewUser(context);
+        context.Response.Headers.CacheControl = "no-store";
+        var cancel = context.RequestAborted;
+        if (input.ReviewId == Guid.Empty || input.PatientId == Guid.Empty || input.DraftId == Guid.Empty)
+            return ReviewAnswer(context, ReviewResult.Invalid("Supply a patient and a review request ID."));
+        await using (var transaction = await db.Database.BeginTransactionAsync(cancel))
+        {
+            if (!await phi.IsAssignedAsync(input.PatientId, cancel)) return ReviewAnswer(context, ReviewResult.Missing);
+            if (await phi.AiReviewAsync(input.ReviewId, cancel) is { } existing)
+            {
+                await transaction.CommitAsync(cancel);
+                await ReportReviewWalAsync(context, db);
+                return existing.PatientId == input.PatientId && (input.DraftId is null || input.DraftId == existing.DraftId)
+                    ? BoundSession(context, existing) : ReviewAnswer(context, ReviewResult.Missing);
+            }
+            if (input.DraftId is { } draftId)
+            {
+                var draft = await phi.ReadDraftAsync(draftId, input.PatientId, cancel, tracking: false);
+                if (draft is null) { await transaction.CommitAsync(cancel); return ReviewAnswer(context, ReviewResult.Missing); }
+                if (await phi.SignedDraftAsync(draftId, input.PatientId, cancel) is not null)
+                { await transaction.CommitAsync(cancel); return ReviewAnswer(context, ReviewResult.Signed); }
+                if (draft.Version != input.Version)
+                { await transaction.CommitAsync(cancel); return ReviewAnswer(context, ReviewResult.Conflict(draft.Version)); }
+            }
+            await transaction.CommitAsync(cancel);
+        }
+
+        // Only a newly created sidecar session may be bound. A posted session ID/result is never accepted.
+        return await CallAsync(context, sidecar, "start-review", HttpMethod.Post, "v1/sessions", null,
+            async (body, token) =>
+            {
+                var session = await body.ReadFromJsonAsync<DictationSession>(ServiceJson, token) ?? throw new JsonException();
+                if (!SessionId().IsMatch(session.SessionId)) return BadAnswer();
+                return await ReviewWriteAsync(async () =>
+                {
+                    await using var transaction = await db.Database.BeginTransactionAsync(token);
+                    var result = await reviews.BeginAsync(input.ReviewId, input.PatientId, input.DraftId, input.Version,
+                        session.SessionId, session.MaxSeconds, Math.Min(session.MaxChunkBytes, MaxChunkBytes), token);
+                    await transaction.CommitAsync(CancellationToken.None);
+                    await ReportReviewWalAsync(context, db);
+                    return result.Review is { } review ? BoundSession(context, review) : ReviewAnswer(context, result);
+                });
+            });
+    }
+
+    static async Task<IResult> StageReviewAsync(Guid reviewId, StageReviewRequest input, HttpContext context,
+        DictationSidecar sidecar, EhrDbContext db, PhiReader phi, NoteReviews reviews)
+    {
+        IdentifyReviewUser(context);
+        context.Response.Headers.CacheControl = "no-store";
+        AiNoteReview? binding;
+        await using (var transaction = await db.Database.BeginTransactionAsync(context.RequestAborted))
+        {
+            binding = await phi.AiReviewAsync(reviewId, context.RequestAborted);
+            await transaction.CommitAsync(context.RequestAborted);
+        }
+        if (binding is null) return ReviewAnswer(context, ReviewResult.Missing);
+        if (binding.State is AiReviewStates.Pending or AiReviewStates.Completed)
+        {
+            await ReportReviewWalAsync(context, db);
+            return ReviewAnswer(context, new(200, [], binding));
+        }
+        if (binding.State != AiReviewStates.Recording) return ReviewAnswer(context, ReviewResult.Invalid("This dictation was discarded."));
+
+        // The session is read from the persisted binding, and the owner header from the current account.
+        return await CallAsync(context, sidecar, "stage-review", HttpMethod.Post,
+            $"v1/sessions/{binding.SessionId}/result?wait={ResultWaitSeconds}", null, async (body, token) =>
+            {
+                var result = await body.ReadFromJsonAsync<DictationResult>(ServiceJson, token) ?? throw new JsonException();
+                if (result.Sorting == Sorting.Pending)
+                    return Refuse(409, "not_ready", "The dictation result is still being prepared. Try again shortly.");
+                var trusted = TrustedResult(result);
+                if (trusted is null) return Refuse(502, "invalid_result", "This result could not be staged safely. Keep the transcript and continue manually, or retry dictation.");
+                return await ReviewWriteAsync(async () =>
+                {
+                    await using var transaction = await db.Database.BeginTransactionAsync(token);
+                    var staged = await reviews.StageAsync(reviewId, input.Version, trusted, token);
+                    await transaction.CommitAsync(CancellationToken.None);
+                    await ReportReviewWalAsync(context, db);
+                    return ReviewAnswer(context, staged);
+                });
+            });
+    }
+
+    static async Task<IResult> DiscardReviewAsync(Guid reviewId, HttpContext context, EhrDbContext db, NoteReviews reviews)
+    {
+        IdentifyReviewUser(context);
+        context.Response.Headers.CacheControl = "no-store";
+        return await ReviewWriteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(context.RequestAborted);
+            var result = await reviews.DiscardAsync(reviewId, context.RequestAborted);
+            await transaction.CommitAsync(CancellationToken.None);
+            await ReportReviewWalAsync(context, db);
+            return ReviewAnswer(context, result);
+        });
+    }
+
+    static async Task ReportReviewWalAsync(HttpContext context, EhrDbContext db) =>
+        context.Response.Headers[DatabaseTransactionFilter.WalPositionHeader] =
+            await WalPosition.OfPrimaryAsync(db, CancellationToken.None);
+
+    static IResult BoundSession(HttpContext context, AiNoteReview review) => Results.Json(new
+    {
+        review.SessionId,
+        review.MaxSeconds,
+        review.MaxChunkBytes,
+        ReviewId = review.Id,
+        review.DraftId,
+        Version = review.StartedVersion,
+        review.State,
+        url = ReviewUrl(review),
+        editorUrl = EditorUrl(review),
+    }, statusCode: 201);
+
+    static IResult ReviewAnswer(HttpContext context, ReviewResult result) => Results.Json(new
+    {
+        result.Errors,
+        result.Version,
+        url = result.Review is { } review ? ReviewUrl(review) : null,
+        editorUrl = result.Review is { } saved ? EditorUrl(saved) : null,
+    }, statusCode: result.Status);
+
+    static string ReviewUrl(AiNoteReview review) => $"/patients/{review.PatientId}/notes/drafts/{review.DraftId}/review/{review.Id}";
+    static string EditorUrl(AiNoteReview review) => $"/patients/{review.PatientId}/notes/drafts/{review.DraftId}";
+
+    static async Task<IResult> ReviewWriteAsync(Func<Task<IResult>> operation)
+    {
+        try { return await operation(); }
+        catch (DbUpdateConcurrencyException) { return Refuse(409, "review_conflict", "This draft or review changed. Reopen the saved review and compare before retrying."); }
+        catch (DbUpdateException error) when (error.InnerException is PostgresException
+        { SqlState: PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.CheckViolation })
+        {
+            return Refuse(409, "review_conflict", "This draft or review changed or was signed. Your displayed work is still here; compare the saved draft before retrying.");
+        }
+    }
+
+    // Keep exactly UC 9/10's sanitized contract and half-open UTF-16 ranges. Grounding/clinical checks remain in
+    // the trusted sidecar pipeline; malformed spans/results are never promoted into reviewable records here.
+    internal static TrustedReviewResult? TrustedResult(DictationResult result)
+    {
+        var text = result.Transcript.Text;
+        if (text.Length > 100_000 || text.Contains('\0') || result.Sorting == Sorting.Done
+            && (!result.Transcript.Final || result.Fields is null || result.Transcript.Segments.Any(s => !s.Final))) return null;
+        bool Range(int start, int end) => start >= 0 && end > start && end <= text.Length
+            && !(start > 0 && char.IsLowSurrogate(text[start]) && char.IsHighSurrogate(text[start - 1]))
+            && !(end < text.Length && char.IsLowSurrogate(text[end]) && char.IsHighSurrogate(text[end - 1]));
+        if (result.Transcript.Segments.Any(s => !Range(s.Start, s.End))
+            || result.NotCarriedOver.Any(s => !Range(s.Start, s.End))) return null;
+        var suggestions = new Dictionary<string, string>();
+        if (result.Fields is { } fields)
+        {
+            foreach (var (name, field) in new[] { ("history", fields.History), ("assessment", fields.Assessment), ("plan", fields.Plan) })
+            {
+                if (field is not PendingField pending) continue;
+                if (result.Sorting != Sorting.Done || string.IsNullOrWhiteSpace(pending.Value) || pending.Value.Contains('\0')
+                    || pending.Value.Length > NoteContent.MaximumFieldLength || pending.Sources.Count == 0
+                    || pending.Sources.Any(s => !Range(s.Start, s.End)) || pending.Warnings.Any(w => !Range(w.Start, w.End))) return null;
+                suggestions.Add(name, pending.Value);
+            }
+        }
+        var json = JsonSerializer.Serialize(result, ServiceJson);
+        return System.Text.Encoding.UTF8.GetByteCount(json) > 1_048_576 ? null : new(json, suggestions);
+    }
+}

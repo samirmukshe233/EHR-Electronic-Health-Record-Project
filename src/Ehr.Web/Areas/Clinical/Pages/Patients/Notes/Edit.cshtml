@@ -16,6 +16,15 @@
 }
 else
 {
+    @* UC 13: dictate into this draft, or go back to a review that was saved. Only while the draft can be changed. *@
+    @if (Model.ActiveReviewId is { } reviewId)
+    {
+        <p class="notice"><a asp-page="Review" asp-route-patientId="@Model.Patient.Id" asp-route-draftId="@(RouteData.Values["draftId"])" asp-route-reviewId="@reviewId">Resume saved AI review</a>. Pending proposals cannot be signed.</p>
+    }
+    else
+    {
+        <p><a asp-page="/Patients/Dictate" asp-route-id="@Model.Patient.Id" asp-route-draftId="@(RouteData.Values["draftId"])">Dictate into this draft</a></p>
+    }
     <p id="note-save-status" role="status" aria-live="polite">@Model.SaveStatus</p>
     <div id="note-errors" class="notice error" role="alert" hidden="@(Model.Errors.Count == 0)">
         @foreach (var error in Model.Errors) { <p>@error</p> }
@@ -36,3 +45,5 @@ else
     </form>
     <script src="~/_content/Ehr.Design/js/note-editor.js" defer></script>
 }
+
+<partial name="_ReviewHistory" model="Model.CompletedReviews" />

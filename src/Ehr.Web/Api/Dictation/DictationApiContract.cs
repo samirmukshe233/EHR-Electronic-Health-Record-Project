@@ -104,7 +104,7 @@ public enum Instruction
 
 public sealed record NoteFields(NoteField History, NoteField Assessment, NoteField Plan);
 
-// Each field is a proposal for the clinician to approve, or empty. Nothing is saved either way (FR-13).
+// Each field is pending clinician approval, or empty. This result alone never approves clinical content (FR-13).
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "status")]
 [JsonDerivedType(typeof(PendingField), "pending")]
 [JsonDerivedType(typeof(EmptyField), "empty")]

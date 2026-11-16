@@ -20,6 +20,7 @@ public class PolicyPlanTests(MigratedDatabase database) : IClassFixture<Migrated
     [InlineData("medication_statements")]
     [InlineData("conditions")]
     [InlineData("encounters")]
+    [InlineData("observations")]
     [InlineData("audit_events")]
     [InlineData("clinical_drafts")]
     [InlineData("clinical_notes")]

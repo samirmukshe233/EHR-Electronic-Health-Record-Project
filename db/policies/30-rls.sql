@@ -142,6 +142,21 @@ DROP POLICY IF EXISTS encounters_own_select ON ehr.encounters;
 CREATE POLICY encounters_own_select ON ehr.encounters FOR SELECT
     USING (patient_id = (SELECT ehr.current_patient_id()));
 
+-- Test results (PHI). Clinicians read every patient's. A patient reads only their own, and only once the result is
+-- released and finished (Observation.IssuedAt, ObservationStatus.Released): a result still being worked on, cancelled
+-- or entered in error never reaches the portal, even through a bug in the app. No write policies, as for the chart.
+ALTER TABLE ehr.observations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.observations FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS observations_clinician_select ON ehr.observations;
+CREATE POLICY observations_clinician_select ON ehr.observations FOR SELECT USING ((SELECT ehr.is_clinician()));
+
+DROP POLICY IF EXISTS observations_own_released_select ON ehr.observations;
+CREATE POLICY observations_own_released_select ON ehr.observations FOR SELECT
+    USING (patient_id = (SELECT ehr.current_patient_id())
+        AND issued_at IS NOT NULL
+        AND status IN ('final', 'amended', 'corrected'));
+
 -- Audit events (restricted). Admins read. Anyone the grants let insert may insert: the app role for read and
 -- sign-in events, and the write-audit trigger (40-audit.sql), which runs as the table's owner and is bound by this
 -- policy too because RLS is forced. Nothing updates or deletes (10-grants.sql).
@@ -199,3 +214,20 @@ CREATE POLICY orders_own_insert ON ehr.orders FOR INSERT
               AND a.patient_id = orders.patient_id AND a.ended_at IS NULL
         )
     );
+
+-- UC 13 review results are private to the clinician and the same active-panel draft as UC 14.
+ALTER TABLE ehr.ai_note_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.ai_note_reviews FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ai_note_reviews_own ON ehr.ai_note_reviews;
+CREATE POLICY ai_note_reviews_own ON ehr.ai_note_reviews FOR ALL
+    USING ((SELECT ehr.is_clinician()) AND clinician_id = (SELECT ehr.current_user_id())
+        AND EXISTS (SELECT 1 FROM ehr.clinical_drafts d
+            WHERE d.id = ai_note_reviews.draft_id AND d.patient_id = ai_note_reviews.patient_id
+              AND d.clinician_id = (SELECT ehr.current_user_id())));
+
+ALTER TABLE ehr.ai_field_proposals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.ai_field_proposals FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ai_field_proposals_own ON ehr.ai_field_proposals;
+CREATE POLICY ai_field_proposals_own ON ehr.ai_field_proposals FOR ALL
+    USING ((SELECT ehr.is_clinician()) AND EXISTS (SELECT 1 FROM ehr.ai_note_reviews r
+        WHERE r.id = ai_field_proposals.review_id AND r.patient_id = ai_field_proposals.patient_id));

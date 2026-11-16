@@ -13,6 +13,10 @@ public static class AuditActions
 
     public const string Delete = "delete";
 
+    public const string AiReviewStaged = "ai_review_staged";
+    public const string AiFieldReviewed = "ai_field_reviewed";
+    public const string AiReviewCompleted = "ai_review_completed";
+
     public const string SignNote = "sign_note";
 
     public const string SignIn = "sign_in";
@@ -67,7 +71,7 @@ public static class AuditActions
     // Every action, for the audit page's filter.
     public static readonly string[] All =
     [
-        Read, Insert, Update, Delete, SignNote, SignIn, SignInFailed, SignOut, BreakGlass, BootstrapAdmin, PasswordChanged,
+        Read, Insert, Update, Delete, SignNote, AiReviewStaged, AiFieldReviewed, AiReviewCompleted, SignIn, SignInFailed, SignOut, BreakGlass, BootstrapAdmin, PasswordChanged,
         PasswordResetRequested, PasswordReset, AuthenticatorReset, AccountDisabled, AccountEnabled, MfaEnrolled,
         RecoveryCodeUsed, StaffInvited, EnrollmentIssued, PatientRegistered, EmailConfirmed, ConfirmationResent,
         RegistrationReplaced,

@@ -608,3 +608,95 @@ VALUES ('20261116033502_Orders', '10.0.13');
 
 COMMIT;
 
+START TRANSACTION;
+ALTER TABLE ehr.orders ADD CONSTRAINT ak_orders_id_patient_id UNIQUE (id, patient_id);
+
+CREATE TABLE ehr.observations (
+    id uuid NOT NULL,
+    patient_id uuid NOT NULL,
+    order_id uuid,
+    code character varying(20),
+    display character varying(200) NOT NULL,
+    status character varying(20) NOT NULL,
+    value numeric(12,4),
+    unit character varying(20),
+    reference_low numeric(12,4),
+    reference_high numeric(12,4),
+    effective_at timestamp with time zone NOT NULL,
+    issued_at timestamp with time zone,
+    note character varying(500),
+    CONSTRAINT pk_observations PRIMARY KEY (id),
+    CONSTRAINT ck_observations_reference_range CHECK (reference_low <= reference_high),
+    CONSTRAINT ck_observations_status CHECK (status IN ('registered', 'preliminary', 'final', 'amended', 'corrected', 'cancelled', 'entered-in-error')),
+    CONSTRAINT fk_observations_orders_order_id_patient_id FOREIGN KEY (order_id, patient_id) REFERENCES ehr.orders (id, patient_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_observations_patients_patient_id FOREIGN KEY (patient_id) REFERENCES ehr.patients (id) ON DELETE RESTRICT
+);
+
+CREATE INDEX ix_observations_order_id_patient_id ON ehr.observations (order_id, patient_id);
+
+CREATE INDEX ix_observations_patient_id_effective_at ON ehr.observations (patient_id, effective_at);
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261116040750_Observations', '10.0.13');
+
+COMMIT;
+
+START TRANSACTION;
+CREATE TABLE ehr.ai_note_reviews (
+    id uuid NOT NULL,
+    patient_id uuid NOT NULL,
+    draft_id uuid NOT NULL,
+    clinician_id uuid NOT NULL,
+    session_id character varying(64) NOT NULL,
+    max_seconds integer NOT NULL,
+    max_chunk_bytes integer NOT NULL,
+    state character varying(16) NOT NULL,
+    started_version bigint NOT NULL,
+    imported_version bigint,
+    result_json jsonb,
+    created_at timestamp with time zone NOT NULL DEFAULT (now()),
+    completed_at timestamp with time zone,
+    CONSTRAINT pk_ai_note_reviews PRIMARY KEY (id),
+    CONSTRAINT ak_ai_note_reviews_id_patient_id UNIQUE (id, patient_id),
+    CONSTRAINT fk_ai_note_reviews_clinical_drafts_draft_id FOREIGN KEY (draft_id) REFERENCES ehr.clinical_drafts (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_ai_note_reviews_patients_patient_id FOREIGN KEY (patient_id) REFERENCES ehr.patients (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_ai_note_reviews_staff_users_clinician_id FOREIGN KEY (clinician_id) REFERENCES ehr.staff_users (id) ON DELETE RESTRICT
+);
+
+CREATE TABLE ehr.ai_field_proposals (
+    id uuid NOT NULL,
+    review_id uuid NOT NULL,
+    patient_id uuid NOT NULL,
+    field character varying(16) NOT NULL,
+    original_value text NOT NULL,
+    state character varying(16) NOT NULL,
+    approved_value text,
+    decision_key uuid,
+    reviewer_id uuid,
+    reviewed_at timestamp with time zone,
+    CONSTRAINT pk_ai_field_proposals PRIMARY KEY (id),
+    CONSTRAINT fk_ai_field_proposals_ai_note_reviews_review_id_patient_id FOREIGN KEY (review_id, patient_id) REFERENCES ehr.ai_note_reviews (id, patient_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_ai_field_proposals_staff_users_reviewer_id FOREIGN KEY (reviewer_id) REFERENCES ehr.staff_users (id) ON DELETE RESTRICT
+);
+
+CREATE UNIQUE INDEX ix_ai_field_proposals_decision_key ON ehr.ai_field_proposals (decision_key);
+
+CREATE UNIQUE INDEX ix_ai_field_proposals_review_id_field ON ehr.ai_field_proposals (review_id, field);
+
+CREATE INDEX ix_ai_field_proposals_review_id_patient_id ON ehr.ai_field_proposals (review_id, patient_id);
+
+CREATE INDEX ix_ai_field_proposals_reviewer_id ON ehr.ai_field_proposals (reviewer_id);
+
+CREATE INDEX ix_ai_note_reviews_clinician_id ON ehr.ai_note_reviews (clinician_id);
+
+CREATE INDEX ix_ai_note_reviews_draft_id_state ON ehr.ai_note_reviews (draft_id, state);
+
+CREATE INDEX ix_ai_note_reviews_patient_id ON ehr.ai_note_reviews (patient_id);
+
+CREATE UNIQUE INDEX ix_ai_note_reviews_session_id ON ehr.ai_note_reviews (session_id);
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261116052725_AiFieldReviews', '10.0.13');
+
+COMMIT;
+

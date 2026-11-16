@@ -138,7 +138,37 @@ public sealed class SyntheticClinic
             })
             .ToList();
 
-        return new SyntheticChart(patient, allergies, medications, conditions, visits);
+        // Test results (UC6), drawn after everything above so every patient's earlier rows stay as they were. Most are
+        // final and released; about one in ten is still preliminary and not released, which the portal must not show.
+        var results = Distinct(LabTests, random.Next(0, 7), random)
+            .Select(test =>
+            {
+                var taken = Today.AddMinutes(-random.Next(60, 2 * 365 * 24 * 60));
+                var released = random.NextDouble() < 0.9;
+                // Mostly inside the normal range, sometimes out of it on either side. A range with no lower limit,
+                // such as LDL's "below 100", draws from zero.
+                var low = test.Low ?? 0m;
+                var value = Math.Max(0m, low + ((test.High - low) * (decimal)((random.NextDouble() * 1.4) - 0.2)));
+                var outOfRange = value < low || value > test.High;
+                return new Observation
+                {
+                    Id = Uuid7(made, random),
+                    PatientId = patientId,
+                    Code = test.Code,
+                    Display = test.Display,
+                    Status = released ? ObservationStatus.Final : ObservationStatus.Preliminary,
+                    Value = Math.Round(value, test.Decimals),
+                    Unit = test.Unit,
+                    ReferenceLow = test.Low,
+                    ReferenceHigh = test.High,
+                    EffectiveAt = taken,
+                    IssuedAt = released ? taken.AddHours(random.Next(4, 72)) : null,
+                    Note = released && outOfRange && random.NextDouble() < 0.5 ? Pick(ResultNotes, random) : null,
+                };
+            })
+            .ToList();
+
+        return new SyntheticChart(patient, allergies, medications, conditions, visits, results);
     }
 
     public static string Mrn(int index) => $"SYN{index + 1:D7}";
@@ -272,6 +302,33 @@ public sealed class SyntheticClinic
         ("J06.9", "Acute upper respiratory infection, unspecified"),
     ];
 
+    // Common primary-care lab tests: LOINC code, name, unit, the normal range and how many decimals results have.
+    static readonly (string Code, string Display, string Unit, decimal? Low, decimal High, int Decimals)[] LabTests =
+    [
+        ("4548-4", "Hemoglobin A1c", "%", 4.0m, 5.6m, 1),
+        ("2345-7", "Glucose", "mg/dL", 70m, 99m, 0),
+        ("2093-3", "Cholesterol, total", "mg/dL", 125m, 199m, 0),
+        ("13457-7", "LDL cholesterol", "mg/dL", null, 99m, 0),
+        ("2085-9", "HDL cholesterol", "mg/dL", 40m, 90m, 0),
+        ("2571-8", "Triglycerides", "mg/dL", null, 149m, 0),
+        ("718-7", "Hemoglobin", "g/dL", 12.0m, 17.5m, 1),
+        ("6690-2", "White blood cell count", "10*3/uL", 4.5m, 11.0m, 1),
+        ("2160-0", "Creatinine", "mg/dL", 0.6m, 1.3m, 2),
+        ("2823-3", "Potassium", "mmol/L", 3.5m, 5.1m, 1),
+        ("2951-2", "Sodium", "mmol/L", 135m, 145m, 0),
+        ("3016-3", "Thyroid stimulating hormone", "mIU/L", 0.4m, 4.0m, 2),
+        ("1989-3", "Vitamin D, 25-hydroxy", "ng/mL", 30m, 100m, 0),
+    ];
+
+    // What a clinician writes to the patient on a result out of its range.
+    static readonly string[] ResultNotes =
+    [
+        "We'll talk about this at your next visit.",
+        "Please book a follow-up appointment in the next month.",
+        "This is a little outside the range and not a concern. No action needed.",
+        "Let's repeat this test in 3 months.",
+    ];
+
     static readonly string[] VisitReasons =
     [
         "Annual physical", "Follow-up", "Blood pressure check", "Medication review", "Cough", "Back pain", "Headache",
@@ -285,4 +342,5 @@ public sealed record SyntheticChart(
     IReadOnlyList<AllergyIntolerance> Allergies,
     IReadOnlyList<MedicationStatement> Medications,
     IReadOnlyList<Condition> Conditions,
-    IReadOnlyList<Encounter> Visits);
+    IReadOnlyList<Encounter> Visits,
+    IReadOnlyList<Observation> Results);

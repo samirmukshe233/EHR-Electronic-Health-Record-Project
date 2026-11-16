@@ -21,6 +21,9 @@ public class DictateModel(PhiReader phi, PatientAssignments assignments) : PageM
     [BindProperty(SupportsGet = true)]
     public SearchQuery Search { get; set; } = SearchQuery.None;
 
+    [BindProperty(SupportsGet = true)] public Guid? DraftId { get; set; }
+    public long? DraftVersion { get; private set; }
+
     public Patient Patient { get; private set; } = null!;
 
     public async Task<IActionResult> OnGetAsync(Guid id)
@@ -36,6 +39,18 @@ public class DictateModel(PhiReader phi, PatientAssignments assignments) : PageM
             return NotFound();
         }
 
+        if (DraftId is { } idOfDraft)
+        {
+            var draft = await phi.ReadDraftAsync(idOfDraft, id, HttpContext.RequestAborted, tracking: false);
+            if (draft is null) return NotFound();
+            if (await phi.SignedDraftAsync(idOfDraft, id, HttpContext.RequestAborted) is { } signed)
+                return RedirectToPage("Notes/View", new { patientId = id, noteId = signed.Id });
+            var review = (await phi.AiReviewsAsync(idOfDraft, HttpContext.RequestAborted))
+                .FirstOrDefault(r => r.State is AiReviewStates.Pending or AiReviewStates.Recording);
+            if (review is not null)
+                return RedirectToPage("Notes/Review", new { patientId = id, draftId = idOfDraft, reviewId = review.Id });
+            DraftVersion = draft.Version;
+        }
         Patient = patient;
         return Page();
     }

@@ -575,6 +575,9 @@ namespace Ehr.Migrations
                     b.HasKey("Id")
                         .HasName("pk_orders");
 
+                    b.HasAlternateKey("Id", "PatientId")
+                        .HasName("ak_orders_id_patient_id");
+
                     b.HasIndex("SignerId")
                         .HasDatabaseName("ix_orders_signer_id");
 
@@ -803,6 +806,162 @@ namespace Ehr.Migrations
                             Display = "Psychiatry referral",
                             Type = "referral"
                         });
+                });
+
+            modelBuilder.Entity("Ehr.Data.Patients.AiFieldProposal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApprovedValue")
+                        .HasColumnType("text")
+                        .HasColumnName("approved_value");
+
+                    b.Property<Guid?>("DecisionKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decision_key");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("field");
+
+                    b.Property<string>("OriginalValue")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("original_value");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("patient_id");
+
+                    b.Property<Guid>("ReviewId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("review_id");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewerId")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewer_id");
+
+                    b.Property<string>("State")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("state");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ai_field_proposals");
+
+                    b.HasIndex("DecisionKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_ai_field_proposals_decision_key");
+
+                    b.HasIndex("ReviewerId")
+                        .HasDatabaseName("ix_ai_field_proposals_reviewer_id");
+
+                    b.HasIndex("ReviewId", "Field")
+                        .IsUnique()
+                        .HasDatabaseName("ix_ai_field_proposals_review_id_field");
+
+                    b.HasIndex("ReviewId", "PatientId")
+                        .HasDatabaseName("ix_ai_field_proposals_review_id_patient_id");
+
+                    b.ToTable("ai_field_proposals", "ehr");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Patients.AiNoteReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClinicianId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("clinician_id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("DraftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("draft_id");
+
+                    b.Property<long?>("ImportedVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("imported_version");
+
+                    b.Property<int>("MaxChunkBytes")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_chunk_bytes");
+
+                    b.Property<int>("MaxSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_seconds");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("patient_id");
+
+                    b.Property<string>("ResultJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("result_json");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("session_id");
+
+                    b.Property<long>("StartedVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("started_version");
+
+                    b.Property<string>("State")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("state");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ai_note_reviews");
+
+                    b.HasAlternateKey("Id", "PatientId")
+                        .HasName("ak_ai_note_reviews_id_patient_id");
+
+                    b.HasIndex("ClinicianId")
+                        .HasDatabaseName("ix_ai_note_reviews_clinician_id");
+
+                    b.HasIndex("PatientId")
+                        .HasDatabaseName("ix_ai_note_reviews_patient_id");
+
+                    b.HasIndex("SessionId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_ai_note_reviews_session_id");
+
+                    b.HasIndex("DraftId", "State")
+                        .HasDatabaseName("ix_ai_note_reviews_draft_id_state");
+
+                    b.ToTable("ai_note_reviews", "ehr");
                 });
 
             modelBuilder.Entity("Ehr.Data.Patients.AllergyIntolerance", b =>
@@ -1187,6 +1346,88 @@ namespace Ehr.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Ehr.Data.Patients.Observation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Display")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("display");
+
+                    b.Property<DateTimeOffset>("EffectiveAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_at");
+
+                    b.Property<DateTimeOffset?>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("patient_id");
+
+                    b.Property<decimal?>("ReferenceHigh")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("reference_high");
+
+                    b.Property<decimal?>("ReferenceLow")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("reference_low");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("unit");
+
+                    b.Property<decimal?>("Value")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id")
+                        .HasName("pk_observations");
+
+                    b.HasIndex("OrderId", "PatientId")
+                        .HasDatabaseName("ix_observations_order_id_patient_id");
+
+                    b.HasIndex("PatientId", "EffectiveAt")
+                        .HasDatabaseName("ix_observations_patient_id_effective_at");
+
+                    b.ToTable("observations", "ehr", t =>
+                        {
+                            t.HasCheckConstraint("ck_observations_reference_range", "reference_low <= reference_high");
+
+                            t.HasCheckConstraint("ck_observations_status", "status IN ('registered', 'preliminary', 'final', 'amended', 'corrected', 'cancelled', 'entered-in-error')");
+                        });
+                });
+
             modelBuilder.Entity("Ehr.Data.Patients.Patient", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1539,6 +1780,47 @@ namespace Ehr.Migrations
                         .HasConstraintName("fk_orders_order_catalog_items_type_catalog_code");
                 });
 
+            modelBuilder.Entity("Ehr.Data.Patients.AiFieldProposal", b =>
+                {
+                    b.HasOne("Ehr.Data.Accounts.StaffUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_ai_field_proposals_staff_users_reviewer_id");
+
+                    b.HasOne("Ehr.Data.Patients.AiNoteReview", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewId", "PatientId")
+                        .HasPrincipalKey("Id", "PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ai_field_proposals_ai_note_reviews_review_id_patient_id");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Patients.AiNoteReview", b =>
+                {
+                    b.HasOne("Ehr.Data.Accounts.StaffUser", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ai_note_reviews_staff_users_clinician_id");
+
+                    b.HasOne("Ehr.Data.Patients.ClinicalDraft", null)
+                        .WithMany()
+                        .HasForeignKey("DraftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ai_note_reviews_clinical_drafts_draft_id");
+
+                    b.HasOne("Ehr.Data.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ai_note_reviews_patients_patient_id");
+                });
+
             modelBuilder.Entity("Ehr.Data.Patients.AllergyIntolerance", b =>
                 {
                     b.HasOne("Ehr.Data.Patients.Patient", null)
@@ -1635,6 +1917,23 @@ namespace Ehr.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_medication_statements_patients_patient_id");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Patients.Observation", b =>
+                {
+                    b.HasOne("Ehr.Data.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_observations_patients_patient_id");
+
+                    b.HasOne("Ehr.Data.Orders.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId", "PatientId")
+                        .HasPrincipalKey("Id", "PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_observations_orders_order_id_patient_id");
                 });
 
             modelBuilder.Entity("Ehr.Data.Patients.PatientAssignment", b =>

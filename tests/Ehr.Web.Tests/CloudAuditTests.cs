@@ -121,32 +121,7 @@ public class CloudAuditTests(WebApps apps) : IClassFixture<WebApps>
         }
     }
 
-    [Fact]
-    public async Task During_an_outage_an_answer_the_on_prem_app_still_gives_leaves_the_site_read_only()
-    {
-        var signedIn = await CookieHeaderAsync(apps.Cloud, await apps.ClinicianAsync());
-        apps.PrimaryDown = true;
-        try
-        {
-            Assert.False(await ShipperOf(apps.CloudPrimaryDrill).ShipAsync(Cancel));
-
-            // Anyone on the internet: a POST without the key, which the cloud app forwards and the on-prem app refuses
-            // without its database.
-            using (var client = CreateClient(apps.CloudPrimaryDrill, handleCookies: false))
-            using (var refused = await client.PostAsync(CloudAuditApi.Path, new StringContent("[]", Encoding.UTF8, "application/json"), Cancel))
-            {
-                Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
-            }
-
-            Assert.False(apps.CloudPrimaryDrill.Services.GetRequiredService<OnPremStatus>().IsReachable);
-            using var page = await SendAsync(apps.CloudPrimaryDrill, HttpMethod.Get, QuickTexts, signedIn);
-            Assert.Contains("Read-only: the clinic's server can't be reached", await ReadAsync(page));
-        }
-        finally
-        {
-            apps.PrimaryDown = false;
-        }
-    }
+    // The on-prem app answering while its database is down: TestCases/UC2/TC_UC2_04_ExceptionalCondition.cs.
 
     [Fact]
     public async Task An_off_site_search_queues_one_read_per_patient_listed_and_ships_them_from_the_cloud()

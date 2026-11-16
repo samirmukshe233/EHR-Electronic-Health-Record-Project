@@ -64,6 +64,10 @@ GRANT SELECT ON ehr.break_glass_accesses TO ehr_read;
 -- them yet, so neither role may write them. The on-prem app reads them as ehr_app, the cloud app as ehr_read.
 GRANT SELECT ON ehr.allergy_intolerances, ehr.medication_statements, ehr.conditions, ehr.encounters TO ehr_app, ehr_read;
 
+-- Test results (observations). PHI, like the chart: row-level security and the write-audit trigger follow. Read only:
+-- results will come from the lab interface, and no page changes them. The portal reads them on either server.
+GRANT SELECT ON ehr.observations TO ehr_app, ehr_read;
+
 -- Portal enrollment codes, as hashes. Internal: grants only, no row-level security, because registration looks a
 -- code up before anyone is signed in; the hash is useless without the code, which is never stored. The app marks a
 -- code redeemed (UPDATE). No DELETE.
@@ -92,5 +96,9 @@ GRANT SELECT ON ehr.order_catalog_items TO ehr_app, ehr_read;
 -- trigger locks the patient's row (60-orders.sql), which takes the UPDATE ehr_app has on patients.
 GRANT SELECT, INSERT ON ehr.orders TO ehr_app;
 GRANT SELECT ON ehr.orders TO ehr_read;
+
+-- UC 13: private, auditable proposals and decisions; replica reads use identical forced ownership RLS.
+GRANT SELECT, INSERT, UPDATE ON ehr.ai_note_reviews, ehr.ai_field_proposals TO ehr_app;
+GRANT SELECT ON ehr.ai_note_reviews, ehr.ai_field_proposals TO ehr_read;
 
 COMMIT;

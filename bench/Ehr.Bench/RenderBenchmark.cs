@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ehr.Data;
 using Ehr.Data.Accounts;
@@ -32,10 +33,10 @@ using Npgsql;
 
 namespace Ehr.Bench;
 
-// Server render time for the patient search, the panel and the chart in a clinic of 50,000 synthetic patients (NFR-01,
-// NFR-04; AGENTS.md's gate, which --assert checks, is in Gate), on-site and off-site (NFR-03). The apps run in memory,
-// so a request's time is the server's own: authentication, the page's queries and the reads it records, and rendering,
-// with no network in it.
+// Server render time for the patient search, the panel, the chart and the portal's results page in a clinic of 50,000
+// synthetic patients (NFR-01, NFR-04; AGENTS.md's gate, which --assert checks, is in Gate), on-site and off-site
+// (NFR-03). The apps run in memory, so a request's time is the server's own: authentication, the page's queries and
+// the reads it records, and rendering, with no network in it.
 // Each kind of request is made 100 times to warm up, then 1,000 times one after another, and the times are reported as
 // percentiles, with two parts of each apart from the rest: inserting the audit events of the page's reads, and
 // committing its transaction, which waits for them to reach the disk. That wait is only there when the database's
@@ -72,7 +73,7 @@ internal static partial class RenderBenchmark
     static readonly Uri Base = new("https://localhost");
 
     // The exit code: Finish's.
-    public static async Task<int> RunAsync(int patients, bool stack, bool assert)
+    public static async Task<int> RunAsync(int patients, bool stack, bool assert, string? resultsPath = null)
     {
         MigratedDatabase? database = null;
         try
@@ -118,6 +119,20 @@ internal static partial class RenderBenchmark
                 using var client = await SignInAsync(app, session, email, password, key);
                 await SettleAsync(database);
                 var results = await MeasureEachAsync(client, times, "", panel, patients);
+                // The patient portal's results page (UC6, FR-16; Simar Rekhi), as a patient with released results, the
+                // last patient in the clinic who has some: the local stack's example account uses the first. On-site, so before the
+                // off-site rows.
+                var (patientUserId, patientEmail, patientPassword) = await CreatePatientAccountAsync(app, patients);
+                try
+                {
+                    using var portal = await PortalSignInAsync(app, patientEmail, patientPassword);
+                    results.Add(await MeasureAsync(portal, times, "Portal results, the patient's own", typing: false, () => "/portal/results"));
+                }
+                finally
+                {
+                    await LockOutPatientAsync(app, patientUserId);
+                }
+
                 if (database is null)
                 {
                     Console.WriteLine("Off-site: not measured with --stack, which has no ehr_read login for the replica.");
@@ -129,6 +144,11 @@ internal static partial class RenderBenchmark
                 }
 
                 await PrintAsync(app, patients, durability, results);
+                if (resultsPath is not null)
+                {
+                    await File.WriteAllTextAsync(resultsPath, ResultsJson(patients, durability, results));
+                }
+
                 return Finish(results, assert, Console.Out);
             }
             finally
@@ -195,6 +215,9 @@ internal static partial class RenderBenchmark
                 return $"/patients?name={chart.Patient.FamilyName[..4]}&birthdate={Date(chart)}";
             }),
             await MeasureAsync(client, times, prefix + "As you type, first 3 letters", typing: true, () => $"/patients?handler=Results&name={Anyone().Patient.FamilyName[..3]}"),
+            // UC 1's order form (Tahseen Arnan), last so the rows before it make the requests they always did: the patient's
+            // banner and allergies, one recorded read, and the lab catalog.
+            await MeasureAsync(client, times, prefix + "Order form, a patient on the panel", typing: false, () => $"/patients/{panel[random.Next(panel.Count)]}/orders/new?type=lab"),
         ];
     }
 
@@ -286,6 +309,29 @@ internal static partial class RenderBenchmark
 
     // After the table: the warnings, then, with --assert, the gate. Returns the exit code, Gate's with --assert and 0
     // without; the warnings never change it.
+    // The run as --results writes it, for the performance test cases (tests/Ehr.Web.Tests/TestCases), which check each
+    // path's p99 against its own requirement's limit: how many patients, whether commits waited for the disk, and each
+    // row's percentiles in milliseconds, for the whole request and excluding the commit.
+    internal static string ResultsJson(int patients, Durability durability, IEnumerable<Result> results) =>
+        JsonSerializer.Serialize(
+            new
+            {
+                patients,
+                durabilityOn = durability.IsOn,
+                durability = durability.ToString(),
+                warmUp = WarmUp,
+                measured = Measured,
+                rows = results.Select(result => new
+                {
+                    name = result.Name,
+                    p50 = Math.Round(Percentile(result.Total, 0.50), 1),
+                    p99 = Math.Round(Percentile(result.Total, 0.99), 1),
+                    p50ExcludingCommit = Math.Round(Percentile(result.ExcludingCommit, 0.50), 1),
+                    p99ExcludingCommit = Math.Round(Percentile(result.ExcludingCommit, 0.99), 1),
+                }),
+            },
+            new JsonSerializerOptions { WriteIndented = true });
+
     internal static int Finish(IEnumerable<Result> results, bool assert, TextWriter output)
     {
         Warn(results, output);
@@ -555,6 +601,47 @@ internal static partial class RenderBenchmark
         var key = (await users.GetAuthenticatorKeyAsync(user))!;
         Check(await users.SetTwoFactorEnabledAsync(user, true));
         return (user.Id, email, password, key);
+    }
+
+    // A confirmed portal account, with a random password nobody keeps, for the last patient in the clinic with at least
+    // three released results.
+    static async Task<(Guid Id, string Email, string Password)> CreatePatientAccountAsync(BenchApp app, int patients)
+    {
+        var patient = Enumerable.Range(0, patients).Reverse()
+            .Select(SyntheticClinic.Chart)
+            .First(chart => chart.Results.Count(r => r.IssuedAt is not null) >= 3)
+            .Patient.Id;
+        await using var scope = app.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<PatientUser>>();
+        var email = $"bench-patient-{Guid.NewGuid():N}@example.test";
+        var password = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
+        var user = new PatientUser { UserName = email, Email = email, EmailConfirmed = true, PatientId = patient };
+        Check(await users.CreateAsync(user, password));
+        return (user.Id, email, password);
+    }
+
+    // Signs a patient in at the portal, as a browser does, and returns a client with the session's cookies.
+    static async Task<HttpClient> PortalSignInAsync(BenchApp app, string email, string password)
+    {
+        var client = app.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = Base, HandleCookies = true, AllowAutoRedirect = true });
+        using var home = await PostFormAsync(client, "/portal/sign-in", await client.GetStringAsync("/portal/sign-in"), ("Input.Email", email), ("Input.Password", password));
+        if (home.RequestMessage?.RequestUri?.AbsolutePath != "/portal")
+        {
+            throw new InvalidOperationException($"Signing in at the portal ended at {home.RequestMessage?.RequestUri?.AbsolutePath}, not at /portal.");
+        }
+
+        return client;
+    }
+
+    // The benchmark's patient account can't sign in again either.
+    static async Task LockOutPatientAsync(BenchApp app, Guid patientUserId)
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<PatientUser>>();
+        if (await users.FindByIdAsync(patientUserId.ToString()) is { } user)
+        {
+            Check(await users.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue));
+        }
     }
 
     // Puts PanelSize patients, spread across the clinic, on the clinician's panel, as the clinician, so their charts
