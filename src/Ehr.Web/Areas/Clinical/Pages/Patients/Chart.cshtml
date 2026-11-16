@@ -36,6 +36,14 @@
     }
 </div>
 
+@* UC 9 and UC 10: dictate a note for this patient. Nothing is saved there yet. The patient and the search travel in
+   one dictionary, since asp-all-route-data replaces asp-route-*. *@
+@{
+    var dictateRoute = Model.Search.RouteData();
+    dictateRoute["id"] = Model.Patient.Id.ToString();
+}
+<p><a asp-page="Dictate" asp-all-route-data="dictateRoute" data-dictate-link>Dictate a note</a></p>
+
 @* Read only for now: nothing here is edited yet. *@
 <h2>Allergies</h2>
 @if (Model.KnownAllergies.Count > 0)
