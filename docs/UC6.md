@@ -20,14 +20,14 @@ Sign in to the portal and choose **Results** in the navigation, or **See your te
 
 ## Courses of events and their tests
 
-In `tests/Ehr.Web.Tests/PortalResultsTests.cs` and `ResultExplanationTests.cs`:
+In `tests/Ehr.Web.Tests`: `PortalResultsTests.cs`, `ResultExplanationTests.cs`, and one file per test case in `TestCases/UC6/`:
 
 | ID | Course of events | Test |
 |---|---|---|
-| TC-UC6-01 | Typical: released results, newest first, each with its range and meaning; one recorded read; not cached; the date labelled UTC | `A_patient_sees_their_released_results_newest_first_in_plain_language` |
-| TC-UC6-02 | No results yet | `A_patient_with_no_released_results_is_told_so` |
+| TC-UC6-01 | Typical: released results, newest first, each with its range and meaning; one recorded read; not cached; the date labelled UTC | `TestCases/UC6/TC_UC6_01_SuccessfulFlow.cs`: `A_patient_sees_their_released_results_newest_first_in_plain_language` |
+| TC-UC6-02 | No results yet | `TestCases/UC6/TC_UC6_02_AlternativeFlow.cs`: `A_patient_with_no_released_results_is_told_so` |
 | TC-UC6-03 | Signed out or a clinician | `Nobody_signed_out_and_no_clinician_reaches_the_results_page` |
-| TC-UC6-04 | On-site server down: read-only, the read queued and shipped | `Off_site_with_the_clinic_server_down_results_are_read_only_and_the_read_is_queued` |
+| TC-UC6-04 | On-site server down: read-only, the read queued and shipped | `TestCases/UC6/TC_UC6_04_ExceptionalCondition.cs`: `Off_site_with_the_clinic_server_down_results_are_read_only_and_the_read_is_queued` |
 | TC-UC6-07 | Sign-in fails: "Wrong email or password.", and the results page sends the patient to sign in | `A_wrong_password_is_refused_and_shows_no_results` |
 | TC-FR16-01 | Low, normal and high against both ends | `A_value_is_compared_with_both_ends_of_its_range` |
 | TC-FR16-02 | A range with one end | `A_range_with_one_end_reads_as_people_say_it` |
@@ -40,11 +40,14 @@ In `tests/Ehr.Security.Tests`:
 | ID | Rule | Test |
 |---|---|---|
 | TC-UC6-06 | A patient sees a result only once released and finished, through both roles | `A_patient_sees_their_result_only_once_it_is_released_and_finished` |
-| TC-UC6-05 | A patient can't read another patient's results (the page takes no result ID, so this replaces "the patient changes a result's ID"): zero rows | the `observations` case of `Chart_sections_are_read_by_clinicians_and_by_their_own_patient_only`, and `A_patient_sees_their_result_only_once_it_is_released_and_finished` |
+| TC-UC6-05 | A patient can't read another patient's results (the page takes no result ID, so this replaces "the patient changes a result's ID"): zero rows | `TestCases/UC6/TC_UC6_05_InvalidInput.cs`: `A_patient_cannot_read_another_patients_results`; also the `observations` case of `Chart_sections_are_read_by_clinicians_and_by_their_own_patient_only`, and `A_patient_sees_their_result_only_once_it_is_released_and_finished` |
 | TC-UC6-12 | A result answers only its own patient's order (FR-31) | `A_result_answers_only_its_own_patients_order` |
 | TC-UC6-08 | Results can't be changed at runtime, and any write is audited; grants, protection, policies and RLS for the table: policies, audit trigger and RLS for the table | the `observations` rows in `RuntimeRoleTests`, `ProtectionTests`, `PolicyPlanTests`, `WriteAuditTests` and `RowLevelSecurityTests` |
 
 The render benchmark measures "Portal results, the patient's own" against NFR-01.
+
+- TC-UC6-14 (NFR-01): `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_14_Nfr01_OnSiteNavigation.cs`. The results page on-site: p99 of the whole request, the commit included, under 15 ms at 50,000 patients with durability on. It runs only against a run of the render benchmark (`tests/Ehr.Web.Tests/TestCases/PerformanceResults.cs` says how) and is skipped in the normal test run.
+- TC-UC6-15 (NFR-11, any modern browser): a manual test case with the browser results from PR #43, `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_15_Nfr11_ModernBrowsers.md`.
 
 ## Human review
 
