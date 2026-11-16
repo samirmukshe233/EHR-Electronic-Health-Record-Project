@@ -169,7 +169,7 @@ CREATE POLICY clinical_drafts_own ON ehr.clinical_drafts FOR ALL
         )
     );
 
--- Signed notes follow the chart's clinician access model. Drafts remain private under PR #26's panel policy.
+-- Signed notes follow the chart's clinician access model. Drafts remain private under UC 8's panel policy.
 ALTER TABLE ehr.clinical_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ehr.clinical_notes FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS clinical_notes_clinician_select ON ehr.clinical_notes;
