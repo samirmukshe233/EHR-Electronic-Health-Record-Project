@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ehr.Data;
 using Ehr.Data.Accounts;
@@ -72,7 +73,7 @@ internal static partial class RenderBenchmark
     static readonly Uri Base = new("https://localhost");
 
     // The exit code: Finish's.
-    public static async Task<int> RunAsync(int patients, bool stack, bool assert)
+    public static async Task<int> RunAsync(int patients, bool stack, bool assert, string? resultsPath = null)
     {
         MigratedDatabase? database = null;
         try
@@ -143,6 +144,11 @@ internal static partial class RenderBenchmark
                 }
 
                 await PrintAsync(app, patients, durability, results);
+                if (resultsPath is not null)
+                {
+                    await File.WriteAllTextAsync(resultsPath, ResultsJson(patients, durability, results));
+                }
+
                 return Finish(results, assert, Console.Out);
             }
             finally
@@ -209,6 +215,9 @@ internal static partial class RenderBenchmark
                 return $"/patients?name={chart.Patient.FamilyName[..4]}&birthdate={Date(chart)}";
             }),
             await MeasureAsync(client, times, prefix + "As you type, first 3 letters", typing: true, () => $"/patients?handler=Results&name={Anyone().Patient.FamilyName[..3]}"),
+            // UC 1's order form (Tahseen Arnan), last so the rows before it make the requests they always did: the patient's
+            // banner and allergies, one recorded read, and the lab catalog.
+            await MeasureAsync(client, times, prefix + "Order form, a patient on the panel", typing: false, () => $"/patients/{panel[random.Next(panel.Count)]}/orders/new?type=lab"),
         ];
     }
 
@@ -300,6 +309,29 @@ internal static partial class RenderBenchmark
 
     // After the table: the warnings, then, with --assert, the gate. Returns the exit code, Gate's with --assert and 0
     // without; the warnings never change it.
+    // The run as --results writes it, for the performance test cases (tests/Ehr.Web.Tests/TestCases), which check each
+    // path's p99 against its own requirement's limit: how many patients, whether commits waited for the disk, and each
+    // row's percentiles in milliseconds, for the whole request and excluding the commit.
+    internal static string ResultsJson(int patients, Durability durability, IEnumerable<Result> results) =>
+        JsonSerializer.Serialize(
+            new
+            {
+                patients,
+                durabilityOn = durability.IsOn,
+                durability = durability.ToString(),
+                warmUp = WarmUp,
+                measured = Measured,
+                rows = results.Select(result => new
+                {
+                    name = result.Name,
+                    p50 = Math.Round(Percentile(result.Total, 0.50), 1),
+                    p99 = Math.Round(Percentile(result.Total, 0.99), 1),
+                    p50ExcludingCommit = Math.Round(Percentile(result.ExcludingCommit, 0.50), 1),
+                    p99ExcludingCommit = Math.Round(Percentile(result.ExcludingCommit, 0.99), 1),
+                }),
+            },
+            new JsonSerializerOptions { WriteIndented = true });
+
     internal static int Finish(IEnumerable<Result> results, bool assert, TextWriter output)
     {
         Warn(results, output);

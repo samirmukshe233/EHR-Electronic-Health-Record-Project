@@ -101,13 +101,19 @@ else
 }
 
 @functions {
+    // Keyboard first (NFR-12): the page opens with the cursor in the first field to fix, or in the item when there is
+    // nothing to fix yet.
+    string Focused() => Model.Errors.Count == 0 || Model.Errors.ContainsKey("Item")
+        ? "Item"
+        : OrderForms.Fields[Model.KnownType!].Select(detail => detail.Name).FirstOrDefault(Model.Errors.ContainsKey) ?? "";
+
     // A labelled input, marked when required, and highlighted with its message when it needs fixing.
     void Field(string name, string id, string label, bool required, string? value, string? list)
     {
         var error = Model.Errors.GetValueOrDefault(name);
         <label for="@id">@label @if (required) { <span>(required)</span> }</label>
         <input id="@id" name="@(name == "Item" ? "Item" : $"Details[{name}]")" value="@value" list="@list" maxlength="@OrderForms.MaximumLength"
-               autocomplete="off" required="@required" aria-invalid="@(error is null ? null : "true")"
+               autocomplete="off" required="@required" aria-invalid="@(error is null ? null : "true")" autofocus="@(name == Focused())"
                aria-describedby="@(error is null ? null : $"{id}-error")">
         @if (error is not null)
         {

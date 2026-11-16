@@ -482,6 +482,28 @@ public partial class PatientSearchTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(1, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient));
     }
 
+    // Search pressed with every field empty, or holding only spaces, asks for something to search by (UC 3) and lists
+    // nobody: not the panel, which only the page with no criteria at all lists.
+    [Fact]
+    public async Task A_search_submitted_with_every_field_empty_asks_for_a_criterion_and_reads_nothing()
+    {
+        var clinician = await apps.CreateStaffAsync("Dr. Blank", StaffRoles.Clinician);
+        var patient = await apps.InsertPatientAsync("Ada", Unique("Paneled"));
+        await apps.AssignAsync(clinician, patient);
+        var session = await SignInAsync(apps.OnPrem, clinician);
+        // Signing in lands on the panel: one read.
+        Assert.Equal(1, await apps.AuditEventsAsync(AuditActions.Read, actorId: clinician.Id));
+
+        var html = await session.Client.GetStringAsync("/patients?name=%20%20&birthdate=&mrn=", Cancel);
+
+        Assert.Matches("<ul class=\"notice error\" role=\"alert\">\\s*<li>Enter a name, date of birth, or MRN to search.</li>", html);
+        Assert.DoesNotContain("Search results", html);
+        Assert.DoesNotContain("My patients", html);
+        Assert.DoesNotContain($"/patients/{patient}", html);
+        Assert.Empty(Listed(html));
+        Assert.Equal(1, await apps.AuditEventsAsync(AuditActions.Read, actorId: clinician.Id));
+    }
+
     // A chart fetched before anyone opened it would be a recorded read of a chart nobody looked at, and one off the
     // panel would ask for emergency access: the results are plain links, which nothing fetches ahead.
     [Fact]

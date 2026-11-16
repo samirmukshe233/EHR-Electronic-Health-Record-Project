@@ -10,7 +10,7 @@ namespace Ehr.Bench;
 //       loads the synthetic clinic into the database EHR_SEED_CONNECTION names, connecting as ehr_owner (Seeder). The
 //       connection string comes from the environment, so its password stays out of the command line and the repository.
 //
-//   dotnet run -c Release --project bench/Ehr.Bench -- [--patients 50000] [--stack] [--assert]
+//   dotnet run -c Release --project bench/Ehr.Bench -- [--patients 50000] [--stack] [--assert] [--results <file>]
 //       measures the search and chart pages' server render time (RenderBenchmark), on-site and off-site, in a
 //       PostgreSQL 18 it starts and seeds itself, or with --stack, on-site only, against a primary already seeded with
 //       that many patients. --assert exits with 1 when a p99 excluding the commit is 20 ms or more.
@@ -24,7 +24,7 @@ static class Command
 
     const string Usage = """
         Usage: dotnet run -c Release --project bench/Ehr.Bench -- seed [--patients 50000]
-               dotnet run -c Release --project bench/Ehr.Bench -- [--patients 50000] [--stack] [--assert]
+               dotnet run -c Release --project bench/Ehr.Bench -- [--patients 50000] [--stack] [--assert] [--results <file>]
         """;
 
     static async Task<int> Main(string[] args)
@@ -32,6 +32,7 @@ static class Command
         var seed = args is ["seed", ..];
         var patients = DefaultPatients;
         var (stack, assert) = (false, false);
+        string? results = null;
         var options = seed ? args[1..] : args;
         for (var i = 0; i < options.Length; i++)
         {
@@ -46,6 +47,9 @@ static class Command
                 case "--assert" when !seed:
                     assert = true;
                     break;
+                case "--results" when !seed && i + 1 < options.Length:
+                    results = options[++i];
+                    break;
                 default:
                     Console.Error.WriteLine(Usage);
                     return 2;
@@ -54,7 +58,7 @@ static class Command
 
         if (!seed)
         {
-            return await RenderBenchmark.RunAsync(patients, stack, assert);
+            return await RenderBenchmark.RunAsync(patients, stack, assert, results);
         }
 
         var connectionString = Environment.GetEnvironmentVariable("EHR_SEED_CONNECTION");

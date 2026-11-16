@@ -181,47 +181,7 @@ public class PatientChartTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Matches("<a [^>]*href=\"/patients\"[^>]*>Back to my patients</a>", html);
     }
 
-    // Off-site with the on-prem app unable to save, the chart comes from the replica with the read-only notice, and its
-    // one read waits in the cloud app's queue until the on-prem app takes it.
-    [Fact]
-    public async Task Off_site_during_an_outage_the_chart_comes_from_the_replica_and_its_one_read_is_queued_then_shipped()
-    {
-        var clinician = await apps.CreateStaffAsync("Dr. Remote", Ehr.Data.Accounts.StaffRoles.Clinician);
-        var patient = await apps.InsertPatientAsync("Hazel", "Outage");
-        await apps.InsertAllergyAsync(patient, "Penicillin");
-        await apps.InsertVisitAsync(patient, Today.AddDays(-1), systolic: 118, diastolic: 76, heartRate: 64);
-        // Signed in first: the home lists the panel, and that would be a read too.
-        var session = await SignInAsync(apps.CloudPrimaryDrill, clinician, via: apps.Cloud);
-        await apps.AssignAsync(clinician, patient);
-        var shipper = apps.CloudPrimaryDrill.Services.GetRequiredService<CloudAuditShipper>();
-        apps.PrimaryDown = true;
-        try
-        {
-            Assert.False(await shipper.ShipAsync(Cancel));
-
-            var html = await session.Client.GetStringAsync($"/patients/{patient}", Cancel);
-
-            Assert.Contains("Outage, Hazel", html);
-            Assert.Contains("Penicillin", html);
-            Assert.Contains("blood pressure 118/76 mmHg, heart rate 64/min.", html);
-            Assert.Contains("Read-only: the clinic's server can't be reached", html);
-            var (queued, _) = apps.CloudPrimaryDrill.Services.GetRequiredService<CloudAuditQueue>().ReadPending(int.MaxValue);
-            var read = Assert.Single(queued, e => e.PatientId == patient);
-            Assert.Equal(AuditActions.Read, read.Action);
-            Assert.Equal("patients", read.TableName);
-            Assert.Equal(patient, read.RowId);
-            Assert.Equal(clinician.Id, read.ActorId);
-            Assert.Equal(0, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient));
-
-            apps.PrimaryDown = false;
-            Assert.True(await shipper.ShipAsync(Cancel));
-            Assert.Equal(1, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient, AuditSources.Cloud));
-        }
-        finally
-        {
-            apps.PrimaryDown = false;
-        }
-    }
+    // Off-site during an outage, the chart from the replica and its one queued read: TestCases/UC2/TC_UC2_01_SuccessfulFlow.cs.
 
     // Reads recorded against the patient for anything but their patients row: the chart's sections are part of the one
     // read of the patient.
