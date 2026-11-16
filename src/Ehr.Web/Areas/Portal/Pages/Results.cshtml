@@ -1,0 +1,67 @@
+@page "/portal/results"
+@using Ehr.Domain.Results
+@model ResultsModel
+@{
+    ViewData["Title"] = "Test results";
+}
+<h1>Test results</h1>
+@if (!Model.Available)
+{
+    <p class="notice error">Your results are not available right now. Contact the clinic if this continues.</p>
+}
+else if (Model.Results.Count == 0)
+{
+    <p>You have no test results yet. If you are waiting for one, contact your care team.</p>
+}
+else
+{
+    <p>Newest first. Select a result to see what it means.</p>
+    @* <details> opens each result in place: no script, no result ID in a URL, and the keyboard works as it does
+       everywhere else. *@
+    <ul class="results">
+        @foreach (var result in Model.Results)
+        {
+            var flag = ResultExplanation.Flag(result);
+            <li>
+                <details>
+                    <summary>
+                        <strong>@result.Display</strong>
+                        <span>@result.EffectiveAt.UtcDateTime.ToString("MMM d, yyyy")</span>
+                        @if (flag == ResultFlag.High)
+                        {
+                            <span class="tag restricted">High</span>
+                        }
+                        else if (flag == ResultFlag.Low)
+                        {
+                            <span class="tag restricted">Low</span>
+                        }
+                        else if (flag == ResultFlag.Normal)
+                        {
+                            <span class="tag">Normal</span>
+                        }
+                    </summary>
+                    <dl class="record">
+                        @if (ResultExplanation.Value(result) is { } value)
+                        {
+                            <dt>Your result</dt><dd>@value</dd>
+                        }
+                        @if (ResultExplanation.Range(result) is { } range)
+                        {
+                            <dt>Normal range</dt><dd>@range</dd>
+                        }
+                    </dl>
+                    <p>@ResultExplanation.Meaning(result)</p>
+                    @if (ResultExplanation.WhatItMeasures(result) is { } measures)
+                    {
+                        <p>@measures</p>
+                    }
+                    @if (result.Note is { Length: > 0 } note)
+                    {
+                        <p><strong>Note from your care team:</strong> @note</p>
+                    }
+                </details>
+            </li>
+        }
+    </ul>
+}
+<p><a asp-page="/Index">Back to my record</a></p>

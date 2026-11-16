@@ -575,6 +575,9 @@ namespace Ehr.Migrations
                     b.HasKey("Id")
                         .HasName("pk_orders");
 
+                    b.HasAlternateKey("Id", "PatientId")
+                        .HasName("ak_orders_id_patient_id");
+
                     b.HasIndex("SignerId")
                         .HasDatabaseName("ix_orders_signer_id");
 
@@ -1187,6 +1190,88 @@ namespace Ehr.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Ehr.Data.Patients.Observation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Display")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("display");
+
+                    b.Property<DateTimeOffset>("EffectiveAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_at");
+
+                    b.Property<DateTimeOffset?>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("patient_id");
+
+                    b.Property<decimal?>("ReferenceHigh")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("reference_high");
+
+                    b.Property<decimal?>("ReferenceLow")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("reference_low");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("unit");
+
+                    b.Property<decimal?>("Value")
+                        .HasPrecision(12, 4)
+                        .HasColumnType("numeric(12,4)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id")
+                        .HasName("pk_observations");
+
+                    b.HasIndex("OrderId", "PatientId")
+                        .HasDatabaseName("ix_observations_order_id_patient_id");
+
+                    b.HasIndex("PatientId", "EffectiveAt")
+                        .HasDatabaseName("ix_observations_patient_id_effective_at");
+
+                    b.ToTable("observations", "ehr", t =>
+                        {
+                            t.HasCheckConstraint("ck_observations_reference_range", "reference_low <= reference_high");
+
+                            t.HasCheckConstraint("ck_observations_status", "status IN ('registered', 'preliminary', 'final', 'amended', 'corrected', 'cancelled', 'entered-in-error')");
+                        });
+                });
+
             modelBuilder.Entity("Ehr.Data.Patients.Patient", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1635,6 +1720,23 @@ namespace Ehr.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_medication_statements_patients_patient_id");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Patients.Observation", b =>
+                {
+                    b.HasOne("Ehr.Data.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_observations_patients_patient_id");
+
+                    b.HasOne("Ehr.Data.Orders.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId", "PatientId")
+                        .HasPrincipalKey("Id", "PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_observations_orders_order_id_patient_id");
                 });
 
             modelBuilder.Entity("Ehr.Data.Patients.PatientAssignment", b =>

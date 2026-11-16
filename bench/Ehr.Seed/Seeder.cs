@@ -17,7 +17,7 @@ namespace Ehr.Seed;
 public static class Seeder
 {
     // The tables the seed fills, in the order it fills them, patients first.
-    public static readonly string[] Tables = ["patients", "allergy_intolerances", "medication_statements", "conditions", "encounters"];
+    public static readonly string[] Tables = ["patients", "allergy_intolerances", "medication_statements", "conditions", "encounters", "observations"];
 
     // Loads the clinic, and returns how many rows went into each table.
     public static async Task<IReadOnlyDictionary<string, ulong>> LoadAsync(string connectionString, SyntheticClinic clinic, CancellationToken cancellationToken)
@@ -118,6 +118,28 @@ public static class Seeder
                     await WriteAsync(row, e.SystolicMmHg, NpgsqlDbType.Smallint, ct);
                     await WriteAsync(row, e.DiastolicMmHg, NpgsqlDbType.Smallint, ct);
                     await WriteAsync(row, e.HeartRatePerMinute, NpgsqlDbType.Smallint, ct);
+                },
+                cancellationToken);
+            rows["observations"] = await CopyAsync(connection,
+                """
+                COPY ehr.observations (id, patient_id, code, display, status, value, unit, reference_low, reference_high, effective_at,
+                    issued_at, note) FROM STDIN (FORMAT BINARY)
+                """,
+                clinic.Charts().SelectMany(chart => chart.Results),
+                async (row, o, ct) =>
+                {
+                    await row.WriteAsync(o.Id, NpgsqlDbType.Uuid, ct);
+                    await row.WriteAsync(o.PatientId, NpgsqlDbType.Uuid, ct);
+                    await WriteAsync(row, o.Code, ct);
+                    await row.WriteAsync(o.Display, NpgsqlDbType.Varchar, ct);
+                    await row.WriteAsync(o.Status, NpgsqlDbType.Varchar, ct);
+                    await WriteAsync(row, o.Value, NpgsqlDbType.Numeric, ct);
+                    await WriteAsync(row, o.Unit, ct);
+                    await WriteAsync(row, o.ReferenceLow, NpgsqlDbType.Numeric, ct);
+                    await WriteAsync(row, o.ReferenceHigh, NpgsqlDbType.Numeric, ct);
+                    await row.WriteAsync(o.EffectiveAt, NpgsqlDbType.TimestampTz, ct);
+                    await WriteAsync(row, o.IssuedAt, NpgsqlDbType.TimestampTz, ct);
+                    await WriteAsync(row, o.Note, ct);
                 },
                 cancellationToken);
 

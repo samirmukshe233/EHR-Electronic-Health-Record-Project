@@ -63,6 +63,9 @@ public class EhrDbContext(DbContextOptions<EhrDbContext> options) : DbContext(op
 
     public DbSet<OrderCatalogItem> OrderCatalogItems => Set<OrderCatalogItem>();
 
+    // Test results, shaped on FHIR's Observation. PHI; a patient sees their own once released (the portal's results).
+    public DbSet<Observation> Observations => Set<Observation>();
+
     // One-time portal enrollment codes, as hashes. Grants only: registration looks a code up before anyone is signed in.
     public DbSet<PatientEnrollment> PatientEnrollments => Set<PatientEnrollment>();
 

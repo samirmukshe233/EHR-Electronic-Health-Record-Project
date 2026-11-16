@@ -1,0 +1,34 @@
+using Ehr.Data.Orders;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Ehr.Data.Patients;
+
+// Maps ehr.observations. EhrDbContext picks this up with ApplyConfigurationsFromAssembly.
+public sealed class ObservationConfiguration : IEntityTypeConfiguration<Observation>
+{
+    public void Configure(EntityTypeBuilder<Observation> observation)
+    {
+        observation.ToTable("observations", table =>
+        {
+            table.HasCheckConstraint("ck_observations_status", $"status IN ({Codes.List(ObservationStatus.All)})");
+            table.HasCheckConstraint("ck_observations_reference_range", "reference_low <= reference_high");
+        });
+
+        observation.Property(o => o.Code).HasMaxLength(20);
+        observation.Property(o => o.Display).HasMaxLength(200);
+        observation.Property(o => o.Status).HasMaxLength(20);
+        observation.Property(o => o.Value).HasPrecision(12, 4);
+        observation.Property(o => o.Unit).HasMaxLength(20);
+        observation.Property(o => o.ReferenceLow).HasPrecision(12, 4);
+        observation.Property(o => o.ReferenceHigh).HasPrecision(12, 4);
+        observation.Property(o => o.Note).HasMaxLength(500);
+        // Read by patient, newest first, for the portal's results page.
+        observation.HasOne<Patient>().WithMany().HasForeignKey(o => o.PatientId).OnDelete(DeleteBehavior.Restrict);
+        observation.HasIndex(o => new { o.PatientId, o.EffectiveAt });
+        // Keyed on the patient too, so a result can't answer another patient's order.
+        observation.HasOne<Order>().WithMany()
+            .HasForeignKey(o => new { o.OrderId, o.PatientId }).HasPrincipalKey(o => new { o.Id, o.PatientId })
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
