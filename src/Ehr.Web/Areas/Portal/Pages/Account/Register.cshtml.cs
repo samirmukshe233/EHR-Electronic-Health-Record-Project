@@ -28,6 +28,7 @@ public class RegisterModel(PatientRegistration registration, IOptions<SiteAddres
 
         var result = await registration.RegisterAsync(Input.Email!, Input.Password!, Input.Code!,
             (userId, token) => Links.Build(links.Value.PortalBaseUrl, Request, $"/portal/confirm?user={userId}&token={Uri.EscapeDataString(token)}"),
+            Links.Build(links.Value.PortalBaseUrl, Request, "/portal/sign-in"), Links.Build(links.Value.PortalBaseUrl, Request, "/portal/forgot"),
             HttpContext.RequestAborted);
         if (result.CodeInvalid)
         {

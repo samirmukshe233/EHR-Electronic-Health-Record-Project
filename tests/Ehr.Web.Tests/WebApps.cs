@@ -193,13 +193,13 @@ public sealed class WebApps : IAsyncLifetime
     }
 
     // A confirmed portal account for the patient, created through the same Identity services the app uses.
-    public async Task<(string Email, string Password)> CreatePatientAccountAsync(Guid patientId)
+    public async Task<(string Email, string Password)> CreatePatientAccountAsync(Guid patientId, bool confirmed = true)
     {
         await using var scope = OnPrem.Services.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<PatientUser>>();
         var email = NewEmail();
         const string password = "a-patient-portal-password";
-        var user = new PatientUser { UserName = email, Email = email, EmailConfirmed = true, PatientId = patientId };
+        var user = new PatientUser { UserName = email, Email = email, EmailConfirmed = confirmed, PatientId = patientId };
         var created = await users.CreateAsync(user, password);
         Assert.True(created.Succeeded, string.Join(" ", created.Errors.Select(e => e.Description)));
         return (email, password);
@@ -352,6 +352,17 @@ public sealed class WebApps : IAsyncLifetime
         Assert.True(await Cloud.Services.GetRequiredService<CloudAuditShipper>().ShipAsync(TestContext.Current.CancellationToken));
 
     // How many audit events match, read as the superuser.
+    // Events an anonymous request recorded: the patient, and no actor.
+    public async Task<long> AuditEventsWithoutActorAsync(string action, Guid patientId)
+    {
+        await using var connection = await OpenDatabaseAsync();
+        await using var command = new NpgsqlCommand(
+            "SELECT count(*) FROM ehr.audit_events WHERE action = @action AND patient_id = @patient AND actor_id IS NULL", connection);
+        command.Parameters.AddWithValue("action", action);
+        command.Parameters.AddWithValue("patient", patientId);
+        return (long)(await command.ExecuteScalarAsync())!;
+    }
+
     public async Task<long> AuditEventsAsync(string action, Guid? actorId = null, Guid? patientId = null, string? source = null)
     {
         await using var connection = await OpenDatabaseAsync();
@@ -417,7 +428,10 @@ public sealed class WebApps : IAsyncLifetime
                 .UseSetting("Ehr:DataProtection:Certificate", apps.KeyCertificatePath)
                 .UseSetting("Ehr:DataProtection:CertificateKey", apps.KeyCertificateKeyPath)
                 .UseSetting("Ehr:CloudAudit:Key", CloudAuditKey)
-                .UseSetting("Ehr:CloudAudit:Directory", Path.Combine(apps.CloudAuditRoot, Guid.NewGuid().ToString("N")));
+                .UseSetting("Ehr:CloudAudit:Directory", Path.Combine(apps.CloudAuditRoot, Guid.NewGuid().ToString("N")))
+                // Every test client has the same address, so the limits are out of reach (RateLimitTests lowers them).
+                .UseSetting("RateLimits:PermitLimit", "1000000")
+                .UseSetting("RateLimits:EmailsPerAddressPerHour", "1000000");
             if (bootstrapAdmin)
             {
                 builder
