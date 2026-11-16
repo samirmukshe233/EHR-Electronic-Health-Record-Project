@@ -30,19 +30,28 @@ Open a patient on your panel and choose **New order** on the chart, or press Alt
 - **Shortcut.** Alt+Shift+O, set in `aria-keyshortcuts`. It is clear of "/", Ctrl/Cmd+S and dictation's Alt+Shift+D.
 - **FR-14.** `DictationOrdersTests` scans the dictation code and fails if any of it names a type from the order code.
 
-## Courses of events and their tests
+## Test cases, courses of events and their tests
 
-In `tests/Ehr.Web.Tests/OrderTests.cs`:
+The Assignment 4 test cases are one file each, in `tests/Ehr.Web.Tests/TestCases/UC1/`. Each file's header holds the test case's fields: ID, purpose, type, requirements, preconditions, inputs, test data, steps, expected result and creator.
+
+| Test case | What it checks | File |
+|---|---|---|
+| TC-UC1-01, successful flow | A clinician signs a lab order; the chart confirms and lists it; the audit row names the clinician and the time | `TC_UC1_01_SuccessfulFlow.cs` |
+| TC-UC1-02, alternative flow | A match with an active order warns; saved only once a reason is given | `TC_UC1_02_AlternativeFlow.cs` |
+| TC-UC1-03, invalid input | An empty required field is highlighted, nothing is saved, the entries stay | `TC_UC1_03_InvalidInput.cs` |
+| TC-UC1-04, exceptional condition | Off-site with the on-site server unreachable, the order isn't saved and the form keeps its entries | `TC_UC1_04_ExceptionalCondition.cs` |
+| TC-UC1-05, NFR-01 | On-site, the chart with active orders and the order form: p99 under 15 ms, the commit included, at 50,000 patients with durability on | `TC_UC1_05_Nfr01_OnSiteNavigation.cs` |
+| TC-UC1-06, NFR-12 | Keyboard-first: the shortcut, autofocus, labelled fields and real buttons, signing without a mouse | `TC_UC1_06_Nfr12_KeyboardFirst.cs`, and its manual browser walkthrough, `TC_UC1_06_Nfr12_KeyboardFirst.md` |
+
+TC-UC1-05 runs only against a run of the render benchmark; `tests/Ehr.Web.Tests/TestCases/PerformanceResults.cs` says how. In the normal test run it is skipped.
+
+Extra coverage, without test case IDs, in `tests/Ehr.Web.Tests/OrderTests.cs`:
 
 | Course of events | Test |
 |---|---|
-| Typical: open the form, sign, the chart confirms and lists the order, the audit entry names the clinician | `TC_UC1_01_A_clinician_signs_an_order_and_the_chart_confirms_and_lists_it` |
-| A role that can't order sees no "New order" and is refused | `TC_UC1_02_A_role_that_cannot_order_sees_no_new_order_and_is_refused` |
-| An empty required field is highlighted and nothing is saved | `TC_UC1_03_An_empty_required_field_is_highlighted_and_nothing_is_saved` |
-| A match with an active order warns; confirmed with a reason | `TC_UC1_04_A_duplicate_active_order_warns_and_needs_a_reason` |
-| Off-site, the order is forwarded and saved on-site | `TC_UC1_05_Off_site_the_order_is_forwarded_and_saved_on_site` |
-| Off-site with the on-site server unreachable, nothing is saved | `TC_UC1_06_Off_site_with_the_clinics_server_down_the_order_is_not_saved` |
-| Cancel saves nothing | `TC_UC1_07_Cancel_saves_nothing` |
+| A role that can't order sees no "New order" and is refused | `A_role_that_cannot_order_sees_no_new_order_and_is_refused` |
+| Off-site, the order is forwarded and saved on-site | `Off_site_the_order_is_forwarded_and_saved_on_site` |
+| Cancel saves nothing | `Cancel_saves_nothing` |
 
 In `tests/Ehr.Security.Tests/OrderSecurityTests.cs`, against the database directly:
 

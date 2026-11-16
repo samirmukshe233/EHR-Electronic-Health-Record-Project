@@ -303,40 +303,7 @@ public class OffSiteOutageTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(0, await apps.AuditEventsAsync(AuditActions.SignIn, actorId: clinician.Id));
     }
 
-    // Steps 4 and 5: the clinic's server is back; the reads queued during the outage arrive, and saving works again.
-    [Fact]
-    public async Task Once_the_clinics_server_is_back_queued_reads_arrive_and_saves_work_again()
-    {
-        var clinician = await apps.ClinicianAsync();
-        var patient = await apps.InsertPatientAsync("Remi", "Returning");
-        var session = await SignInAsync(apps.CloudPrimaryDrill, clinician, via: apps.Cloud);
-        // Signed in first: the home lists the panel, and that would be a read too.
-        await apps.AssignAsync(clinician, patient);
-        var shipper = apps.CloudPrimaryDrill.Services.GetRequiredService<CloudAuditShipper>();
-        var shortcut = WebApps.NewShortcut();
-        try
-        {
-            apps.PrimaryDown = true;
-            Assert.False(await shipper.ShipAsync(Cancel));
-            Assert.Contains("Returning, Remi", await session.Client.GetStringAsync($"/patients/{patient}", Cancel));
-            Assert.DoesNotContain("add-quick-text", await session.Client.GetStringAsync(QuickTexts, Cancel));
-            Assert.Equal(0, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient));
-
-            apps.PrimaryDown = false;
-            Assert.True(await shipper.ShipAsync(Cancel));
-            Assert.Equal(1, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient, AuditSources.Cloud));
-
-            var page = await session.Client.GetStringAsync(QuickTexts, Cancel);
-            Assert.Contains("add-quick-text", page);
-            using var added = await HtmxPostAsync(session.Client, $"{QuickTexts}?handler=Add", Token(page), ("Shortcut", shortcut), ("Body", "Saved once it's back"));
-            Assert.Equal(HttpStatusCode.OK, added.StatusCode);
-            Assert.Equal([(shortcut, "Saved once it's back", 1)], await apps.RowsAsync(shortcut));
-        }
-        finally
-        {
-            apps.PrimaryDown = false;
-        }
-    }
+    // Once the clinic's server is back: TestCases/UC2/TC_UC2_02_AlternativeFlow.cs.
 
     // A patient on the fixture's clinician's panel with a new draft, made on-site: the session, the patient and the
     // editor's address.
@@ -370,7 +337,7 @@ public class OffSiteOutageTests(WebApps apps) : IClassFixture<WebApps>
     }
 
     // The same through htmx or a page's script, which sends the form token in a header too, as the dictation API wants.
-    static async Task<HttpResponseMessage> HtmxPostAsync(HttpClient client, string path, string token, params (string Name, object Value)[] fields)
+    internal static async Task<HttpResponseMessage> HtmxPostAsync(HttpClient client, string path, string token, params (string Name, object Value)[] fields)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = Form([.. fields, ("__RequestVerificationToken", token)]) };
         request.Headers.Add("HX-Request", "true");
