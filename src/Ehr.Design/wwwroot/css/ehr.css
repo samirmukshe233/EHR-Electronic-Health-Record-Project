@@ -312,3 +312,8 @@ mark.source-highlight {
 .signed-note .body {
     overflow-wrap: anywhere;
 }
+
+/* UC 1: the order form highlights a field to fix. */
+.order-form [aria-invalid="true"] {
+    outline: 2px solid #c5221f;
+}
