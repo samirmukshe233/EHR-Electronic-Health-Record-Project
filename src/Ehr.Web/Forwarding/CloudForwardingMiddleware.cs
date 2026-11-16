@@ -13,7 +13,8 @@ namespace Ehr.Web.Forwarding;
 // app too, so people see their own saves, unless the on-prem app can't save just then (OnPremStatus) and the
 // replica's copy is all there is. Other reads, PHI included, come from the replica; the PHI reader records them in the
 // cloud app's audit queue (CloudAudit). A forward that can't reach the on-prem app marks OnPremStatus unreachable;
-// only CloudAuditShipper marks it reachable again.
+// only CloudAuditShipper marks it reachable again. A plain form post that can't be forwarded gets a "Not saved" page,
+// which shows again what was typed in the fields its page names (ShownIfNotSavedAttribute).
 public sealed class CloudForwardingMiddleware(
     RequestDelegate next, IHttpForwarder forwarder, OnPremApp onPrem, LastSaveCookie lastSave, OnPremStatus status)
 {
@@ -34,16 +35,30 @@ public sealed class CloudForwardingMiddleware(
                 return;
             }
 
+            var plainFormPost = isPage && !context.Request.Headers.ContainsKey("HX-Request");
+            // Kept, so the "Not saved" page can show it again. Only for the browser's own form: a page elsewhere could
+            // otherwise post text for this site to show (Sec-Fetch-Site, which current browsers send).
+            var shown = plainFormPost && context.Request.Headers["Sec-Fetch-Site"] == "same-origin"
+                ? endpoint!.Metadata.GetMetadata<ShownIfNotSavedAttribute>()
+                : null;
+            if (shown is not null)
+            {
+                context.Request.EnableBuffering();
+            }
+
             if (await ForwardAsync(context) != ForwarderError.None && !context.Response.HasStarted)
             {
                 context.Response.Clear();
                 context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-                if (isPage && !context.Request.Headers.ContainsKey("HX-Request"))
+                if (plainFormPost)
                 {
-                    // A plain form post replaces the whole page, so it gets a page that says why, with a way back to
-                    // the form. htmx shows its own message (request-errors.js), and the APIs read the status.
+                    // A plain form post replaces the whole page, so it gets a page that says why, with what was typed
+                    // and a way back to the form. htmx shows its own message (request-errors.js), and the APIs read the
+                    // status.
                     context.Response.ContentType = "text/html; charset=utf-8";
-                    await context.Response.WriteAsync(NotSavedPage(context.Request.Path), CancellationToken.None);
+                    context.Response.Headers.CacheControl = "no-store";
+                    var entered = shown is null ? [] : await EnteredAsync(context.Request, shown);
+                    await context.Response.WriteAsync(NotSavedPage(context.Request.Path, entered), CancellationToken.None);
                 }
                 else
                 {
@@ -99,29 +114,52 @@ public sealed class CloudForwardingMiddleware(
         return error;
     }
 
+    // What was typed in the fields the page names, those not left empty, from the body kept for this: the forward may
+    // have read some of it.
+    static async Task<List<(string Field, string Value)>> EnteredAsync(HttpRequest request, ShownIfNotSavedAttribute shown)
+    {
+        if (!request.HasFormContentType)
+        {
+            return [];
+        }
+
+        request.Body.Position = 0;
+        var form = await request.ReadFormAsync(CancellationToken.None);
+        return [.. shown.Fields.Select(field => (field, form[field].ToString())).Where(entry => entry.Item2.Length > 0)];
+    }
+
     // Back goes back in the browser's history (back-link.js), where the form may still have what was typed, though a
-    // browser may reload it instead; without JavaScript the link opens the form's page again. No inline script, so a
-    // strict CSP can be added later.
-    static string NotSavedPage(PathString formPage) =>
-        $$"""
-        <!doctype html>
-        <html lang="en">
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>Not saved</title>
-            <link rel="stylesheet" href="/_content/Ehr.Design/css/ehr.css">
-            <script src="/_content/Ehr.Design/js/back-link.js" defer></script>
-        </head>
-        <body>
-            <main>
-                <h1>Not saved</h1>
-                <p class="notice read-only" role="alert">Nothing was saved, because the clinic's server can't be reached. Go back and try again once it's back; what you entered may still be there.</p>
-                <p><a href="{{HtmlEncoder.Default.Encode(formPage.ToString())}}" data-back>Back</a></p>
-            </main>
-        </body>
-        </html>
-        """;
+    // browser may reload it instead; without JavaScript the link opens the form's page again. Either way, what was typed
+    // in the fields the page names is shown here, to copy (UC 2). No inline script, so a strict CSP can be added later.
+    static string NotSavedPage(PathString formPage, List<(string Field, string Value)> entered)
+    {
+        var next = entered.Count > 0
+            ? "What you entered is below: copy it, then go back and try again once the server is back."
+            : "Go back and try again once it's back; what you entered may still be there.";
+        // A newline first in each box, which the browser drops, so one that starts the text is kept.
+        var fields = string.Concat(entered.Select(entry =>
+            $"<label>{HtmlEncoder.Default.Encode(entry.Field)} <textarea readonly rows=\"4\">\n"
+            + $"{HtmlEncoder.Default.Encode(entry.Value)}</textarea></label>\n        "));
+        return $$"""
+            <!doctype html>
+            <html lang="en">
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>Not saved</title>
+                <link rel="stylesheet" href="/_content/Ehr.Design/css/ehr.css">
+                <script src="/_content/Ehr.Design/js/back-link.js" defer></script>
+            </head>
+            <body>
+                <main>
+                    <h1>Not saved</h1>
+                    <p class="notice read-only" role="alert">Nothing was saved, because the clinic's server can't be reached. {{next}}</p>
+                    {{fields}}<p><a href="{{HtmlEncoder.Default.Encode(formPage.ToString())}}" data-back>Back</a></p>
+                </main>
+            </body>
+            </html>
+            """;
+    }
 
     // Keeps the cloud audit key off what is forwarded, and moves the on-prem app's WAL position from the response into
     // the browser's LastSaveCookie.

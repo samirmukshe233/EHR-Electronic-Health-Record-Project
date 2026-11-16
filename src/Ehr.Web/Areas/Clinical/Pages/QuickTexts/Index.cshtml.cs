@@ -1,5 +1,6 @@
 using Ehr.Data;
 using Ehr.Domain.QuickTexts;
+using Ehr.Web.Forwarding;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +9,9 @@ namespace Ehr.Web.Areas.Clinical.Pages.QuickTexts;
 
 // The team's shared phrases. Adding and editing go through htmx: each handler after the first returns only the
 // part of the page that changed. Every handler runs in one transaction (DatabaseTransactionFilter), and saves go
-// through QuickTextSaver, the same rules the sync API uses.
+// through QuickTextSaver, the same rules the sync API uses. Off-site with the clinic's server unreachable, a save without
+// JavaScript shows what was typed again on the "Not saved" page (UC 2); with it, htmx leaves the form as it was.
+[ShownIfNotSaved(nameof(QuickTextForm.Shortcut), nameof(QuickTextForm.Body))]
 public class IndexModel(EhrDbContext db, QuickTextSaver saver) : PageModel
 {
     public IReadOnlyList<QuickText> QuickTexts { get; private set; } = [];
