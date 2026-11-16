@@ -448,3 +448,62 @@ VALUES ('20261115104258_PatientSearchIndexes', '10.0.13');
 
 COMMIT;
 
+START TRANSACTION;
+CREATE TABLE ehr.clinical_drafts (
+    id uuid NOT NULL,
+    patient_id uuid NOT NULL,
+    clinician_id uuid NOT NULL,
+    body text NOT NULL,
+    version bigint NOT NULL,
+    CONSTRAINT pk_clinical_drafts PRIMARY KEY (id),
+    CONSTRAINT fk_clinical_drafts_patients_patient_id FOREIGN KEY (patient_id) REFERENCES ehr.patients (id) ON DELETE CASCADE,
+    CONSTRAINT fk_clinical_drafts_staff_users_clinician_id FOREIGN KEY (clinician_id) REFERENCES ehr.staff_users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_clinical_drafts_clinician_id ON ehr.clinical_drafts (clinician_id);
+
+CREATE INDEX ix_clinical_drafts_patient_id ON ehr.clinical_drafts (patient_id);
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261115202104_ClinicalDrafts', '10.0.13');
+
+COMMIT;
+
+START TRANSACTION;
+ALTER TABLE ehr.clinical_drafts ADD assessment text;
+
+ALTER TABLE ehr.clinical_drafts ADD has_unreviewed_proposals boolean NOT NULL DEFAULT FALSE;
+
+ALTER TABLE ehr.clinical_drafts ADD history text;
+
+ALTER TABLE ehr.clinical_drafts ADD plan text;
+
+ALTER TABLE ehr.clinical_drafts ADD structured_version bigint;
+
+CREATE TABLE ehr.clinical_notes (
+    id uuid NOT NULL,
+    draft_id uuid NOT NULL,
+    patient_id uuid NOT NULL,
+    draft_version bigint NOT NULL,
+    history text NOT NULL,
+    assessment text NOT NULL,
+    plan text NOT NULL,
+    signer_id uuid NOT NULL DEFAULT (NULLIF(current_setting('app.user_id', true), '')::uuid),
+    signed_at timestamp with time zone NOT NULL DEFAULT (now()),
+    CONSTRAINT pk_clinical_notes PRIMARY KEY (id),
+    CONSTRAINT fk_clinical_notes_clinical_drafts_draft_id FOREIGN KEY (draft_id) REFERENCES ehr.clinical_drafts (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_clinical_notes_patients_patient_id FOREIGN KEY (patient_id) REFERENCES ehr.patients (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_clinical_notes_staff_users_signer_id FOREIGN KEY (signer_id) REFERENCES ehr.staff_users (id) ON DELETE RESTRICT
+);
+
+CREATE UNIQUE INDEX ix_clinical_notes_draft_id ON ehr.clinical_notes (draft_id);
+
+CREATE INDEX ix_clinical_notes_patient_id_signed_at ON ehr.clinical_notes (patient_id, signed_at);
+
+CREATE INDEX ix_clinical_notes_signer_id ON ehr.clinical_notes (signer_id);
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261116000819_ClinicalNotes', '10.0.13');
+
+COMMIT;
+

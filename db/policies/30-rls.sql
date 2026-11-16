@@ -153,3 +153,28 @@ CREATE POLICY audit_events_admin_select ON ehr.audit_events FOR SELECT USING ((S
 
 DROP POLICY IF EXISTS audit_events_insert ON ehr.audit_events;
 CREATE POLICY audit_events_insert ON ehr.audit_events FOR INSERT WITH CHECK (true);
+
+-- Drafts are private to their author and require an active panel assignment.
+ALTER TABLE ehr.clinical_drafts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.clinical_drafts FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS clinical_drafts_own ON ehr.clinical_drafts;
+CREATE POLICY clinical_drafts_own ON ehr.clinical_drafts FOR ALL
+    USING (
+        (SELECT ehr.is_clinician())
+        AND clinician_id = (SELECT ehr.current_user_id())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = clinical_drafts.patient_id AND a.ended_at IS NULL
+        )
+    );
+
+-- Signed notes follow the chart's clinician access model. Drafts remain private under UC 8's panel policy.
+ALTER TABLE ehr.clinical_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.clinical_notes FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS clinical_notes_clinician_select ON ehr.clinical_notes;
+CREATE POLICY clinical_notes_clinician_select ON ehr.clinical_notes FOR SELECT
+    USING ((SELECT ehr.is_clinician()));
+DROP POLICY IF EXISTS clinical_notes_own_insert ON ehr.clinical_notes;
+CREATE POLICY clinical_notes_own_insert ON ehr.clinical_notes FOR INSERT
+    WITH CHECK ((SELECT ehr.is_clinician()) AND signer_id = (SELECT ehr.current_user_id()));
