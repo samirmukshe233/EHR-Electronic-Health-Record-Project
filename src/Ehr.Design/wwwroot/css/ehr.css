@@ -214,6 +214,70 @@ dl.record dd {
     margin: 0;
 }
 
+/* Dictating a note (UC 9, UC 10): the live transcript, its marked passages, and the proposed fields awaiting review. */
+.transcript {
+    min-height: 4rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+    border-radius: 0.25rem;
+    white-space: pre-wrap;
+}
+
+.placeholder,
+.transcript .tentative {
+    opacity: 0.65;
+}
+
+mark.unclear {
+    background: color-mix(in srgb, #e37400 30%, transparent);
+    color: inherit;
+    text-decoration: underline wavy;
+}
+
+mark.source-highlight {
+    background: color-mix(in srgb, #1a73e8 35%, transparent);
+    color: inherit;
+}
+
+.proposed-field {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.proposed-field dt {
+    font-weight: 600;
+}
+
+.proposed-field dd {
+    margin: 0;
+}
+
+.field-status {
+    margin-left: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: normal;
+    padding: 0 0.4rem;
+    border: 1px solid currentColor;
+    border-radius: 0.25rem;
+}
+
+.proposed-field.pending .field-status {
+    color: #8a5300;
+}
+
+.proposed-field.empty dd {
+    opacity: 0.75;
+}
+
+.field-warning {
+    color: #8a5300;
+    font-size: 0.9rem;
+}
+
+[tabindex="0"]:focus-visible {
+    outline: 2px solid #1a73e8;
+}
+
 /* Clinical notes use the chart's single-column, keyboard-first form and read-only record styles. */
 .note-editor label {
     font-weight: 600;

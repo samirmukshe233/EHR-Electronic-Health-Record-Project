@@ -1,0 +1,72 @@
+@page "/patients/{id:guid}/dictate"
+@model DictateModel
+@inject Ehr.Web.Forwarding.OnPremStatus OnPrem
+@{
+    // This page's address carries the patient and the search the clinician came from. Without htmx, nothing keeps it
+    // in the browser's sessionStorage history, as on the chart.
+    ViewData["UseHtmx"] = false;
+    ViewData["Title"] = $"Dictate: {Model.Patient.FamilyName}, {Model.Patient.GivenName}";
+    // The patient and the search the clinician came from, in one dictionary: asp-all-route-data replaces asp-route-*.
+    var chartRoute = Model.Search.RouteData();
+    chartRoute["id"] = Model.Patient.Id.ToString();
+}
+@* UC 9 and UC 10 (Samir Mukshe): the screen for the dictation API. The markup is the page's skeleton; js/dictation.js
+   fills it in from the API's answers, finding each part by its data-dictation-* attribute. *@
+@section Scripts {
+    @if (OnPrem.IsReachable)
+    {
+        <script src="~/_content/Ehr.Design/js/dictation.js" defer></script>
+    }
+}
+<p><a asp-page="Chart" asp-all-route-data="chartRoute">Back to the chart</a></p>
+<h1>Dictate a note: @Model.Patient.FamilyName, @Model.Patient.GivenName</h1>
+<dl class="record">
+    <dt>MRN</dt><dd>@Model.Patient.Mrn</dd>
+    <dt>Born</dt><dd>@Model.Patient.BirthDate.ToString("yyyy-MM-dd")</dd>
+</dl>
+
+@if (!OnPrem.IsReachable)
+{
+    @* The dictation service runs beside the on-prem app, so off-site with the clinic's server down there is nothing to
+       send the audio to (UC 2). *@
+    <p class="notice read-only" data-dictation-offline>Dictation needs the clinic's server, which can't be reached right now. You can still type the note once it's back.</p>
+}
+else
+{
+    <section class="dictation" data-dictation data-dictation-api="@Ehr.Web.Api.Dictation.DictationApi.Path">
+        @Html.AntiForgeryToken()
+        <p class="notice">Dictation supports English only and needs a microphone. Nothing is saved: each proposed field waits for your review, and orders and allergy changes are never filled in from dictation.</p>
+        <noscript><p class="notice error">Dictation needs JavaScript. You can still type the note.</p></noscript>
+
+        <div class="actions">
+            <button type="button" data-dictation-start aria-keyshortcuts="Alt+Shift+D">Dictate</button>
+            <button type="button" data-dictation-stop disabled>Stop</button>
+            <button type="button" data-dictation-cancel disabled>Cancel</button>
+        </div>
+        <p class="dictation-status" role="status" aria-live="polite" data-dictation-status>Select Dictate and speak your note.</p>
+
+        <h2>Transcript</h2>
+        @* Not a live region: the script rebuilds the transcript every second, and a screen reader would read all of it again
+           each time. The status line above announces what changes. *@
+        <div class="transcript" data-dictation-transcript><p class="placeholder">Your words appear here as you speak.</p></div>
+        <p class="notice" data-dictation-unclear hidden>Highlighted passages may be wrong: they were too quiet, too noisy, or the speech model wasn't sure. Say them again, or type them during review.</p>
+
+        <h2>Proposed fields</h2>
+        <p data-dictation-sort-message>The fields are proposed once you stop.</p>
+        <dl class="proposed-fields">
+            @foreach (var (key, label) in new[] { ("history", "History"), ("assessment", "Assessment"), ("plan", "Plan") })
+            {
+                <div class="proposed-field" data-dictation-field="@key">
+                    <dt>@label <span class="field-status" data-field-status>Not dictated yet</span></dt>
+                    <dd data-field-value></dd>
+                </div>
+            }
+        </dl>
+
+        <section class="notice" data-dictation-not-carried hidden>
+            <h3>Not carried over from dictation</h3>
+            <p>You dictated these, but dictation never places orders or changes the allergy list. Place them yourself.</p>
+            <ul data-dictation-not-carried-list></ul>
+        </section>
+    </section>
+}

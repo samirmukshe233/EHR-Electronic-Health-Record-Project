@@ -154,8 +154,10 @@ def test_stop_returns_the_final_transcript_and_the_checked_fields(settings):
 
 
 def test_the_result_waits_for_fields_that_take_longer_than_stop(settings):
+    # Stop's wait must outlast the final transcription, an ffmpeg decode that takes longer to start on Windows than on
+    # Linux, and still end well before the model answers.
     async def run():
-        sessions, _ = make(settings, FakeLlama(GROUNDED, delay=0.3), stop_wait_seconds=0.01)
+        sessions, _ = make(settings, FakeLlama(GROUNDED, delay=2.0), stop_wait_seconds=0.5)
         session_id = await dictate(sessions)
         stopped = await sessions.stop(session_id, ALICE)
         waited = await sessions.result(session_id, ALICE, wait=5)

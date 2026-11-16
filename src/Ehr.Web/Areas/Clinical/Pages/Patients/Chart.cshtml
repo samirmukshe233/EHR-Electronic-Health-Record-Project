@@ -39,8 +39,16 @@
 </div>
 
 <h2>Clinical notes</h2>
+@* UC 9 and UC 10: dictate a note for this patient, offered as "New note" is: for a patient on the clinician's panel,
+   while the clinic's server can be reached. Nothing is saved there yet. The patient and the search travel in one
+   dictionary, since asp-all-route-data replaces asp-route-*. *@
+@{
+    var dictateRoute = Model.Search.RouteData();
+    dictateRoute["id"] = Model.Patient.Id.ToString();
+}
 @if (Model.OnPanel && OnPrem.IsReachable)
 {
+    <p><a asp-page="Dictate" asp-all-route-data="dictateRoute" data-dictate-link>Dictate a note</a></p>
     <form method="post" asp-page-handler="NewNote"><button>New note</button></form>
 }
 else if (!Model.OnPanel)
