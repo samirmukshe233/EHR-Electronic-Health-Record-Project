@@ -14,6 +14,8 @@ public class IndexModel(PhiReader phi) : PageModel
 
     public async Task OnGetAsync()
     {
+        // PHI: not kept by the browser, so Back after signing out on a shared computer doesn't show it again.
+        Response.Headers.CacheControl = "no-store";
         var patientId = Guid.Parse(User.FindFirstValue(EhrClaims.PatientId)!);
         Patient = await phi.PatientAsync(patientId, HttpContext.RequestAborted);
     }
