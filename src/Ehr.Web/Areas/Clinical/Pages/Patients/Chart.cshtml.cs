@@ -95,9 +95,12 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
         return Page();
     }
 
-    // The gate, then the read. Null when the chart may be shown; otherwise where to send the clinician instead.
+    // The gate, then the read. Null when the chart may be shown; otherwise where to send the clinician instead. Never
+    // cached, as the note pages aren't, so the chart isn't kept on a shared computer's disk or shown again by Back after
+    // signing out; the browser keeps it only while it's open.
     async Task<IActionResult?> LoadAsync(Guid id)
     {
+        Response.Headers.CacheControl = "no-store";
         OnPanel = await assignments.IsOnPanelAsync(id, HttpContext.RequestAborted);
         if (!OnPanel)
         {

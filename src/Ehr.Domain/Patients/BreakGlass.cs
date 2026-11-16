@@ -29,9 +29,16 @@ public sealed class BreakGlass(EhrDbContext db, UserContext user, AuditRecorder 
         return until;
     }
 
-    // Grants the clinician the chart for Duration, and records why. The foreign key refuses an ID that is no patient.
+    // Grants the clinician the chart for Duration, and records why. The foreign key refuses an ID that is no patient. The
+    // page checks the reason first, with messages; this check is for any other caller, so no grant is recorded without one.
     public async Task<DateTimeOffset> GrantAsync(Guid patientId, string reason, CancellationToken cancellationToken)
     {
+        reason = reason.Trim();
+        if (reason.Length is < MinimumReasonLength or > MaximumReasonLength)
+        {
+            throw new ArgumentException($"A reason needs {MinimumReasonLength} to {MaximumReasonLength} characters.", nameof(reason));
+        }
+
         var now = DateTimeOffset.UtcNow;
         var access = new BreakGlassAccess
         {
