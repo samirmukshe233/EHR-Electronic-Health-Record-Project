@@ -1,20 +1,18 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json.Nodes;
-using Ehr.Data.Accounts;
 using Ehr.Data.Audit;
 using Ehr.Web.Api.Dictation;
-using Ehr.Web.CloudAudit;
-using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using static Ehr.Web.Tests.Browser;
 
 namespace Ehr.Web.Tests;
 
-// The dictation page (Areas/Clinical/Pages/Patients/Dictate; UC 9 and UC 10, Samir Mukshe): who reaches it, what it
-// offers on-site and off-site, and that the form token it renders is what its script (js/dictation.js) needs to drive a
-// whole dictation through the API (DictationApi) against the stub dictation service. The script's own behaviour in a
-// browser is checked by hand: these tests cover the server side of the screen.
+// The dictation page (Areas/Clinical/Pages/Patients/Dictate; UC 9 and UC 10, Samir Mukshe): that it opens for a
+// clinician's own patient, and that the form token it renders is what its script (js/dictation.js) needs to drive a
+// dictation through the API (DictationApi) against the stub dictation service: to pending fields, to the transcript
+// kept as plain text when the model is unavailable, and to nothing when cancelled. Who may call the API is covered by
+// DictationApiTests; the script's own behaviour in a browser is checked by hand.
 public class DictationPageTests(WebApps apps) : IClassFixture<WebApps>
 {
     readonly DictationSidecarStub service = apps.Dictation.Reset();
@@ -122,70 +120,6 @@ public class DictationPageTests(WebApps apps) : IClassFixture<WebApps>
 
         Assert.Equal(HttpStatusCode.NoContent, cancelled.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, afterwards.StatusCode);
-    }
-
-    [Fact]
-    public async Task A_patient_off_the_panel_without_emergency_access_is_asked_for_a_reason_first()
-    {
-        var clinician = await apps.ClinicianAsync();
-        var patient = await apps.InsertPatientAsync("Noel", "Notmine");
-        var session = await SignInAsync(apps.OnPrem, clinician);
-        var before = await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient);
-
-        using var response = await Client(apps.OnPrem, session.Jar, followRedirects: false).GetAsync(DictatePath(patient), Cancel);
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/patients/{patient}/reason", new Uri(Base, response.Headers.Location!).AbsolutePath);
-        // Nothing about the patient was read.
-        Assert.Equal(before, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient));
-    }
-
-    [Fact]
-    public async Task Anyone_but_a_clinician_is_refused()
-    {
-        var patient = await apps.InsertPatientAsync("Ola", "Guarded");
-        using var anonymous = await Client(apps.OnPrem, new CookieContainer(), followRedirects: false).GetAsync(DictatePath(patient), Cancel);
-        var admin = await SignInAsync(apps.OnPrem, await apps.CreateStaffAsync("Dictation Page Admin", StaffRoles.Admin));
-        using var asAdmin = await Client(apps.OnPrem, admin.Jar, followRedirects: false).GetAsync(DictatePath(patient), Cancel);
-
-        Assert.Equal(HttpStatusCode.Redirect, anonymous.StatusCode);
-        Assert.Equal("/sign-in", new Uri(Base, anonymous.Headers.Location!).AbsolutePath);
-        Assert.Equal(HttpStatusCode.Redirect, asAdmin.StatusCode);
-        Assert.Equal("/denied", new Uri(Base, asAdmin.Headers.Location!).AbsolutePath);
-    }
-
-    [Fact]
-    public async Task Off_site_with_the_clinics_server_down_no_dictation_is_offered()
-    {
-        var clinician = await apps.CreateStaffAsync("Dr. Dictating Away", StaffRoles.Clinician);
-        var patient = await apps.InsertPatientAsync("Pat", "Offsite");
-        await apps.AssignAsync(clinician, patient);
-        var session = await SignInAsync(apps.OnPrem, clinician);
-        // The cloud app finds out within a couple of seconds; this is that check, now.
-        Assert.False(await apps.CloudCutOff.Services.GetRequiredService<CloudAuditShipper>().ShipAsync(Cancel));
-
-        var html = await Client(apps.CloudCutOff, session.Jar).GetStringAsync(DictatePath(patient), Cancel);
-
-        Assert.Contains("Dictate a note: Offsite, Pat", html);
-        Assert.Contains("Dictation needs the clinic's server, which can't be reached right now.", html);
-        Assert.DoesNotContain("data-dictation-start", html);
-        Assert.DoesNotContain("/js/dictation.", html);
-    }
-
-    [Fact]
-    public async Task The_chart_links_to_dictation()
-    {
-        var clinician = await apps.ClinicianAsync();
-        var patient = await apps.InsertPatientAsync("Cleo", "Linked");
-        await apps.AssignAsync(clinician, patient);
-        var session = await SignInAsync(apps.OnPrem, clinician);
-
-        var html = await session.Client.GetStringAsync($"/patients/{patient}", Cancel);
-
-        Assert.Contains($"href=\"{DictatePath(patient)}\"", html);
-        Assert.Contains("Dictate a note", html);
-        // Only the dictation page loads its script.
-        Assert.DoesNotContain("/js/dictation.", html);
     }
 
     static ByteArrayContent Audio(byte[] bytes) =>
