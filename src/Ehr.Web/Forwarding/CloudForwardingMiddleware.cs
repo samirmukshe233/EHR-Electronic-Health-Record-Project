@@ -41,9 +41,15 @@ public sealed class CloudForwardingMiddleware(
             var shown = plainFormPost && context.Request.Headers["Sec-Fetch-Site"] == "same-origin"
                 ? endpoint!.Metadata.GetMetadata<ShownIfNotSavedAttribute>()
                 : null;
-            if (shown is not null)
+            // In memory only, and only a body of a known size that fits: nothing typed is ever written to the cloud
+            // server's disk, and nobody can fill that disk by posting. A larger form isn't kept, and isn't shown again.
+            if (shown is not null && context.Request.ContentLength is > 0 and <= MaximumKeptBody)
             {
-                context.Request.EnableBuffering();
+                context.Request.EnableBuffering(bufferThreshold: MaximumKeptBody, bufferLimit: MaximumKeptBody);
+            }
+            else
+            {
+                shown = null;
             }
 
             if (await ForwardAsync(context) != ForwarderError.None && !context.Response.HasStarted)
@@ -114,6 +120,10 @@ public sealed class CloudForwardingMiddleware(
         return error;
     }
 
+    // The largest form body kept in memory to show again: several times a note at its longest (three sections of 16,000
+    // characters, form-encoded).
+    const int MaximumKeptBody = 256 * 1024;
+
     // What was typed in the fields the page names, those not left empty, from the body kept for this: the forward may
     // have read some of it.
     static async Task<List<(string Field, string Value)>> EnteredAsync(HttpRequest request, ShownIfNotSavedAttribute shown)
@@ -123,9 +133,17 @@ public sealed class CloudForwardingMiddleware(
             return [];
         }
 
-        request.Body.Position = 0;
-        var form = await request.ReadFormAsync(CancellationToken.None);
-        return [.. shown.Fields.Select(field => (field, form[field].ToString())).Where(entry => entry.Item2.Length > 0)];
+        try
+        {
+            request.Body.Position = 0;
+            var form = await request.ReadFormAsync(CancellationToken.None);
+            return [.. shown.Fields.Select(field => (field, form[field].ToString())).Where(entry => entry.Item2.Length > 0)];
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or BadHttpRequestException)
+        {
+            // The browser gave up partway through sending the form, or sent one that can't be read: the page without it.
+            return [];
+        }
     }
 
     // Back goes back in the browser's history (back-link.js), where the form may still have what was typed, though a

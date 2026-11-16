@@ -41,7 +41,7 @@ The tests are in `tests/Ehr.Web.Tests` unless named otherwise. `CloudCutOff` is 
 | Sign-in steps (password, code, enrollment, new password, setup) | "Not saved" page; nothing typed is shown back | Same | Still offered (sign-in unchanged) |
 | Sign out | Works: the cloud app does it and queues the event | Same | Offered |
 
-"Shown again" means a read-only box to copy from, on the "Not saved" page, only for a form the browser sent from this site (`Sec-Fetch-Site: same-origin`), never a password or code, and sent with `no-store`.
+"Shown again" means a read-only box to copy from, on the "Not saved" page, only for a form the browser sent from this site (`Sec-Fetch-Site: same-origin`), never a password or code, and sent with `no-store`. The text is held in memory while the form is forwarded, never on the cloud server's disk, so a form over 256 KB isn't shown again.
 
 ## Off-site render time (NFR-03)
 

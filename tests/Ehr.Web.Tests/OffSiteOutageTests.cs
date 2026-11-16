@@ -57,6 +57,22 @@ public class OffSiteOutageTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Contains("what you entered may still be there", html);
     }
 
+    // What is shown again was kept in memory, never on the cloud server's disk, so a form too large for that isn't kept.
+    [Fact]
+    public async Task A_form_too_large_to_keep_in_memory_is_refused_without_being_shown_back()
+    {
+        var patient = await apps.InsertPatientAsync("Pia", "Oversized");
+        var session = await SignInAsync(apps.OnPrem, await apps.ClinicianAsync());
+        var token = Token(await session.Client.GetStringAsync($"/patients/{patient}/reason", Cancel));
+
+        using var response = await PlainPostAsync(Client(apps.CloudCutOff, session.Jar), $"/patients/{patient}/reason", token,
+            ("Reason", "Too long to keep. " + new string('x', 300_000)));
+
+        var html = await NotSavedAsync(response);
+        Assert.DoesNotContain("Too long to keep.", html);
+        Assert.Contains("what you entered may still be there", html);
+    }
+
     // Without JavaScript the editor's save is a plain form post; with it, note-editor.js keeps the text on screen.
     [Fact]
     public async Task A_note_saved_without_JavaScript_is_shown_again_and_the_draft_offers_no_editor()
