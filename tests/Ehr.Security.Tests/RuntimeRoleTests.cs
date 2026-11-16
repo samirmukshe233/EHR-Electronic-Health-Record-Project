@@ -52,6 +52,16 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
         [("ehr_read", "medication_statements")] = ["SELECT"],
         [("ehr_app", "conditions")] = ["SELECT"],
         [("ehr_read", "conditions")] = ["SELECT"],
+        [("ehr_app", "clinical_notes")] = ["SELECT", "INSERT"],
+        [("ehr_read", "clinical_notes")] = ["SELECT"],
+        [("ehr_app", "clinical_drafts")] = ["SELECT", "INSERT", "UPDATE"],
+        // UC 14 adds replica draft reads under the same private-author/active-panel RLS as the primary.
+        [("ehr_read", "clinical_drafts")] = ["SELECT"],
+        // UC 1: orders are append-only; the catalog is read only.
+        [("ehr_app", "orders")] = ["SELECT", "INSERT"],
+        [("ehr_read", "orders")] = ["SELECT"],
+        [("ehr_app", "order_catalog_items")] = ["SELECT"],
+        [("ehr_read", "order_catalog_items")] = ["SELECT"],
         [("ehr_app", "encounters")] = ["SELECT"],
         [("ehr_read", "encounters")] = ["SELECT"],
         [("ehr_app", "patient_enrollments")] = ["SELECT", "INSERT", "UPDATE"],

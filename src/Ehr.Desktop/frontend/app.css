@@ -95,3 +95,15 @@ textarea {
   opacity: 0.7;
   white-space: nowrap;
 }
+
+.draft-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+
+.draft-versions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+}

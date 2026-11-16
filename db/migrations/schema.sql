@@ -448,3 +448,163 @@ VALUES ('20261115104258_PatientSearchIndexes', '10.0.13');
 
 COMMIT;
 
+START TRANSACTION;
+CREATE TABLE ehr.clinical_drafts (
+    id uuid NOT NULL,
+    patient_id uuid NOT NULL,
+    clinician_id uuid NOT NULL,
+    body text NOT NULL,
+    version bigint NOT NULL,
+    CONSTRAINT pk_clinical_drafts PRIMARY KEY (id),
+    CONSTRAINT fk_clinical_drafts_patients_patient_id FOREIGN KEY (patient_id) REFERENCES ehr.patients (id) ON DELETE CASCADE,
+    CONSTRAINT fk_clinical_drafts_staff_users_clinician_id FOREIGN KEY (clinician_id) REFERENCES ehr.staff_users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_clinical_drafts_clinician_id ON ehr.clinical_drafts (clinician_id);
+
+CREATE INDEX ix_clinical_drafts_patient_id ON ehr.clinical_drafts (patient_id);
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261115202104_ClinicalDrafts', '10.0.13');
+
+COMMIT;
+
+START TRANSACTION;
+ALTER TABLE ehr.clinical_drafts ADD assessment text;
+
+ALTER TABLE ehr.clinical_drafts ADD has_unreviewed_proposals boolean NOT NULL DEFAULT FALSE;
+
+ALTER TABLE ehr.clinical_drafts ADD history text;
+
+ALTER TABLE ehr.clinical_drafts ADD plan text;
+
+ALTER TABLE ehr.clinical_drafts ADD structured_version bigint;
+
+CREATE TABLE ehr.clinical_notes (
+    id uuid NOT NULL,
+    draft_id uuid NOT NULL,
+    patient_id uuid NOT NULL,
+    draft_version bigint NOT NULL,
+    history text NOT NULL,
+    assessment text NOT NULL,
+    plan text NOT NULL,
+    signer_id uuid NOT NULL DEFAULT (NULLIF(current_setting('app.user_id', true), '')::uuid),
+    signed_at timestamp with time zone NOT NULL DEFAULT (now()),
+    CONSTRAINT pk_clinical_notes PRIMARY KEY (id),
+    CONSTRAINT fk_clinical_notes_clinical_drafts_draft_id FOREIGN KEY (draft_id) REFERENCES ehr.clinical_drafts (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_clinical_notes_patients_patient_id FOREIGN KEY (patient_id) REFERENCES ehr.patients (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_clinical_notes_staff_users_signer_id FOREIGN KEY (signer_id) REFERENCES ehr.staff_users (id) ON DELETE RESTRICT
+);
+
+CREATE UNIQUE INDEX ix_clinical_notes_draft_id ON ehr.clinical_notes (draft_id);
+
+CREATE INDEX ix_clinical_notes_patient_id_signed_at ON ehr.clinical_notes (patient_id, signed_at);
+
+CREATE INDEX ix_clinical_notes_signer_id ON ehr.clinical_notes (signer_id);
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261116000819_ClinicalNotes', '10.0.13');
+
+COMMIT;
+
+START TRANSACTION;
+CREATE TABLE ehr.order_catalog_items (
+    code character varying(20) NOT NULL,
+    type character varying(20) NOT NULL,
+    display character varying(200) NOT NULL,
+    CONSTRAINT pk_order_catalog_items PRIMARY KEY (code),
+    CONSTRAINT ak_order_catalog_items_type_code UNIQUE (type, code),
+    CONSTRAINT ck_order_catalog_items_type CHECK (type IN ('lab', 'imaging', 'medication', 'referral'))
+);
+
+CREATE TABLE ehr.orders (
+    id uuid NOT NULL,
+    patient_id uuid NOT NULL,
+    type character varying(20) NOT NULL,
+    catalog_code character varying(20) NOT NULL,
+    details jsonb NOT NULL,
+    status character varying(20) NOT NULL,
+    signer_id uuid NOT NULL DEFAULT (NULLIF(current_setting('app.user_id', true), '')::uuid),
+    signed_at timestamp with time zone NOT NULL DEFAULT (now()),
+    duplicate_reason character varying(500),
+    CONSTRAINT pk_orders PRIMARY KEY (id),
+    CONSTRAINT ck_orders_details CHECK (jsonb_typeof(details) = 'object'),
+    CONSTRAINT ck_orders_status CHECK (status IN ('draft', 'active', 'on-hold', 'revoked', 'completed', 'entered-in-error', 'unknown')),
+    CONSTRAINT ck_orders_type CHECK (type IN ('lab', 'imaging', 'medication', 'referral')),
+    CONSTRAINT fk_orders_order_catalog_items_type_catalog_code FOREIGN KEY (type, catalog_code) REFERENCES ehr.order_catalog_items (type, code) ON DELETE RESTRICT,
+    CONSTRAINT fk_orders_patients_patient_id FOREIGN KEY (patient_id) REFERENCES ehr.patients (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_orders_staff_users_signer_id FOREIGN KEY (signer_id) REFERENCES ehr.staff_users (id) ON DELETE RESTRICT
+);
+
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-IMG-001', 'Chest X-ray, 2 views', 'imaging');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-IMG-002', 'Lumbar spine X-ray', 'imaging');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-IMG-003', 'Abdominal ultrasound', 'imaging');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-IMG-004', 'CT head without contrast', 'imaging');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-IMG-005', 'MRI lumbar spine without contrast', 'imaging');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-IMG-006', 'Screening mammogram', 'imaging');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-LAB-001', 'Complete blood count (CBC)', 'lab');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-LAB-002', 'Basic metabolic panel (BMP)', 'lab');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-LAB-003', 'Comprehensive metabolic panel (CMP)', 'lab');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-LAB-004', 'Lipid panel', 'lab');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-LAB-005', 'Hemoglobin A1c', 'lab');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-LAB-006', 'Thyroid-stimulating hormone (TSH)', 'lab');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-LAB-007', 'Urinalysis', 'lab');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-LAB-008', 'Vitamin D, 25-hydroxy', 'lab');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-MED-001', 'Lisinopril 10 mg tablet', 'medication');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-MED-002', 'Metformin 500 mg tablet', 'medication');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-MED-003', 'Atorvastatin 20 mg tablet', 'medication');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-MED-004', 'Amlodipine 5 mg tablet', 'medication');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-MED-005', 'Amoxicillin 500 mg capsule', 'medication');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-MED-006', 'Albuterol 90 mcg inhaler', 'medication');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-MED-007', 'Sertraline 50 mg tablet', 'medication');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-MED-008', 'Ibuprofen 400 mg tablet', 'medication');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-REF-001', 'Cardiology referral', 'referral');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-REF-002', 'Dermatology referral', 'referral');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-REF-003', 'Endocrinology referral', 'referral');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-REF-004', 'Gastroenterology referral', 'referral');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-REF-005', 'Orthopedics referral', 'referral');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-REF-006', 'Physical therapy referral', 'referral');
+INSERT INTO ehr.order_catalog_items (code, display, type)
+VALUES ('SYN-REF-007', 'Psychiatry referral', 'referral');
+
+CREATE UNIQUE INDEX ix_order_catalog_items_type_display ON ehr.order_catalog_items (type, display);
+
+CREATE INDEX ix_orders_patient_id_signed_at ON ehr.orders (patient_id, signed_at);
+
+CREATE INDEX ix_orders_signer_id ON ehr.orders (signer_id);
+
+CREATE INDEX ix_orders_type_catalog_code ON ehr.orders (type, catalog_code);
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261116033502_Orders', '10.0.13');
+
+COMMIT;
+

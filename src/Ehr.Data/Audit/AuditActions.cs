@@ -13,6 +13,8 @@ public static class AuditActions
 
     public const string Delete = "delete";
 
+    public const string SignNote = "sign_note";
+
     public const string SignIn = "sign_in";
 
     public const string SignInFailed = "sign_in_failed";
@@ -55,11 +57,19 @@ public static class AuditActions
 
     public const string EmailConfirmed = "email_confirmed";
 
+    // A patient whose confirmation link expired or got lost asked for a new one, and it was sent.
+    public const string ConfirmationResent = "confirmation_resent";
+
+    // A patient whose account was never confirmed (a mistyped address, say) registered again with a new code: the
+    // account's address and password were replaced.
+    public const string RegistrationReplaced = "registration_replaced";
+
     // Every action, for the audit page's filter.
     public static readonly string[] All =
     [
-        Read, Insert, Update, Delete, SignIn, SignInFailed, SignOut, BreakGlass, BootstrapAdmin, PasswordChanged,
+        Read, Insert, Update, Delete, SignNote, SignIn, SignInFailed, SignOut, BreakGlass, BootstrapAdmin, PasswordChanged,
         PasswordResetRequested, PasswordReset, AuthenticatorReset, AccountDisabled, AccountEnabled, MfaEnrolled,
-        RecoveryCodeUsed, StaffInvited, EnrollmentIssued, PatientRegistered, EmailConfirmed,
+        RecoveryCodeUsed, StaffInvited, EnrollmentIssued, PatientRegistered, EmailConfirmed, ConfirmationResent,
+        RegistrationReplaced,
     ];
 }

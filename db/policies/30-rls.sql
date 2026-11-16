@@ -153,3 +153,49 @@ CREATE POLICY audit_events_admin_select ON ehr.audit_events FOR SELECT USING ((S
 
 DROP POLICY IF EXISTS audit_events_insert ON ehr.audit_events;
 CREATE POLICY audit_events_insert ON ehr.audit_events FOR INSERT WITH CHECK (true);
+
+-- Drafts are private to their author and require an active panel assignment.
+ALTER TABLE ehr.clinical_drafts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.clinical_drafts FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS clinical_drafts_own ON ehr.clinical_drafts;
+CREATE POLICY clinical_drafts_own ON ehr.clinical_drafts FOR ALL
+    USING (
+        (SELECT ehr.is_clinician())
+        AND clinician_id = (SELECT ehr.current_user_id())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = clinical_drafts.patient_id AND a.ended_at IS NULL
+        )
+    );
+
+-- Signed notes follow the chart's clinician access model. Drafts remain private under UC 8's panel policy.
+ALTER TABLE ehr.clinical_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.clinical_notes FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS clinical_notes_clinician_select ON ehr.clinical_notes;
+CREATE POLICY clinical_notes_clinician_select ON ehr.clinical_notes FOR SELECT
+    USING ((SELECT ehr.is_clinician()));
+DROP POLICY IF EXISTS clinical_notes_own_insert ON ehr.clinical_notes;
+CREATE POLICY clinical_notes_own_insert ON ehr.clinical_notes FOR INSERT
+    WITH CHECK ((SELECT ehr.is_clinician()) AND signer_id = (SELECT ehr.current_user_id()));
+
+-- UC 1 (Tahseen Arnan). Orders (PHI) are read as signed notes are: by every clinician, on the chart's access model. A
+-- clinician signs an order only as themselves and only for a patient on their active panel, the rule for writing notes;
+-- the signing trigger also locks, checks for a duplicate and sets the time (60-orders.sql). Nothing updates or deletes
+-- an order (10-grants.sql), so there are no policies for either.
+ALTER TABLE ehr.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.orders FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS orders_clinician_select ON ehr.orders;
+CREATE POLICY orders_clinician_select ON ehr.orders FOR SELECT
+    USING ((SELECT ehr.is_clinician()));
+DROP POLICY IF EXISTS orders_own_insert ON ehr.orders;
+CREATE POLICY orders_own_insert ON ehr.orders FOR INSERT
+    WITH CHECK (
+        (SELECT ehr.is_clinician())
+        AND signer_id = (SELECT ehr.current_user_id())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = orders.patient_id AND a.ended_at IS NULL
+        )
+    );

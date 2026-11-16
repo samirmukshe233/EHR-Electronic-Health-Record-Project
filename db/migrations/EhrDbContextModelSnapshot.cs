@@ -521,6 +521,290 @@ namespace Ehr.Migrations
                     b.ToTable("change_log", "ehr");
                 });
 
+            modelBuilder.Entity("Ehr.Data.Orders.Order", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CatalogCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("catalog_code");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("details");
+
+                    b.Property<string>("DuplicateReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("duplicate_reason");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("patient_id");
+
+                    b.Property<DateTimeOffset>("SignedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("signed_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("SignerId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("signer_id")
+                        .HasDefaultValueSql("NULLIF(current_setting('app.user_id', true), '')::uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_orders");
+
+                    b.HasIndex("SignerId")
+                        .HasDatabaseName("ix_orders_signer_id");
+
+                    b.HasIndex("PatientId", "SignedAt")
+                        .HasDatabaseName("ix_orders_patient_id_signed_at");
+
+                    b.HasIndex("Type", "CatalogCode")
+                        .HasDatabaseName("ix_orders_type_catalog_code");
+
+                    b.ToTable("orders", "ehr", t =>
+                        {
+                            t.HasCheckConstraint("ck_orders_details", "jsonb_typeof(details) = 'object'");
+
+                            t.HasCheckConstraint("ck_orders_status", "status IN ('draft', 'active', 'on-hold', 'revoked', 'completed', 'entered-in-error', 'unknown')");
+
+                            t.HasCheckConstraint("ck_orders_type", "type IN ('lab', 'imaging', 'medication', 'referral')");
+                        });
+                });
+
+            modelBuilder.Entity("Ehr.Data.Orders.OrderCatalogItem", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Display")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("display");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Code")
+                        .HasName("pk_order_catalog_items");
+
+                    b.HasAlternateKey("Type", "Code")
+                        .HasName("ak_order_catalog_items_type_code");
+
+                    b.HasIndex("Type", "Display")
+                        .IsUnique()
+                        .HasDatabaseName("ix_order_catalog_items_type_display");
+
+                    b.ToTable("order_catalog_items", "ehr", t =>
+                        {
+                            t.HasCheckConstraint("ck_order_catalog_items_type", "type IN ('lab', 'imaging', 'medication', 'referral')");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "SYN-LAB-001",
+                            Display = "Complete blood count (CBC)",
+                            Type = "lab"
+                        },
+                        new
+                        {
+                            Code = "SYN-LAB-002",
+                            Display = "Basic metabolic panel (BMP)",
+                            Type = "lab"
+                        },
+                        new
+                        {
+                            Code = "SYN-LAB-003",
+                            Display = "Comprehensive metabolic panel (CMP)",
+                            Type = "lab"
+                        },
+                        new
+                        {
+                            Code = "SYN-LAB-004",
+                            Display = "Lipid panel",
+                            Type = "lab"
+                        },
+                        new
+                        {
+                            Code = "SYN-LAB-005",
+                            Display = "Hemoglobin A1c",
+                            Type = "lab"
+                        },
+                        new
+                        {
+                            Code = "SYN-LAB-006",
+                            Display = "Thyroid-stimulating hormone (TSH)",
+                            Type = "lab"
+                        },
+                        new
+                        {
+                            Code = "SYN-LAB-007",
+                            Display = "Urinalysis",
+                            Type = "lab"
+                        },
+                        new
+                        {
+                            Code = "SYN-LAB-008",
+                            Display = "Vitamin D, 25-hydroxy",
+                            Type = "lab"
+                        },
+                        new
+                        {
+                            Code = "SYN-IMG-001",
+                            Display = "Chest X-ray, 2 views",
+                            Type = "imaging"
+                        },
+                        new
+                        {
+                            Code = "SYN-IMG-002",
+                            Display = "Lumbar spine X-ray",
+                            Type = "imaging"
+                        },
+                        new
+                        {
+                            Code = "SYN-IMG-003",
+                            Display = "Abdominal ultrasound",
+                            Type = "imaging"
+                        },
+                        new
+                        {
+                            Code = "SYN-IMG-004",
+                            Display = "CT head without contrast",
+                            Type = "imaging"
+                        },
+                        new
+                        {
+                            Code = "SYN-IMG-005",
+                            Display = "MRI lumbar spine without contrast",
+                            Type = "imaging"
+                        },
+                        new
+                        {
+                            Code = "SYN-IMG-006",
+                            Display = "Screening mammogram",
+                            Type = "imaging"
+                        },
+                        new
+                        {
+                            Code = "SYN-MED-001",
+                            Display = "Lisinopril 10 mg tablet",
+                            Type = "medication"
+                        },
+                        new
+                        {
+                            Code = "SYN-MED-002",
+                            Display = "Metformin 500 mg tablet",
+                            Type = "medication"
+                        },
+                        new
+                        {
+                            Code = "SYN-MED-003",
+                            Display = "Atorvastatin 20 mg tablet",
+                            Type = "medication"
+                        },
+                        new
+                        {
+                            Code = "SYN-MED-004",
+                            Display = "Amlodipine 5 mg tablet",
+                            Type = "medication"
+                        },
+                        new
+                        {
+                            Code = "SYN-MED-005",
+                            Display = "Amoxicillin 500 mg capsule",
+                            Type = "medication"
+                        },
+                        new
+                        {
+                            Code = "SYN-MED-006",
+                            Display = "Albuterol 90 mcg inhaler",
+                            Type = "medication"
+                        },
+                        new
+                        {
+                            Code = "SYN-MED-007",
+                            Display = "Sertraline 50 mg tablet",
+                            Type = "medication"
+                        },
+                        new
+                        {
+                            Code = "SYN-MED-008",
+                            Display = "Ibuprofen 400 mg tablet",
+                            Type = "medication"
+                        },
+                        new
+                        {
+                            Code = "SYN-REF-001",
+                            Display = "Cardiology referral",
+                            Type = "referral"
+                        },
+                        new
+                        {
+                            Code = "SYN-REF-002",
+                            Display = "Dermatology referral",
+                            Type = "referral"
+                        },
+                        new
+                        {
+                            Code = "SYN-REF-003",
+                            Display = "Endocrinology referral",
+                            Type = "referral"
+                        },
+                        new
+                        {
+                            Code = "SYN-REF-004",
+                            Display = "Gastroenterology referral",
+                            Type = "referral"
+                        },
+                        new
+                        {
+                            Code = "SYN-REF-005",
+                            Display = "Orthopedics referral",
+                            Type = "referral"
+                        },
+                        new
+                        {
+                            Code = "SYN-REF-006",
+                            Display = "Physical therapy referral",
+                            Type = "referral"
+                        },
+                        new
+                        {
+                            Code = "SYN-REF-007",
+                            Display = "Psychiatry referral",
+                            Type = "referral"
+                        });
+                });
+
             modelBuilder.Entity("Ehr.Data.Patients.AllergyIntolerance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -623,6 +907,125 @@ namespace Ehr.Migrations
                         .HasDatabaseName("ix_break_glass_accesses_clinician_id_patient_id_expires_at");
 
                     b.ToTable("break_glass_accesses", "ehr");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Patients.ClinicalDraft", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Assessment")
+                        .HasColumnType("text")
+                        .HasColumnName("assessment");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("body");
+
+                    b.Property<Guid>("ClinicianId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("clinician_id");
+
+                    b.Property<bool>("HasUnreviewedProposals")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_unreviewed_proposals");
+
+                    b.Property<string>("History")
+                        .HasColumnType("text")
+                        .HasColumnName("history");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("patient_id");
+
+                    b.Property<string>("Plan")
+                        .HasColumnType("text")
+                        .HasColumnName("plan");
+
+                    b.Property<long?>("StructuredVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("structured_version");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_clinical_drafts");
+
+                    b.HasIndex("ClinicianId")
+                        .HasDatabaseName("ix_clinical_drafts_clinician_id");
+
+                    b.HasIndex("PatientId")
+                        .HasDatabaseName("ix_clinical_drafts_patient_id");
+
+                    b.ToTable("clinical_drafts", "ehr");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Patients.ClinicalNote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Assessment")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("assessment");
+
+                    b.Property<Guid>("DraftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("draft_id");
+
+                    b.Property<long>("DraftVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("draft_version");
+
+                    b.Property<string>("History")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("history");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("patient_id");
+
+                    b.Property<string>("Plan")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("plan");
+
+                    b.Property<DateTimeOffset>("SignedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("signed_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("SignerId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("signer_id")
+                        .HasDefaultValueSql("NULLIF(current_setting('app.user_id', true), '')::uuid");
+
+                    b.HasKey("Id")
+                        .HasName("pk_clinical_notes");
+
+                    b.HasIndex("DraftId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_clinical_notes_draft_id");
+
+                    b.HasIndex("SignerId")
+                        .HasDatabaseName("ix_clinical_notes_signer_id");
+
+                    b.HasIndex("PatientId", "SignedAt")
+                        .HasDatabaseName("ix_clinical_notes_patient_id_signed_at");
+
+                    b.ToTable("clinical_notes", "ehr");
                 });
 
             modelBuilder.Entity("Ehr.Data.Patients.Condition", b =>
@@ -1111,6 +1514,31 @@ namespace Ehr.Migrations
                         .HasConstraintName("fk_staff_user_tokens_staff_users_user_id");
                 });
 
+            modelBuilder.Entity("Ehr.Data.Orders.Order", b =>
+                {
+                    b.HasOne("Ehr.Data.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_orders_patients_patient_id");
+
+                    b.HasOne("Ehr.Data.Accounts.StaffUser", null)
+                        .WithMany()
+                        .HasForeignKey("SignerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_orders_staff_users_signer_id");
+
+                    b.HasOne("Ehr.Data.Orders.OrderCatalogItem", null)
+                        .WithMany()
+                        .HasForeignKey("Type", "CatalogCode")
+                        .HasPrincipalKey("Type", "Code")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_orders_order_catalog_items_type_catalog_code");
+                });
+
             modelBuilder.Entity("Ehr.Data.Patients.AllergyIntolerance", b =>
                 {
                     b.HasOne("Ehr.Data.Patients.Patient", null)
@@ -1136,6 +1564,47 @@ namespace Ehr.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_break_glass_accesses_patients_patient_id");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Patients.ClinicalDraft", b =>
+                {
+                    b.HasOne("Ehr.Data.Accounts.StaffUser", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_clinical_drafts_staff_users_clinician_id");
+
+                    b.HasOne("Ehr.Data.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_clinical_drafts_patients_patient_id");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Patients.ClinicalNote", b =>
+                {
+                    b.HasOne("Ehr.Data.Patients.ClinicalDraft", null)
+                        .WithMany()
+                        .HasForeignKey("DraftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_clinical_notes_clinical_drafts_draft_id");
+
+                    b.HasOne("Ehr.Data.Patients.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_clinical_notes_patients_patient_id");
+
+                    b.HasOne("Ehr.Data.Accounts.StaffUser", null)
+                        .WithMany()
+                        .HasForeignKey("SignerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_clinical_notes_staff_users_signer_id");
                 });
 
             modelBuilder.Entity("Ehr.Data.Patients.Condition", b =>

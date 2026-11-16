@@ -6,12 +6,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace Ehr.Web.Areas.Clinical.Pages.Patients;
 
-// A patient's chart: demographics, allergies, medications, diagnoses and recent visits, read only for now. A patient
+// A patient's chart: demographics, allergies, medications, diagnoses, recent visits and active orders (UC 1). A patient
 // off the clinician's panel first asks for a reason (Reason, BreakGlass); then the read goes through the PHI reader,
 // which records it as one read of the patient, and a patient this clinician may not see is not found, which gives
 // nothing away. From here a clinician puts the patient on their panel or takes them off it, and issues the patient a
 // portal enrollment code. The search the clinician came from travels along (SearchQuery), for the way back to it.
-public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlass breakGlass, PatientEnrollments enrollments) : PageModel
+public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlass breakGlass, PatientEnrollments enrollments, Ehr.Domain.Notes.ClinicalNotes notes) : PageModel
 {
     // How many of the latest visits the chart lists.
     public const int RecentVisits = 5;
@@ -31,6 +31,15 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
     public AllergyIntolerance? NoKnownAllergies =>
         KnownAllergies.Count == 0 ? Chart.Allergies.FirstOrDefault(a => a.Code == AllergyIntolerance.NoKnownAllergy) : null;
 
+    // UC 1: the order just signed, from the order form's redirect, when it is among the active orders.
+    [BindProperty(SupportsGet = true)]
+    public Guid? Ordered { get; set; }
+
+    public Ehr.Domain.Orders.ActiveOrder? SignedOrder => Chart.Orders.FirstOrDefault(order => order.Id == Ordered);
+
+    public IReadOnlyList<ClinicalDraft> Drafts { get; private set; } = [];
+    public IReadOnlyList<ClinicalNote> Notes { get; private set; } = [];
+
     public bool OnPanel { get; private set; }
 
     // Set when the chart is open under emergency access: until when.
@@ -46,6 +55,12 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
         visit.HeartRatePerMinute is { } rate ? $"{rate}/min" : null;
 
     public async Task<IActionResult> OnGetAsync(Guid id) => await LoadAsync(id) ?? Page();
+
+    public async Task<IActionResult> OnPostNewNoteAsync(Guid id)
+    {
+        var draft = await notes.CreateAsync(id, HttpContext.RequestAborted);
+        return draft is null ? Forbid() : RedirectToPage("Notes/Edit", new { patientId = id, draftId = draft.Id });
+    }
 
     public async Task<IActionResult> OnPostAssignAsync(Guid id)
     {
@@ -100,6 +115,11 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
         }
 
         Chart = chart;
+        Notes = await phi.NotesAsync(id, HttpContext.RequestAborted);
+        if (OnPanel)
+        {
+            Drafts = await phi.NoteDraftsAsync(id, HttpContext.RequestAborted);
+        }
         return null;
     }
 }

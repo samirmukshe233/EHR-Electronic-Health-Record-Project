@@ -2,10 +2,8 @@
 //! phrases as the server last sent them, the outbox of changes not yet sent, the changes the server refused (for the
 //! person to choose), and the sync watermark. What the app shows is the server's copy with the outbox on top.
 
-use std::ffi::OsString;
 use std::fmt;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -14,6 +12,7 @@ use uuid::Uuid;
 
 use crate::api::{Operation, Outcome, PullResponse, PushResult, QuickText};
 use crate::rules;
+use ehr_desktop::{charts, draft_sync, drafts, recordings};
 
 const SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS quick_texts (
@@ -80,7 +79,6 @@ pub struct Conflict {
 #[derive(Debug)]
 pub enum Error {
     Database(rusqlite::Error),
-    File(PathBuf, io::Error),
     NotFound,
     /// The phrase changed while the person was editing it.
     ChangedSince,
@@ -98,7 +96,6 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Database(error) => write!(f, "local database: {error}"),
-            Error::File(path, error) => write!(f, "{}: {error}", path.display()),
             Error::NotFound => f.write_str("That phrase isn't here any more."),
             Error::ChangedSince => f.write_str("This phrase changed while you were editing it."),
             Error::Refused(reason) => f.write_str(reason),
@@ -130,32 +127,197 @@ impl Store {
         connection.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode(key)))?;
         connection.query_row("SELECT count(*) FROM sqlite_master", [], |_| Ok(()))?;
         connection.execute_batch(SCHEMA)?;
+        drafts::initialize(&connection)?;
+        draft_sync::initialize(&connection)?;
+        recordings::initialize(&connection)?;
+        charts::initialize(&connection)?;
         Ok(Store { connection })
     }
 
-    /// Opens the database at `path`, or starts it again when `key` can't open it: the key was lost, or the file is
-    /// damaged, and nothing can read it now. The server has every saved phrase; changes not yet sent are lost. Says
-    /// whether it started again. Any other failure leaves the file alone.
-    pub fn open_or_start_again(path: &Path, key: &[u8; 32]) -> Result<(Store, bool)> {
-        match Store::open(path, key) {
-            Ok(store) => Ok((store, false)),
-            Err(Error::Database(rusqlite::Error::SqliteFailure(error, _)))
-                if error.code == rusqlite::ErrorCode::NotADatabase =>
-            {
-                let mut journal = OsString::from(path);
-                journal.push("-journal");
-                for file in [path.to_path_buf(), PathBuf::from(journal)] {
-                    match std::fs::remove_file(&file) {
-                        Err(error) if error.kind() != io::ErrorKind::NotFound => {
-                            return Err(Error::File(file, error));
-                        }
-                        _ => {}
-                    }
-                }
-                Ok((Store::open(path, key)?, true))
-            }
-            Err(error) => Err(error),
+    pub fn replace_panel(&mut self, owner: Uuid, panel: &[charts::Chart]) -> Result<()> {
+        draft_sync::reset_watermark(&self.connection, owner)?;
+        charts::replace_panel(&mut self.connection, owner, panel)?;
+        Ok(())
+    }
+
+    pub fn offline_panel(&self, owner: Uuid) -> Result<Vec<charts::ChartSummary>> {
+        Ok(charts::panel(&self.connection, owner)?)
+    }
+
+    pub fn offline_chart(
+        &self,
+        owner: Uuid,
+        patient: Uuid,
+    ) -> Result<(charts::Chart, Vec<draft_sync::DraftView>)> {
+        let chart = charts::get(&self.connection, owner, patient)?
+            .ok_or(Error::Refused("This chart is only available online."))?;
+        let notes = draft_sync::list(&self.connection, owner, patient)?;
+        Ok((chart, notes))
+    }
+
+    pub fn save_clinical_draft(&self, owner: Uuid, patient: Uuid, body: &str) -> Result<()> {
+        if body.trim().is_empty() || body.len() > 65_536 || body.contains('\0') {
+            return Err(Error::Refused("Enter a draft of up to 64 KiB."));
         }
+        if !charts::contains(&self.connection, owner, patient)? {
+            return Err(Error::Refused("This chart is only available online."));
+        }
+        drafts::save(&self.connection, owner, patient, body)?;
+        Ok(())
+    }
+
+    pub fn clinical_waiting(&self, owner: Uuid) -> Result<usize> {
+        Ok(draft_sync::waiting(&self.connection, owner)?
+            + recordings::waiting(&self.connection, owner)?)
+    }
+
+    pub fn clinical_pull_scope(&self, owner: Uuid) -> Result<(String, Vec<String>)> {
+        let patients = self
+            .offline_panel(owner)?
+            .into_iter()
+            .map(|chart| chart.id)
+            .collect();
+        Ok((draft_sync::watermark(&self.connection, owner)?, patients))
+    }
+
+    pub fn apply_clinical_pull(
+        &mut self,
+        owner: Uuid,
+        since: &str,
+        patients: &[String],
+        next: &str,
+        changes: &[draft_sync::ServerDraft],
+    ) -> Result<()> {
+        if self.clinical_pull_scope(owner)?.1 == patients {
+            draft_sync::pull(&mut self.connection, owner, since, next, changes)?;
+        }
+        Ok(())
+    }
+
+    pub fn clinical_pending(&self, owner: Uuid) -> Result<Vec<draft_sync::Change>> {
+        Ok(draft_sync::pending(&self.connection, owner)?)
+    }
+
+    pub fn apply_clinical_answer(
+        &mut self,
+        owner: Uuid,
+        change: &draft_sync::Change,
+        answer: draft_sync::PushResult,
+    ) -> Result<()> {
+        Ok(draft_sync::answer(
+            &mut self.connection,
+            owner,
+            change,
+            answer,
+        )?)
+    }
+
+    pub fn edit_clinical(
+        &mut self,
+        owner: Uuid,
+        patient: Uuid,
+        id: Uuid,
+        version: Option<i64>,
+        body: &str,
+    ) -> Result<()> {
+        if body.trim().is_empty() || body.len() > 65_536 || body.contains('\0') {
+            return Err(Error::Refused("Enter a draft of up to 64 KiB."));
+        }
+        if !charts::contains(&self.connection, owner, patient)?
+            || !draft_sync::edit(&mut self.connection, owner, patient, id, version, body)?
+        {
+            return Err(Error::ChangedSince);
+        }
+        Ok(())
+    }
+
+    pub fn resolve_clinical(
+        &mut self,
+        owner: Uuid,
+        patient: Uuid,
+        id: Uuid,
+        version: i64,
+        keep_mine: bool,
+    ) -> Result<()> {
+        if !charts::contains(&self.connection, owner, patient)?
+            || !draft_sync::resolve(&mut self.connection, owner, patient, id, version, keep_mine)?
+        {
+            return Err(Error::ChangedSince);
+        }
+        Ok(())
+    }
+
+    pub fn save_recording(
+        &self,
+        owner: Uuid,
+        patient: Uuid,
+        media_type: &str,
+        audio: &[u8],
+    ) -> Result<()> {
+        if !media_type.starts_with("audio/")
+            || media_type.len() > 128
+            || reqwest::header::HeaderValue::from_str(media_type).is_err()
+            || audio.is_empty()
+            || audio.len() > recordings::MAX_BYTES
+        {
+            return Err(Error::Refused(
+                "The recording is empty, too large, or can't be played.",
+            ));
+        }
+        if !charts::contains(&self.connection, owner, patient)? {
+            return Err(Error::Refused("This chart is only available online."));
+        }
+        Ok(recordings::save(
+            &self.connection,
+            owner,
+            patient,
+            media_type,
+            audio,
+        )?)
+    }
+
+    pub fn recordings(&self, owner: Uuid, patient: Uuid) -> Result<Vec<recordings::RecordingView>> {
+        Ok(recordings::list(&self.connection, owner, patient)?)
+    }
+
+    pub fn next_recording(&self, owner: Uuid) -> Result<Option<recordings::Recording>> {
+        Ok(recordings::next(&self.connection, owner)?)
+    }
+
+    pub fn checkpoint_recording(
+        &self,
+        owner: Uuid,
+        recording: &recordings::Recording,
+    ) -> Result<()> {
+        Ok(recordings::checkpoint(&self.connection, owner, recording)?)
+    }
+
+    pub fn reject_recording(
+        &self,
+        owner: Uuid,
+        recording: &recordings::Recording,
+        problem: &str,
+    ) -> Result<()> {
+        Ok(recordings::reject(
+            &self.connection,
+            owner,
+            recording,
+            problem,
+        )?)
+    }
+
+    pub fn finish_recording(
+        &mut self,
+        owner: Uuid,
+        recording: &recordings::Recording,
+        text: &str,
+    ) -> Result<()> {
+        Ok(recordings::finish(
+            &mut self.connection,
+            owner,
+            recording,
+            text,
+        )?)
     }
 
     pub fn phrases(&self) -> Result<Vec<Phrase>> {
@@ -585,32 +747,104 @@ mod tests {
     }
 
     #[test]
-    fn a_database_its_key_cant_open_is_started_again() {
-        let database = TempDatabase::new();
-        database.open().add(".nad", "Never sent").unwrap();
+    fn an_unreadable_database_keeps_pending_drafts() {
+        use ehr_desktop::drafts;
 
-        let (store, started_again) = Store::open_or_start_again(&database.0, &[8; 32]).unwrap();
-        assert!(started_again);
-        assert!(store.phrases().unwrap().is_empty());
+        let database = TempDatabase::new();
+        let clinician = Uuid::now_v7();
+        let patient = Uuid::now_v7();
+        let store = database.open();
+        let saved = drafts::save(&store.connection, clinician, patient, "Test note").unwrap();
         drop(store);
 
-        let (_, started_again) = Store::open_or_start_again(&database.0, &[8; 32]).unwrap();
-        assert!(!started_again, "the new key opens the new file");
+        let before = std::fs::read(&database.0).unwrap();
+        assert!(Store::open(&database.0, &[8; 32]).is_err());
+        assert_eq!(std::fs::read(&database.0).unwrap(), before);
+
+        let store = database.open();
+        assert_eq!(
+            drafts::pending(&store.connection, clinician, None).unwrap(),
+            vec![saved],
+        );
     }
 
     #[test]
-    fn a_database_that_fails_to_open_for_another_reason_is_left_alone() {
-        let folder = std::env::temp_dir().join(format!("ehr-desktop-test-{}", Uuid::now_v7()));
-        std::fs::create_dir(&folder).unwrap();
+    fn reopening_the_database_restores_only_this_clinicians_pending_drafts() {
+        use ehr_desktop::drafts;
 
-        let opened = Store::open_or_start_again(&folder, &KEY);
+        let database = TempDatabase::new();
+        let clinician = Uuid::now_v7();
+        let other_clinician = Uuid::now_v7();
+        let patient = Uuid::now_v7();
+        let store = database.open();
+        let first = drafts::save(&store.connection, clinician, patient, "First note").unwrap();
+        let other =
+            drafts::save(&store.connection, other_clinician, patient, "Other note").unwrap();
+        let second = drafts::save(&store.connection, clinician, patient, "Second note").unwrap();
+        drop(store);
 
-        assert!(
-            matches!(opened, Err(Error::Database(_))),
-            "it shouldn't try to delete anything"
+        let store = database.open();
+        assert_eq!(
+            drafts::pending(&store.connection, clinician, None).unwrap(),
+            vec![first, second],
         );
-        assert!(folder.is_dir());
-        std::fs::remove_dir(&folder).unwrap();
+        assert_eq!(
+            drafts::pending(&store.connection, other_clinician, None).unwrap(),
+            vec![other],
+        );
+        assert_eq!(store.waiting().unwrap(), 0, "Quick text has its own queue");
+    }
+
+    #[test]
+    fn an_assigned_chart_and_its_draft_reopen_without_a_connection() {
+        let database = TempDatabase::new();
+        let clinician = Uuid::now_v7();
+        let colleague = Uuid::now_v7();
+        let patient = Uuid::now_v7();
+        let another = Uuid::now_v7();
+        let mut store = database.open();
+        let chart = charts::Chart {
+            id: patient,
+            name: "Synthetic Patient".to_owned(),
+            mrn: "SYN1".to_owned(),
+            birth_date: "1980-01-01".to_owned(),
+            gender: "unknown".to_owned(),
+            allergies: vec![],
+            medications: vec![],
+            conditions: vec![],
+            visits: vec![],
+        };
+        store.replace_panel(clinician, &[chart]).unwrap();
+        assert!(
+            store
+                .save_clinical_draft(clinician, another, "Wrong chart")
+                .is_err()
+        );
+        assert!(
+            store
+                .save_clinical_draft(colleague, patient, "Wrong owner")
+                .is_err()
+        );
+        store
+            .save_clinical_draft(clinician, patient, "Offline draft")
+            .unwrap();
+        drop(store);
+
+        let mut store = database.open();
+        assert!(store.offline_panel(colleague).unwrap().is_empty());
+        assert!(store.offline_chart(colleague, patient).is_err());
+        let (chart, drafts) = store.offline_chart(clinician, patient).unwrap();
+        assert_eq!(chart.id, patient);
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].body, "Offline draft");
+
+        store.replace_panel(clinician, &[]).unwrap();
+        assert!(store.offline_chart(clinician, patient).is_err());
+        assert_eq!(drafts[0].state, "pending");
+        assert_eq!(
+            drafts::pending(&store.connection, clinician, None).unwrap()[0].id,
+            drafts[0].id
+        );
     }
 
     #[test]

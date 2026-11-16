@@ -1,7 +1,9 @@
 using Ehr.Data;
 using Ehr.Data.Audit;
+using Ehr.Data.Orders;
 using Ehr.Data.Patients;
 using Ehr.Domain.Audit;
+using Ehr.Domain.Orders;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ehr.Domain.Phi;
@@ -29,8 +31,8 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
 
     // A patient's chart: the demographics, the allergies, medications and diagnoses they have now, and their latest
     // visits, up to `visits`, newest first. It is one view of one patient, so it is one recorded read of the patient,
-    // however many rows the sections hold: the same event a list of patients records for each, and the only kind of
-    // read the cloud app's audit queue takes (CloudAuditEvents).
+    // however many rows the sections hold: the same event a list of patients records for each. Draft and signed-note
+    // reads have their own table/row events, also accepted by the cloud audit queue (CloudAuditEvents).
     public async Task<PatientChart?> ChartAsync(Guid id, int visits, CancellationToken cancellationToken)
     {
         var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
@@ -39,10 +41,7 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             return null;
         }
 
-        var allergies = await db.AllergyIntolerances.AsNoTracking()
-            .Where(a => a.PatientId == id && a.ClinicalStatus == AllergyClinicalStatus.Active)
-            .OrderBy(a => a.Criticality == AllergyCriticality.High ? 0 : 1).ThenBy(a => a.Display).ThenBy(a => a.Id)
-            .ToListAsync(cancellationToken);
+        var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
         var medications = await db.MedicationStatements.AsNoTracking()
             .Where(m => m.PatientId == id && m.Status == MedicationStatementStatus.Active)
             .OrderBy(m => m.Display).ThenBy(m => m.Id)
@@ -56,11 +55,44 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             .OrderByDescending(e => e.PeriodStart).ThenBy(e => e.Id)
             .Take(visits)
             .ToListAsync(cancellationToken);
+        var orders = await ActiveOrders(id, catalogCode: null).ToListAsync(cancellationToken);
 
         audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
         await db.SaveChangesAsync(cancellationToken);
-        return new PatientChart(patient, allergies, medications, conditions, encounters);
+        return new PatientChart(patient, allergies, medications, conditions, encounters, orders);
     }
+
+    // UC 1 (Tahseen Arnan): the order form's view of a patient (OrderForm). One view of one patient, so one recorded read
+    // of the patient, as the chart's is, whatever orders the duplicate check finds.
+    public async Task<OrderForm?> OrderFormAsync(Guid id, string? catalogCode, CancellationToken cancellationToken)
+    {
+        var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient is null)
+        {
+            return null;
+        }
+
+        var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
+        List<ActiveOrder> duplicates = catalogCode is null ? [] : await ActiveOrders(id, catalogCode).ToListAsync(cancellationToken);
+
+        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+        await db.SaveChangesAsync(cancellationToken);
+        return new OrderForm(patient, allergies, duplicates);
+    }
+
+    // The allergies a patient has now, the high-risk ones first.
+    IQueryable<AllergyIntolerance> CurrentAllergies(Guid id) =>
+        db.AllergyIntolerances.AsNoTracking()
+            .Where(a => a.PatientId == id && a.ClinicalStatus == AllergyClinicalStatus.Active)
+            .OrderBy(a => a.Criticality == AllergyCriticality.High ? 0 : 1).ThenBy(a => a.Display).ThenBy(a => a.Id);
+
+    // A patient's active orders, of one catalog item or of all, newest first, with only the fields that are shown.
+    IQueryable<ActiveOrder> ActiveOrders(Guid id, string? catalogCode) =>
+        from order in db.Orders.AsNoTracking()
+        join item in db.OrderCatalogItems on order.CatalogCode equals item.Code
+        where order.PatientId == id && order.Status == OrderStatus.Active && (catalogCode == null || order.CatalogCode == catalogCode)
+        orderby order.SignedAt descending, order.Id
+        select new ActiveOrder(order.Id, order.Type, item.Display, order.Details, order.SignedAt);
 
     // The shortest name a search takes. Every patient listed is a recorded read, and one letter matches hundreds.
     public const int MinimumNameLength = 2;
@@ -121,6 +153,106 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         ReadAsync(
             db.Patients.Where(p => db.PatientAssignments.Any(a => a.PatientId == p.Id && a.ClinicianId == user.UserId && a.EndedAt == null)),
             limit, cancellationToken);
+
+    // Called in one repeatable-read transaction so the assignments and chart data are from the same snapshot.
+    // Read only actively assigned charts; emergency access never enters the offline cache.
+    public async Task<IReadOnlyList<PatientChart>> OfflinePanelAsync(int limit, int visits, CancellationToken cancellationToken)
+    {
+        var ids = await db.Patients.AsNoTracking()
+            .Where(p => db.PatientAssignments.Any(a => a.PatientId == p.Id && a.ClinicianId == user.UserId && a.EndedAt == null))
+            .OrderBy(p => p.FamilyName).ThenBy(p => p.GivenName).ThenBy(p => p.Id)
+            .Select(p => p.Id)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        var charts = new List<PatientChart>(ids.Count);
+        foreach (var id in ids)
+        {
+            if (await ChartAsync(id, visits, cancellationToken) is { } chart)
+            {
+                charts.Add(chart);
+            }
+        }
+
+        return charts;
+    }
+
+    const string DraftsTable = "clinical_drafts";
+
+    public Task<bool> IsAssignedAsync(Guid patient, CancellationToken cancellationToken) =>
+        db.PatientAssignments.AnyAsync(a => a.PatientId == patient && a.ClinicianId == user.UserId && a.EndedAt == null, cancellationToken);
+
+    public async Task<ClinicalDraft?> ReadDraftAsync(Guid id, Guid patient, CancellationToken cancellationToken)
+    {
+        var draft = await db.ClinicalDrafts.SingleOrDefaultAsync(
+            d => d.Id == id && d.PatientId == patient && d.ClinicianId == user.UserId, cancellationToken);
+        if (draft is not null)
+        {
+            audit.Record(AuditActions.Read, draft.PatientId, DraftsTable, draft.Id);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return draft;
+    }
+
+    public async Task<IReadOnlyList<ClinicalDraft>> ChangedDraftsAsync(Guid[] patients, ulong since, ulong until, CancellationToken cancellationToken)
+    {
+        var drafts = await ChangeLog.ClinicalDraftsChanged(db, since, until).AsNoTracking()
+            .Where(d => d.ClinicianId == user.UserId && patients.Contains(d.PatientId)).ToListAsync(cancellationToken);
+        if (drafts.Count > 0)
+        {
+            audit.RecordReads(DraftsTable, drafts.Select(d => (d.PatientId, d.Id)));
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return drafts;
+    }
+
+    public async Task<IReadOnlyList<ClinicalDraft>> NoteDraftsAsync(Guid patient, CancellationToken cancel)
+    {
+        var drafts = await db.ClinicalDrafts.AsNoTracking()
+            .Where(d => d.PatientId == patient && d.ClinicianId == user.UserId
+                && !db.ClinicalNotes.Any(n => n.DraftId == d.Id))
+            .OrderByDescending(d => d.Id).ToListAsync(cancel);
+        if (drafts.Count > 0)
+        {
+            audit.RecordReads(DraftsTable, drafts.Select(d => (d.PatientId, d.Id)));
+            await db.SaveChangesAsync(cancel);
+        }
+
+        return drafts;
+    }
+
+    public async Task<IReadOnlyList<ClinicalNote>> NotesAsync(Guid patient, CancellationToken cancel)
+    {
+        var notes = await db.ClinicalNotes.AsNoTracking().Where(n => n.PatientId == patient)
+            .OrderByDescending(n => n.SignedAt).ThenBy(n => n.Id).ToListAsync(cancel);
+        if (notes.Count > 0)
+        {
+            audit.RecordReads("clinical_notes", notes.Select(n => (n.PatientId, n.Id)));
+            await db.SaveChangesAsync(cancel);
+        }
+
+        return notes;
+    }
+
+    public Task<ClinicalNote?> SignedDraftAsync(Guid draft, Guid patient, CancellationToken cancel) =>
+        ReadNoteAsync(db.ClinicalNotes.Where(n => n.DraftId == draft && n.PatientId == patient), cancel);
+
+    public Task<ClinicalNote?> NoteAsync(Guid id, Guid patient, CancellationToken cancel) =>
+        ReadNoteAsync(db.ClinicalNotes.Where(n => n.Id == id && n.PatientId == patient), cancel);
+
+    async Task<ClinicalNote?> ReadNoteAsync(IQueryable<ClinicalNote> query, CancellationToken cancel)
+    {
+        var note = await query.AsNoTracking().SingleOrDefaultAsync(cancel);
+        if (note is not null)
+        {
+            audit.Record(AuditActions.Read, note.PatientId, "clinical_notes", note.Id);
+            await db.SaveChangesAsync(cancel);
+        }
+
+        return note;
+    }
 
     // A list of patients, in name order, each one a recorded read, and whether more match than the limit.
     async Task<PatientList> ReadAsync(IQueryable<Patient> query, int limit, CancellationToken cancellationToken)

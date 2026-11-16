@@ -26,21 +26,31 @@ var connectionString = builder.Configuration.GetConnectionString("Ehr")
 
 builder.Services.AddEhrData(connectionString);
 builder.Services.AddScoped<QuickTextSaver>();
+builder.Services.AddScoped<Ehr.Domain.Notes.ClinicalNotes>();
+builder.Services.AddSingleton(new Ehr.Domain.Notes.NoteWriteAuthority(site == Site.OnPrem));
+// UC 1: placing orders (Ehr.Domain.Orders).
+builder.Services.AddScoped<Ehr.Domain.Orders.ClinicalOrders>();
 
 // Accounts, sign-in and the authorization policies (Ehr.Domain). The audit log names which server recorded an event.
 builder.Services.AddEhrAccounts(builder.Configuration);
 builder.Services.AddSingleton(new AuditSource(site == Site.OnPrem ? AuditSources.OnPrem : AuditSources.Cloud));
 
+// The anonymous account POSTs are limited per client address, and account emails per recipient (AccountRateLimits).
+var rateLimits = builder.Configuration.GetSection(RateLimitOptions.Section).Get<RateLimitOptions>() ?? new RateLimitOptions();
+builder.Services.AddAccountRateLimits(rateLimits,
+    site == Site.OnPrem && builder.Configuration["Ehr:CloudAudit:Key"] is { Length: > 0 } sharedKey ? AccountRateLimits.ForwardedProof(sharedKey) : null);
+
 // The portal's emails: through the mail server in Ehr:Smtp when there is one, otherwise into the log, for development.
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.Section));
-if (builder.Configuration[$"{SmtpOptions.Section}:Host"] is { Length: > 0 })
-{
-    builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
-}
-else
-{
-    builder.Services.AddSingleton<IEmailSender, LoggingEmailSender>();
-}
+// They go out from a queue in memory (QueuedEmailSender), so a response never waits for the mail server, and one
+// address gets only so many an hour (CappedEmailSender).
+var emailSender = builder.Configuration[$"{SmtpOptions.Section}:Host"] is { Length: > 0 } ? typeof(SmtpEmailSender) : typeof(LoggingEmailSender);
+builder.Services.AddSingleton(emailSender);
+builder.Services.AddSingleton(services => new QueuedEmailSender(
+    new CappedEmailSender((IEmailSender)services.GetRequiredService(emailSender), rateLimits.EmailsPerAddressPerHour, TimeProvider.System),
+    services.GetRequiredService<ILogger<QueuedEmailSender>>()));
+builder.Services.AddSingleton<IEmailSender>(services => services.GetRequiredService<QueuedEmailSender>());
+builder.Services.AddHostedService(services => services.GetRequiredService<QueuedEmailSender>());
 
 // The keys that protect cookies and form tokens live in the database, so they survive a restart and both servers share
 // them: a form the cloud app renders is saved by the on-prem app. Only on-prem creates them; the cloud app reads them
@@ -99,7 +109,11 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToAreaFolder("Portal", "/Account");
 })
     // Only the on-prem app reports its WAL position after a POST (DatabaseTransactionFilter).
-    .AddMvcOptions(options => options.Filters.Add(new TypeFilterAttribute(typeof(DatabaseTransactionFilter)) { Arguments = [site == Site.OnPrem] }))
+    .AddMvcOptions(options =>
+    {
+        options.Filters.Add(new TypeFilterAttribute(typeof(DatabaseTransactionFilter)) { Arguments = [site == Site.OnPrem] });
+        options.Filters.Add(new Ehr.Web.Areas.Clinical.Pages.Patients.Notes.NoteWriteExceptionFilter());
+    })
     // Validation runs on the server only, so pages don't need the jQuery validation attributes.
     .AddViewOptions(options => options.HtmlHelperOptions.ClientValidationEnabled = false);
 
@@ -113,6 +127,8 @@ if (keyCertificatePath is not { Length: > 0 })
 // authenticated and authorized by the on-prem app; everything served here is authenticated below, and the signed-in
 // account reaches the database through UserContextMiddleware before any handler runs.
 app.UseRouting();
+// Before forwarding, so the cloud app counts each off-site client by its own address.
+app.UseRateLimiter();
 if (site == Site.Cloud)
 {
     app.UseMiddleware<CloudForwardingMiddleware>();

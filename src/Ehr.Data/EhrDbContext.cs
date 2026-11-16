@@ -1,5 +1,6 @@
 using Ehr.Data.Accounts;
 using Ehr.Data.Audit;
+using Ehr.Data.Orders;
 using Ehr.Data.Patients;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -52,6 +53,16 @@ public class EhrDbContext(DbContextOptions<EhrDbContext> options) : DbContext(op
 
     public DbSet<Encounter> Encounters => Set<Encounter>();
 
+    public DbSet<ClinicalDraft> ClinicalDrafts => Set<ClinicalDraft>();
+
+    public DbSet<ClinicalNote> ClinicalNotes => Set<ClinicalNote>();
+
+    // UC 1: the orders clinicians sign, PHI like the chart (read them only through the PHI reader), and the catalog of
+    // what can be ordered, which isn't.
+    public DbSet<Order> Orders => Set<Order>();
+
+    public DbSet<OrderCatalogItem> OrderCatalogItems => Set<OrderCatalogItem>();
+
     // One-time portal enrollment codes, as hashes. Grants only: registration looks a code up before anyone is signed in.
     public DbSet<PatientEnrollment> PatientEnrollments => Set<PatientEnrollment>();
 
@@ -86,6 +97,13 @@ public class EhrDbContext(DbContextOptions<EhrDbContext> options) : DbContext(op
             entry.Property(e => e.TransactionId).HasColumnType("xid8").HasDefaultValueSql("pg_current_xact_id()");
             entry.HasIndex(e => e.TransactionId);
             entry.Property(e => e.TableName).HasMaxLength(63);
+        });
+
+        modelBuilder.Entity<ClinicalDraft>(draft =>
+        {
+            draft.HasOne<Patient>().WithMany().HasForeignKey(d => d.PatientId);
+            draft.HasOne<StaffUser>().WithMany().HasForeignKey(d => d.ClinicianId);
+            draft.Property(d => d.Version).IsConcurrencyToken();
         });
 
         modelBuilder.Entity<SyncOperation>().HasKey(o => o.IdempotencyKey);
