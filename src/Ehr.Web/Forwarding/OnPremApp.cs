@@ -15,6 +15,13 @@ public sealed class OnPremApp(string url, HttpMessageInvoker client)
     {
         var url = configuration["Ehr:OnPrem:Url"]
             ?? throw new InvalidOperationException("Set Ehr:OnPrem:Url to the on-prem app's address.");
+        // Every save crosses this link, emergency-access reasons and chart changes included, so it is HTTPS only
+        // (NFR-06): a plain http:// address stops the cloud app at startup rather than sending them in the clear.
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var address) || address.Scheme != Uri.UriSchemeHttps)
+        {
+            throw new InvalidOperationException($"Ehr:OnPrem:Url must be an https:// address; it is \"{url}\".");
+        }
+
         // The certificate only, without its key: the file the on-prem app serves, such as mkcert's.
         var shared = configuration["Ehr:OnPrem:Certificate"] is { } path
             ? X509Certificate2.CreateFromPem(File.ReadAllText(path))
