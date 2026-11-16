@@ -1,0 +1,272 @@
+using Ehr.Data.Accounts;
+using Ehr.Testing;
+using Npgsql;
+using Xunit;
+
+namespace Ehr.Security.Tests;
+
+// UC 1 Place an order (Tahseen Arnan): what the database lets each account do with orders, as the runtime roles, in SQL
+// of its own, so these hold whatever the app checks (db/policies/30-rls.sql and 60-orders.sql). Only a clinician signs,
+// only as themselves, only for a patient on their panel; nothing changes or deletes an order; the database sets the
+// time; a second active order for the same item needs a reason, even when two arrive at once; and the write audit names
+// the clinician and the time.
+public class OrderSecurityTests(MigratedDatabase database) : IClassFixture<MigratedDatabase>
+{
+    static CancellationToken Cancel => TestContext.Current.CancellationToken;
+
+    string App => database.ConnectionStringFor("ehr_app", MigratedDatabase.AppPassword);
+
+    string Read => database.ConnectionStringFor("ehr_read", MigratedDatabase.ReadPassword);
+
+    // A complete blood count, with a signing time from the client that the database must ignore.
+    const string InsertOrder = """
+        INSERT INTO ehr.orders (id, patient_id, type, catalog_code, details, status, signed_at)
+        VALUES (@id, @patient, 'lab', 'SYN-LAB-001', '{"indication": "Synthetic fatigue"}', 'active', '2000-01-01')
+        """;
+
+    const string InsertWithReason = """
+        INSERT INTO ehr.orders (id, patient_id, type, catalog_code, details, status, duplicate_reason)
+        VALUES (@id, @patient, 'lab', 'SYN-LAB-001', '{"indication": "Synthetic fatigue"}', 'active', @reason)
+        """;
+
+    const string InsertAsSigner = """
+        INSERT INTO ehr.orders (id, patient_id, type, catalog_code, details, status, signer_id)
+        VALUES (@id, @patient, 'lab', 'SYN-LAB-001', '{}', 'active', @signer)
+        """;
+
+    async Task<(Guid Clinician, Guid Patient)> OnPanelAsync()
+    {
+        var clinician = await Accounts.StaffAsync(database, StaffRoles.Clinician);
+        var patient = await Accounts.PatientAsync(database, clinician);
+        await Accounts.AssignAsync(database, clinician, patient);
+        return (clinician, patient);
+    }
+
+    async Task<Guid> OrderAsync(string connection, Guid? user, Guid patient, string sql = InsertOrder, params (string Name, object Value)[] extra)
+    {
+        var id = Guid.CreateVersion7();
+        await Accounts.ExecuteAsync(connection, user, sql, [("id", id), ("patient", patient), .. extra]);
+        return id;
+    }
+
+    Task<List<string>> CountAsync(Guid patient) =>
+        Accounts.QueryAsync(database.SuperuserConnectionString, null, "SELECT count(*) FROM ehr.orders WHERE patient_id = @id", ("id", patient));
+
+    [Fact]
+    public async Task The_database_sets_the_signing_time_and_the_audit_row_names_the_clinician_and_the_time()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+
+        var order = await OrderAsync(App, clinician, patient);
+
+        Assert.Equal([$"{clinician} true"], await Accounts.QueryAsync(App, clinician,
+            "SELECT signer_id || ' ' || (signed_at > now() - interval '1 minute') FROM ehr.orders WHERE id = @id", ("id", order)));
+        // The trigger's audit row: the clinician as the actor, at the signing time, against the patient.
+        Assert.Equal([$"insert {clinician} {patient} onprem true"], await Accounts.QueryAsync(database.SuperuserConnectionString, null,
+            """
+            SELECT e.action || ' ' || e.actor_id || ' ' || e.patient_id || ' ' || e.source || ' ' || (e.occurred_at = o.signed_at)
+            FROM ehr.audit_events e JOIN ehr.orders o ON o.id = e.row_id
+            WHERE e.table_name = 'orders' AND e.row_id = @id
+            """,
+            ("id", order)));
+    }
+
+    [Fact]
+    public async Task Inserts_by_an_admin_a_patient_a_disabled_clinician_nobody_or_the_read_role_are_refused()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+        var admin = await Accounts.StaffAsync(database, StaffRoles.Admin);
+        var patientAccount = await Accounts.PatientAccountAsync(database, patient);
+        var disabled = await Accounts.StaffAsync(database, StaffRoles.Clinician);
+        await Accounts.AssignAsync(database, disabled, patient);
+        await Accounts.LockOutAsync(database, disabled);
+
+        foreach (var refused in new Guid?[] { admin, patientAccount, disabled, null, Guid.NewGuid() })
+        {
+            var error = await Assert.ThrowsAsync<PostgresException>(() => OrderAsync(App, refused, patient));
+            Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, error.SqlState);
+        }
+
+        // The cloud app's role has no INSERT at all, a clinician's context or not.
+        var readRole = await Assert.ThrowsAsync<PostgresException>(() => OrderAsync(Read, clinician, patient));
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, readRole.SqlState);
+        Assert.Equal(["0"], await CountAsync(patient));
+    }
+
+    [Fact]
+    public async Task Signing_as_someone_else_is_refused()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+        var colleague = await Accounts.StaffAsync(database, StaffRoles.Clinician);
+        await Accounts.AssignAsync(database, colleague, patient);
+
+        var error = await Assert.ThrowsAsync<PostgresException>(() => OrderAsync(App, clinician, patient, InsertAsSigner, ("signer", colleague)));
+
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, error.SqlState);
+        Assert.Equal(["0"], await CountAsync(patient));
+    }
+
+    [Fact]
+    public async Task An_order_for_a_patient_off_the_clinicians_panel_is_refused()
+    {
+        var clinician = await Accounts.StaffAsync(database, StaffRoles.Clinician);
+        var never = await Accounts.PatientAsync(database, clinician);
+        var ended = await Accounts.PatientAsync(database, clinician);
+        await Accounts.AssignAsync(database, clinician, ended);
+        await Accounts.ExecuteAsync(App, clinician, "UPDATE ehr.patient_assignments SET ended_at = now() WHERE patient_id = @id", ("id", ended));
+
+        foreach (var patient in new[] { never, ended })
+        {
+            var error = await Assert.ThrowsAsync<PostgresException>(() => OrderAsync(App, clinician, patient));
+            Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, error.SqlState);
+            Assert.Equal(["0"], await CountAsync(patient));
+        }
+    }
+
+    [Fact]
+    public async Task Orders_cannot_be_updated_or_deleted()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+        var order = await OrderAsync(App, clinician, patient);
+
+        foreach (var (connection, sql) in new[]
+        {
+            (App, "UPDATE ehr.orders SET status = 'revoked' WHERE id = @id"),
+            (App, "DELETE FROM ehr.orders WHERE id = @id"),
+            (Read, "UPDATE ehr.orders SET status = 'revoked' WHERE id = @id"),
+            (Read, "DELETE FROM ehr.orders WHERE id = @id"),
+        })
+        {
+            var error = await Assert.ThrowsAsync<PostgresException>(() => Accounts.ExecuteAsync(connection, clinician, sql, ("id", order)));
+            Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, error.SqlState);
+        }
+
+        // Nor is the catalog changed at runtime.
+        var catalog = await Assert.ThrowsAsync<PostgresException>(() => Accounts.ExecuteAsync(App, clinician,
+            "UPDATE ehr.order_catalog_items SET display = 'Changed' WHERE code = 'SYN-LAB-001'"));
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, catalog.SqlState);
+
+        Assert.Equal(["active"], await Accounts.QueryAsync(App, clinician, "SELECT status FROM ehr.orders WHERE id = @id", ("id", order)));
+    }
+
+    [Fact]
+    public async Task A_duplicate_active_order_without_a_reason_is_refused_and_one_with_a_reason_is_kept()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+        await OrderAsync(App, clinician, patient);
+
+        foreach (var blank in new[] { "", "   " })
+        {
+            var error = await Assert.ThrowsAsync<PostgresException>(() => OrderAsync(App, clinician, patient, InsertWithReason, ("reason", blank)));
+            Assert.Equal(PostgresErrorCodes.UniqueViolation, error.SqlState);
+        }
+
+        var duplicate = await Assert.ThrowsAsync<PostgresException>(() => OrderAsync(App, clinician, patient));
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, duplicate.SqlState);
+
+        var again = await OrderAsync(App, clinician, patient, InsertWithReason, ("reason", "Synthetic repeat after a hemolysed sample"));
+        Assert.Equal(["Synthetic repeat after a hemolysed sample"], await Accounts.QueryAsync(App, clinician,
+            "SELECT duplicate_reason FROM ehr.orders WHERE id = @id", ("id", again)));
+        Assert.Equal(["2"], await CountAsync(patient));
+    }
+
+    // The lock the trigger takes makes the second of two submissions at once wait for the first, and then see it.
+    [Fact]
+    public async Task Two_duplicates_at_once_cannot_both_get_through()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+        await using var first = new NpgsqlConnection(App);
+        await using var second = new NpgsqlConnection(App);
+        await first.OpenAsync(Cancel);
+        await second.OpenAsync(Cancel);
+        await using var firstTransaction = await first.BeginTransactionAsync(Cancel);
+        await using var secondTransaction = await second.BeginTransactionAsync(Cancel);
+        foreach (var (connection, transaction) in new[] { (first, firstTransaction), (second, secondTransaction) })
+        {
+            await using var set = new NpgsqlCommand("SELECT set_config('app.user_id', @actor, true)", connection, transaction);
+            set.Parameters.AddWithValue("actor", clinician.ToString());
+            await set.ExecuteNonQueryAsync(Cancel);
+        }
+
+        await using var signFirst = Insert(first, firstTransaction);
+        await signFirst.ExecuteNonQueryAsync(Cancel);
+        await using var signSecond = Insert(second, secondTransaction);
+        var waiting = signSecond.ExecuteNonQueryAsync(Cancel);
+        // Watch the second one actually wait on the first, rather than relying on timing.
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < deadline)
+        {
+            var blocked = await Accounts.QueryAsync(database.SuperuserConnectionString, null,
+                "SELECT cardinality(pg_blocking_pids(@pid))", ("pid", second.ProcessID));
+            if (blocked[0] != "0")
+            {
+                break;
+            }
+
+            await Task.Delay(25, Cancel);
+        }
+
+        Assert.False(waiting.IsCompleted);
+        await firstTransaction.CommitAsync(Cancel);
+        var error = await Assert.ThrowsAsync<PostgresException>(async () => await waiting);
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, error.SqlState);
+        Assert.Equal(["1"], await CountAsync(patient));
+
+        NpgsqlCommand Insert(NpgsqlConnection connection, NpgsqlTransaction transaction)
+        {
+            var command = new NpgsqlCommand(InsertOrder, connection, transaction);
+            command.Parameters.AddWithValue("id", Guid.CreateVersion7());
+            command.Parameters.AddWithValue("patient", patient);
+            return command;
+        }
+    }
+
+    // Nothing can change a status afterwards, so an order inserted as anything but active would be stuck that way.
+    [Fact]
+    public async Task An_order_that_is_not_active_is_refused()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+
+        var error = await Assert.ThrowsAsync<PostgresException>(() => Accounts.ExecuteAsync(App, clinician,
+            "INSERT INTO ehr.orders (id, patient_id, type, catalog_code, details, status) VALUES (@id, @patient, 'lab', 'SYN-LAB-001', '{}', 'completed')",
+            ("id", Guid.CreateVersion7()), ("patient", patient)));
+
+        Assert.Equal(PostgresErrorCodes.CheckViolation, error.SqlState);
+        Assert.Equal(["0"], await CountAsync(patient));
+    }
+
+    [Fact]
+    public async Task An_order_names_a_catalog_item_of_its_own_type()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+
+        var error = await Assert.ThrowsAsync<PostgresException>(() => Accounts.ExecuteAsync(App, clinician,
+            "INSERT INTO ehr.orders (id, patient_id, type, catalog_code, details, status) VALUES (@id, @patient, 'imaging', 'SYN-LAB-001', '{}', 'active')",
+            ("id", Guid.CreateVersion7()), ("patient", patient)));
+
+        Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, error.SqlState);
+        Assert.NotEmpty(await Accounts.QueryAsync(Read, null, "SELECT code FROM ehr.order_catalog_items WHERE type = 'imaging'"));
+    }
+
+    [Fact]
+    public async Task Clinicians_read_every_order_and_nobody_else_reads_any()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+        var order = await OrderAsync(App, clinician, patient);
+        var colleague = await Accounts.StaffAsync(database, StaffRoles.Clinician);
+        var admin = await Accounts.StaffAsync(database, StaffRoles.Admin);
+        var patientAccount = await Accounts.PatientAccountAsync(database, patient);
+        var disabled = await Accounts.StaffAsync(database, StaffRoles.Clinician);
+        await Accounts.LockOutAsync(database, disabled);
+        const string read = "SELECT count(*) FROM ehr.orders WHERE id = @id";
+
+        foreach (var connection in new[] { App, Read })
+        {
+            Assert.Equal(["1"], await Accounts.QueryAsync(connection, colleague, read, ("id", order)));
+            foreach (var refused in new Guid?[] { admin, patientAccount, disabled, null, Guid.NewGuid() })
+            {
+                Assert.Equal(["0"], await Accounts.QueryAsync(connection, refused, read, ("id", order)));
+            }
+        }
+    }
+}
