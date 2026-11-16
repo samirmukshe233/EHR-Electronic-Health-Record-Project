@@ -1,7 +1,9 @@
 using Ehr.Data;
 using Ehr.Data.Audit;
+using Ehr.Data.Orders;
 using Ehr.Data.Patients;
 using Ehr.Domain.Audit;
+using Ehr.Domain.Orders;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ehr.Domain.Phi;
@@ -39,10 +41,7 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             return null;
         }
 
-        var allergies = await db.AllergyIntolerances.AsNoTracking()
-            .Where(a => a.PatientId == id && a.ClinicalStatus == AllergyClinicalStatus.Active)
-            .OrderBy(a => a.Criticality == AllergyCriticality.High ? 0 : 1).ThenBy(a => a.Display).ThenBy(a => a.Id)
-            .ToListAsync(cancellationToken);
+        var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
         var medications = await db.MedicationStatements.AsNoTracking()
             .Where(m => m.PatientId == id && m.Status == MedicationStatementStatus.Active)
             .OrderBy(m => m.Display).ThenBy(m => m.Id)
@@ -56,11 +55,44 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             .OrderByDescending(e => e.PeriodStart).ThenBy(e => e.Id)
             .Take(visits)
             .ToListAsync(cancellationToken);
+        var orders = await ActiveOrders(id, catalogCode: null).ToListAsync(cancellationToken);
 
         audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
         await db.SaveChangesAsync(cancellationToken);
-        return new PatientChart(patient, allergies, medications, conditions, encounters);
+        return new PatientChart(patient, allergies, medications, conditions, encounters, orders);
     }
+
+    // UC 1 (Tahseen Arnan): the order form's view of a patient (OrderForm). One view of one patient, so one recorded read
+    // of the patient, as the chart's is, whatever orders the duplicate check finds.
+    public async Task<OrderForm?> OrderFormAsync(Guid id, string? catalogCode, CancellationToken cancellationToken)
+    {
+        var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient is null)
+        {
+            return null;
+        }
+
+        var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
+        List<ActiveOrder> duplicates = catalogCode is null ? [] : await ActiveOrders(id, catalogCode).ToListAsync(cancellationToken);
+
+        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+        await db.SaveChangesAsync(cancellationToken);
+        return new OrderForm(patient, allergies, duplicates);
+    }
+
+    // The allergies a patient has now, the high-risk ones first.
+    IQueryable<AllergyIntolerance> CurrentAllergies(Guid id) =>
+        db.AllergyIntolerances.AsNoTracking()
+            .Where(a => a.PatientId == id && a.ClinicalStatus == AllergyClinicalStatus.Active)
+            .OrderBy(a => a.Criticality == AllergyCriticality.High ? 0 : 1).ThenBy(a => a.Display).ThenBy(a => a.Id);
+
+    // A patient's active orders, of one catalog item or of all, newest first, with only the fields that are shown.
+    IQueryable<ActiveOrder> ActiveOrders(Guid id, string? catalogCode) =>
+        from order in db.Orders.AsNoTracking()
+        join item in db.OrderCatalogItems on order.CatalogCode equals item.Code
+        where order.PatientId == id && order.Status == OrderStatus.Active && (catalogCode == null || order.CatalogCode == catalogCode)
+        orderby order.SignedAt descending, order.Id
+        select new ActiveOrder(order.Id, order.Type, item.Display, order.Details, order.SignedAt);
 
     // The shortest name a search takes. Every patient listed is a recorded read, and one letter matches hundreds.
     public const int MinimumNameLength = 2;

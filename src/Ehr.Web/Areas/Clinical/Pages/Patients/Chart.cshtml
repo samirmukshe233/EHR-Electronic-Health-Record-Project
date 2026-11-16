@@ -7,6 +7,12 @@
     ViewData["UseHtmx"] = false;
     ViewData["Title"] = $"{Model.Patient.FamilyName}, {Model.Patient.GivenName}";
 }
+@section Scripts {
+    @if (Model.OnPanel && OnPrem.IsReachable)
+    {
+        <script src="~/_content/Ehr.Design/js/orders.js" defer></script>
+    }
+}
 <p><partial name="_BackToSearch" model="Model.Search" /></p>
 <h1>@Model.Patient.FamilyName, @Model.Patient.GivenName @if (Model.OnPanel) { <span class="tag">Yours</span> }</h1>
 @if (Model.EmergencyUntil is { } until)
@@ -81,6 +87,45 @@ else
 else
 {
     <p>No signed notes recorded.</p>
+}
+
+@* UC 1 Place an order (Tahseen Arnan): offered as "New note" is, for a patient on the clinician's panel while the clinic's
+   server can be reached. Alt+Shift+O follows the link (js/orders.js). The list is part of the chart's one recorded read. *@
+<h2>Orders</h2>
+@if (Model.SignedOrder is { } signed)
+{
+    <p class="notice" role="status">Order signed: <strong>@signed.Display</strong>, @signed.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
+}
+@if (Model.OnPanel && OnPrem.IsReachable)
+{
+    var orderRoute = Model.Search.RouteData();
+    orderRoute["id"] = Model.Patient.Id.ToString();
+    <p><a asp-page="Orders/New" asp-all-route-data="orderRoute" data-new-order aria-keyshortcuts="Alt+Shift+O">New order</a></p>
+}
+else if (!Model.OnPanel)
+{
+    <p>Add this patient to your panel to place an order.</p>
+}
+else
+{
+    <p>New orders need the clinic's server. Active orders remain readable.</p>
+}
+<h3>Active orders</h3>
+@if (Model.Chart.Orders.Count > 0)
+{
+    <ul>
+        @foreach (var order in Model.Chart.Orders)
+        {
+            <li>
+                <strong>@order.Display</strong> (@Ehr.Domain.Orders.OrderForms.TypeNames[order.Type])
+                @Ehr.Domain.Orders.OrderForms.Summary(order.Type, order.Details) · signed @order.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC
+            </li>
+        }
+    </ul>
+}
+else
+{
+    <p>No active orders.</p>
 }
 
 @* Read only for now: nothing here is edited yet. *@
