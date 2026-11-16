@@ -34,7 +34,7 @@ public class ConfirmModel(PhiReader phi, PatientAssignments assignments, BreakGl
         }
 
         Draft = draft;
-        Errors = Version == draft.Version ? ClinicalNotes.SigningProblems(draft) : NoteResult.Conflict.Errors;
+        Errors = Version == draft.Version ? await notes.SigningProblemsAsync(draft, HttpContext.RequestAborted) : NoteResult.Conflict.Errors;
         return Page();
     }
 

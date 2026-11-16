@@ -15,6 +15,7 @@
 @section Scripts {
     @if (OnPrem.IsReachable)
     {
+        <script src="~/_content/Ehr.Design/js/dictation-view.js" defer></script>
         <script src="~/_content/Ehr.Design/js/dictation.js" defer></script>
     }
 }
@@ -33,9 +34,9 @@
 }
 else
 {
-    <section class="dictation" data-dictation data-dictation-api="@Ehr.Web.Api.Dictation.DictationApi.Path">
+    <section class="dictation" data-dictation data-dictation-api="@Ehr.Web.Api.Dictation.DictationApi.Path" data-patient-id="@Model.Patient.Id" data-draft-id="@Model.DraftId" data-draft-version="@Model.DraftVersion">
         @Html.AntiForgeryToken()
-        <p class="notice">Dictation supports English only and needs a microphone. Nothing is saved: each proposed field waits for your review, and orders and allergy changes are never filled in from dictation.</p>
+        <p class="notice">Dictation supports English only and needs a microphone. Nothing is saved as approved note content without your review. Finished proposals and their source transcript are saved privately for review; orders and allergy changes are never filled in from dictation.</p>
         <noscript><p class="notice error">Dictation needs JavaScript. You can still type the note.</p></noscript>
 
         <div class="actions">
@@ -43,6 +44,9 @@ else
             <button type="button" data-dictation-stop disabled>Stop</button>
             <button type="button" data-dictation-cancel disabled>Cancel</button>
         </div>
+        <button type="button" data-dictation-review hidden>Retry saving proposals for review</button>
+        <a data-dictation-manual hidden>Continue manual note</a>
+        <form method="post" asp-page="Chart" asp-page-handler="NewNote" asp-route-id="@Model.Patient.Id" data-dictation-new-manual><button>Create a manual note</button></form>
         <p class="dictation-status" role="status" aria-live="polite" data-dictation-status>Select Dictate and speak your note.</p>
 
         <h2>Transcript</h2>

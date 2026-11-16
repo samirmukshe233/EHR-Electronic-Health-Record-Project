@@ -97,4 +97,8 @@ GRANT SELECT ON ehr.order_catalog_items TO ehr_app, ehr_read;
 GRANT SELECT, INSERT ON ehr.orders TO ehr_app;
 GRANT SELECT ON ehr.orders TO ehr_read;
 
+-- UC 13: private, auditable proposals and decisions; replica reads use identical forced ownership RLS.
+GRANT SELECT, INSERT, UPDATE ON ehr.ai_note_reviews, ehr.ai_field_proposals TO ehr_app;
+GRANT SELECT ON ehr.ai_note_reviews, ehr.ai_field_proposals TO ehr_read;
+
 COMMIT;

@@ -4,10 +4,11 @@ An electronic health record with a web app (clinical and patient portal) and a M
 
 ## Status
 
-Early foundation, with the first EHR feature: finding a patient and opening their chart. The walking skeleton (one trivial feature, team quick text, through every layer) is done: the database foundation, the on-site page, the off-site host, the sync API, and the desktop app. Dictation's server side is built and measured on a test set (see [Dictation](#dictation)); manual note-writing and signing now work (UC 14); AI proposal review and the dictate button are still to come.
+Early foundation, with the first EHR feature: finding a patient and opening their chart. The walking skeleton (one trivial feature, team quick text, through every layer) is done: the database foundation, the on-site page, the off-site host, the sync API, and the desktop app. Dictation's server side is built and measured on a test set (see [Dictation](#dictation)); dictation, persisted AI field review (UC 13), and manual note-writing/signing (UC 14) now form one clinical workflow.
 
 **Working today**
 
+- AI field review (UC 13): dictate from a patient chart or draft, compare source-highlighted suggestions, explicitly accept/edit/reject every field, and add only approved text to the existing clinical draft. Decisions and provenance persist under forced RLS and auditing; authoritative app/database checks block signing pending reviews. See [UC 13 implementation and assignment guide](docs/UC13.md).
 - Clinical notes (UC 14): clinicians create and autosave History, Assessment and Plan from a patient chart, reopen private drafts, and explicitly confirm an immutable signed note. Signing validates the saved version and server-held pending AI review, requires the primary, and records the signer, time and audit history. The editor preserves displayed work on failed requests. It extends the offline draft-sync model without changing its plain-text Body contract; see [UC 14 implementation and review guide](docs/UC14.md).
 - Orders (UC 1): from a patient's chart, a clinician with the patient on their panel signs a lab, imaging, medication or referral order, picked from a small synthetic catalog. The chart lists active orders. The database sets the signer and the time, records the write, and refuses a second active order for the same item without a reason. Orders can't be changed or discontinued yet. See `docs/UC1.md`.
 
@@ -136,7 +137,7 @@ The account is created at the next start if there are no staff accounts yet. The
 | Server stack: stop | Stops it and keeps its data |
 | Server stack: reset | Stops it and deletes all its data |
 
-**Tests:** `dotnet test` runs every test project. Docker must be running: the security and web tests start a real PostgreSQL 18 in a container. For the desktop app, run `cargo test` from `src/Ehr.Desktop/src-tauri`; it needs no Docker. For the dictation model script, run `uv run --no-project --python 3.12 --with pytest --with "huggingface_hub>=2.2,<3" python -m pytest src/Ehr.Dictation/tests`; it needs no network. For the dictation sidecar and the eval, with ffmpeg installed, run `uv run --project src/Ehr.Dictation/sidecar pytest src/Ehr.Dictation/sidecar/tests` and `uv run --project eval pytest eval/tests`; they use stand-ins for the models.
+**Tests:** `dotnet test` runs every test project. Build first, then run `pwsh tests/Ehr.Web.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium` for the real-browser clinical workflow tests (also installed in CI); alternatively set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to a compatible local Chromium. Docker must be running: the security and web tests start a real PostgreSQL 18 in a container. For the desktop app, run `cargo test` from `src/Ehr.Desktop/src-tauri`; it needs no Docker. For the dictation model script, run `uv run --no-project --python 3.12 --with pytest --with "huggingface_hub>=2.2,<3" python -m pytest src/Ehr.Dictation/tests`; it needs no network. For the dictation sidecar and the eval, with ffmpeg installed, run `uv run --project src/Ehr.Dictation/sidecar pytest src/Ehr.Dictation/sidecar/tests` and `uv run --project eval pytest eval/tests`; they use stand-ins for the models.
 
 ## Local server stack
 

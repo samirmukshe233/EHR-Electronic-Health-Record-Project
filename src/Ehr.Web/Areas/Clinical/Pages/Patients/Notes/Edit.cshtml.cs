@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ehr.Data.Patients;
 using Ehr.Domain.Notes;
 using Ehr.Domain.Patients;
 using Ehr.Domain.Phi;
@@ -19,6 +20,9 @@ public class EditModel(PhiReader phi, PatientAssignments assignments, BreakGlass
     [BindProperty, DisplayFormat(ConvertEmptyStringToNull = false)] public string Assessment { get; set; } = "";
     [BindProperty, DisplayFormat(ConvertEmptyStringToNull = false)] public string Plan { get; set; } = "";
     [BindProperty] public long Version { get; set; }
+    public Guid? ActiveReviewId { get; private set; }
+    public IReadOnlyList<AiNoteReview> CompletedReviews { get; private set; } = [];
+
     public string SaveStatus { get; private set; } = "Saved";
     public IReadOnlyList<string> Errors { get; private set; } = [];
 
@@ -40,6 +44,9 @@ public class EditModel(PhiReader phi, PatientAssignments assignments, BreakGlass
             return RedirectToPage("View", new { patientId, noteId = signed.Id });
         }
 
+        var reviews = await Phi.AiReviewsAsync(draftId, HttpContext.RequestAborted);
+        ActiveReviewId = reviews.FirstOrDefault(r => r.State is AiReviewStates.Pending or AiReviewStates.Recording)?.Id;
+        CompletedReviews = reviews.Where(r => r.State == AiReviewStates.Completed).ToList();
         var content = NoteContent.From(draft);
         (History, Assessment, Plan, Version) = (content.History, content.Assessment, content.Plan, draft.Version);
         return Page();
@@ -59,7 +66,7 @@ public class EditModel(PhiReader phi, PatientAssignments assignments, BreakGlass
         var errors = result.Errors;
         if (review && result.Draft is { } saved)
         {
-            errors = ClinicalNotes.SigningProblems(saved);
+            errors = await notes.SigningProblemsAsync(saved, HttpContext.RequestAborted);
         }
 
         var status = errors.Count > 0 && result.Status == 200 ? 422 : result.Status;

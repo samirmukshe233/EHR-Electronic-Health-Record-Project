@@ -67,11 +67,7 @@ public sealed class ClinicalNotes(EhrDbContext db, PhiReader phi, UserContext us
             return new(422, errors);
         }
 
-        draft.History = content.History;
-        draft.Assessment = content.Assessment;
-        draft.Plan = content.Plan;
-        draft.Body = content.Body;
-        draft.StructuredVersion = ++draft.Version;
+        content.ApplyTo(draft);
         await db.SaveChangesAsync(cancel);
         return new(200, [], draft);
     }
@@ -86,7 +82,32 @@ public sealed class ClinicalNotes(EhrDbContext db, PhiReader phi, UserContext us
 
         if (draft.HasUnreviewedProposals)
         {
-            errors.Add("Review every associated AI proposal before signing. AI review is not available in this editor yet.");
+            errors.Add("Review every associated AI proposal before signing. Open the saved AI review to resolve them.");
+        }
+
+        return errors;
+    }
+
+    public async Task<IReadOnlyList<string>> SigningProblemsAsync(ClinicalDraft draft, CancellationToken cancel)
+    {
+        var errors = SigningProblems(draft).ToList();
+        foreach (var review in await phi.AiReviewsAsync(draft.Id, cancel))
+        {
+            var proposals = await phi.AiProposalsAsync(review.Id, cancel);
+            var pending = proposals.Where(p => p.State == AiProposalStates.Pending).Select(p => p.Field).ToList();
+            if (review.State == AiReviewStates.Recording)
+            {
+                errors.Add("Finish or discard the unfinished dictation before signing this note.");
+            }
+            if (review.State == AiReviewStates.Pending || pending.Count > 0)
+            {
+                errors.Add(pending.Count > 0 ? $"Review the pending fields: {string.Join(", ", pending)}."
+                    : "Complete the saved AI review before signing.");
+            }
+            if (review.State == AiReviewStates.Completed && (review.ImportedVersion is null || review.ImportedVersion > draft.Version))
+            {
+                errors.Add("The saved AI review does not match this draft. Reopen the review before signing.");
+            }
         }
 
         return errors;
@@ -123,7 +144,7 @@ public sealed class ClinicalNotes(EhrDbContext db, PhiReader phi, UserContext us
             return NoteResult.Conflict;
         }
 
-        if (SigningProblems(draft) is { Count: > 0 } errors)
+        if (await SigningProblemsAsync(draft, cancel) is { Count: > 0 } errors)
         {
             return new(422, errors);
         }

@@ -333,6 +333,36 @@ mark.source-highlight {
     overflow-wrap: anywhere;
 }
 
+/* UC 13 keeps the transcript beside the same proposed-field cards, with text labels for every state. */
+.review-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: 1.5rem;
+}
+
+[data-note-review] textarea {
+    min-height: 6rem;
+    resize: vertical;
+}
+
+[data-note-review] details {
+    margin: 1rem 0;
+}
+
+[data-note-review] summary {
+    cursor: pointer;
+}
+
+[data-note-review] :focus-visible {
+    outline: 3px solid currentColor;
+    outline-offset: 3px;
+}
+
+[data-review-state="rejected"] {
+    border-left: 3px solid currentColor;
+    padding-left: 0.75rem;
+}
+
 /* UC 1: the order form highlights a field to fix. */
 .order-form [aria-invalid="true"] {
     outline: 2px solid #c5221f;

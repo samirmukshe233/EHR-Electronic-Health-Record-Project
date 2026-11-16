@@ -27,6 +27,7 @@ var connectionString = builder.Configuration.GetConnectionString("Ehr")
 builder.Services.AddEhrData(connectionString);
 builder.Services.AddScoped<QuickTextSaver>();
 builder.Services.AddScoped<Ehr.Domain.Notes.ClinicalNotes>();
+builder.Services.AddScoped<Ehr.Domain.Notes.NoteReviews>();
 builder.Services.AddSingleton(new Ehr.Domain.Notes.NoteWriteAuthority(site == Site.OnPrem));
 // UC 1: placing orders (Ehr.Domain.Orders).
 builder.Services.AddScoped<Ehr.Domain.Orders.ClinicalOrders>();

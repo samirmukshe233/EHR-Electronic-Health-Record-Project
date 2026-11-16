@@ -12,6 +12,8 @@ public class ViewModel(PhiReader phi, PatientAssignments assignments, BreakGlass
 {
     public string SignerName { get; private set; } = "";
 
+    public IReadOnlyList<AiNoteReview> CompletedReviews { get; private set; } = [];
+
     public ClinicalNote Note { get; private set; } = null!;
 
     public async Task<IActionResult> OnGetAsync(Guid patientId, Guid noteId)
@@ -27,6 +29,8 @@ public class ViewModel(PhiReader phi, PatientAssignments assignments, BreakGlass
         }
 
         Note = note;
+        CompletedReviews = (await Phi.AiReviewsAsync(note.DraftId, HttpContext.RequestAborted))
+            .Where(r => r.State == AiReviewStates.Completed).ToList();
         SignerName = await db.StaffUsers.Where(u => u.Id == note.SignerId).Select(u => u.DisplayName)
             .SingleAsync(HttpContext.RequestAborted);
         return Page();

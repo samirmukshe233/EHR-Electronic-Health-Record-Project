@@ -55,6 +55,9 @@ public class EhrDbContext(DbContextOptions<EhrDbContext> options) : DbContext(op
 
     public DbSet<ClinicalDraft> ClinicalDrafts => Set<ClinicalDraft>();
 
+    public DbSet<AiNoteReview> AiNoteReviews => Set<AiNoteReview>();
+    public DbSet<AiFieldProposal> AiFieldProposals => Set<AiFieldProposal>();
+
     public DbSet<ClinicalNote> ClinicalNotes => Set<ClinicalNote>();
 
     // UC 1: the orders clinicians sign, PHI like the chart (read them only through the PHI reader), and the catalog of

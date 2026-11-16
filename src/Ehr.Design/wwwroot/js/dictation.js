@@ -12,7 +12,7 @@
 // - the model unavailable or too slow: the transcript stays as plain text, with the API's message;
 // - an order or allergy change dictated: listed as not carried over, never filled into a field (FR-14);
 // - Cancel: the session is deleted, so its audio and transcript are discarded, and the screen is cleared.
-// Nothing here saves anything (FR-13). The audio goes up in whatever format the browser records (AGENTS.md: never
+// Finished results are staged through the server-owned review binding; no AI text is approved here (FR-13). The audio goes up in whatever format the browser records (AGENTS.md: never
 // hard-code one), and every piece of text is set with textContent, never parsed as HTML. Wired here rather than in
 // attributes, so a strict CSP can be added later.
 "use strict";
@@ -37,17 +37,11 @@
     const notCarriedList = part("not-carried-list");
     const fieldNames = ["history", "assessment", "plan"];
 
-    // Words for the clinician beside each marked passage and each code the API sends.
-    const unclearWords = {
-        too_quiet: "too quiet to hear clearly",
-        too_noisy: "too much background noise",
-        low_confidence: "the speech model wasn't sure",
-    };
-    const warningWords = {
-        possible_correction: "You may have corrected this later in the dictation: check the highlighted words.",
-        near_unclear_passage: "A passage beside its source was hard to hear: check the highlighted words.",
-    };
-    const instructionWords = { order: "Order", allergy_change: "Allergy change" };
+    const view = new window.SwiftChartDictationView(root);
+    const renderTranscript = (...args) => view.renderTranscript(...args);
+    const renderResult = (...args) => view.renderResult(...args);
+    const reviewButton = part("review");
+    const manualLink = part("manual");
 
     // How long to wait before sending again after a failure: doubling, up to the most.
     const firstRetryMs = 1000;
@@ -73,6 +67,8 @@
             ended: false,
             cancelled: false,
             transcript: null,
+            persisted: false,
+            staging: false,
         };
     }
 
@@ -107,7 +103,7 @@
     // The API's own words when it gives them; a status-based fallback otherwise.
     async function refusal(response) {
         const body = await json(response);
-        return body.message || `Dictation failed (${response.status}). Try again in a moment.`;
+        return body.errors?.join(" ") || body.message || `Dictation failed (${response.status}). Try again in a moment.`;
     }
 
     // A failure worth sending again: no connection, the service busy, unavailable or slow, or the cloud app unable to
@@ -123,37 +119,57 @@
             return;
         }
 
-        // A finished dictation still on screen is discarded before the next starts.
         if (state.session) {
-            call("DELETE", `/${state.session.sessionId}`).catch(() => { });
+            say("Discard this unfinished dictation before starting another. Its transcript is still displayed.", true);
+            return;
         }
-
+        // Reuse the request ID when start's acknowledgement was lost: the server returns its saved binding.
+        const requestId = state.requestId || crypto.randomUUID();
         state = fresh();
+        state.requestId = requestId;
+        startButton.disabled = true;
         resetScreen();
         cancelButton.textContent = "Cancel";
         try {
             state.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch (error) {
+            buttons(false);
             say(microphoneProblem(error), true);
             return;
         }
 
         let response;
         try {
-            response = await call("POST", "");
+            response = await call("POST", "/for-note", JSON.stringify({
+                reviewId: state.requestId, patientId: root.dataset.patientId,
+                draftId: root.dataset.draftId || null, version: Number(root.dataset.draftVersion) || null,
+            }), "application/json");
         } catch {
             endRecording();
+            buttons(false);
             say("The dictation service can't be reached. Check your connection and try again.", true);
             return;
         }
 
         if (response.status !== 201) {
             endRecording();
+            buttons(false);
             say(await refusal(response), true);
             return;
         }
 
         state.session = await json(response);
+        root.dataset.draftId = state.session.draftId;
+        root.dataset.draftVersion = state.session.version;
+        manualLink.href = state.session.editorUrl;
+        manualLink.hidden = false;
+        root.querySelector("[data-dictation-new-manual]").hidden = true;
+        if (state.session.state !== "recording") {
+            endRecording();
+            state.persisted = true;
+            window.location.assign(state.session.url);
+            return;
+        }
         // No mimeType: the browser picks the format it records (WebM in Chromium, MP4 in WebKit), and the server
         // decodes either.
         const recorder = new MediaRecorder(state.stream);
@@ -315,9 +331,35 @@
             buttons(false);
             cancelButton.disabled = false;
             cancelButton.textContent = "Discard";
+            startButton.disabled = true;
             say(result.sorting === "done"
                 ? "Done. Review each proposed field; nothing is in the note until you approve it."
                 : "Done, but the fields couldn't be sorted. The transcript is kept as plain text.");
+            await stageReview();
+        }
+    }
+
+    async function stageReview() {
+        if (!state.session?.reviewId || state.staging) return;
+        state.staging = true;
+        reviewButton.hidden = false;
+        reviewButton.disabled = true;
+        try {
+            const response = await call("POST", `/review/${state.session.reviewId}/stage`,
+                JSON.stringify({ version: state.session.version }), "application/json");
+            const body = await json(response);
+            if (!response.ok || !body.url) {
+                if (Number.isSafeInteger(body.version)) state.session.version = body.version;
+                say(body.errors?.join(" ") || body.message || "The proposals were not saved for review. Your transcript is still here; compare the saved draft and retry, or continue manually.", true);
+                return;
+            }
+            state.persisted = true;
+            window.location.assign(body.url);
+        } catch {
+            say("The server could not confirm saving the proposals. Your transcript is still here. Retry saving them; a completed save will not be duplicated.", true);
+        } finally {
+            state.staging = false;
+            reviewButton.disabled = false;
         }
     }
 
@@ -357,6 +399,7 @@
         endRecording();
         state.ended = true;
         buttons(false);
+        startButton.disabled = state.session !== null;
         cancelButton.disabled = state.session === null;
         say(message, true);
     }
@@ -368,6 +411,23 @@
         state.cancelled = true;
         clearTimeout(state.retryTimer);
         endRecording();
+        if (session?.reviewId) {
+            try {
+                const response = await call("POST", `/review/${session.reviewId}/discard`);
+                if (!response.ok) {
+                    const body = await json(response);
+                    throw new Error(body.errors?.join(" ") || body.message || "Discard was not confirmed.");
+                }
+            } catch (error) {
+                state.cancelled = false;
+                state.ended = true;
+                buttons(false);
+                startButton.disabled = true;
+                cancelButton.disabled = false;
+                say(`${error.message} Your transcript is still displayed; saved proposals must be reviewed individually.`, true);
+                return;
+            }
+        }
         state.queue = [];
         resetScreen();
         buttons(false);
@@ -382,7 +442,7 @@
         }
 
         state = fresh();
-        say("Dictation discarded. Nothing was kept.");
+        say("Temporary dictation discarded. The manual draft was kept; no AI text was approved.");
     }
 
     function endRecording() {
@@ -399,6 +459,7 @@
 
     function resetScreen() {
         state.transcript = null;
+        reviewButton.hidden = true;
         transcriptArea.replaceChildren(element("p", "Your words appear here as you speak.", "placeholder"));
         unclearNotice.hidden = true;
         sortMessage.textContent = "The fields are proposed once you stop.";
@@ -415,133 +476,12 @@
 
     function element(tag, text, className) {
         const node = document.createElement(tag);
-        if (text !== undefined) {
-            node.textContent = text;
-        }
-
-        if (className) {
-            node.className = className;
-        }
-
+        node.textContent = text;
+        node.className = className || "";
         return node;
     }
 
-    // The transcript, its segments marked: unclear passages (with why), words not final yet, and the ranges to
-    // highlight (a field's sources, FR-08). Offsets are UTF-16, as JavaScript strings index.
-    function renderTranscript(transcript, highlights = []) {
-        if (!transcript) {
-            return;
-        }
-
-        state.transcript = transcript;
-        const text = transcript.text ?? "";
-        if (text.length === 0) {
-            transcriptArea.replaceChildren(element("p", "Listening…", "placeholder"));
-            return;
-        }
-
-        const segments = transcript.segments ?? [];
-        const points = new Set([0, text.length]);
-        for (const range of [...segments, ...highlights]) {
-            points.add(Math.max(0, Math.min(text.length, range.start)));
-            points.add(Math.max(0, Math.min(text.length, range.end)));
-        }
-
-        const sorted = [...points].sort((a, b) => a - b);
-        const paragraph = element("p");
-        for (let i = 0; i + 1 < sorted.length; i++) {
-            const [from, to] = [sorted[i], sorted[i + 1]];
-            const segment = segments.find((s) => s.start <= from && to <= s.end);
-            const highlighted = highlights.some((h) => h.start <= from && to <= h.end);
-            let node = document.createTextNode(text.slice(from, to));
-            if (segment?.unclear) {
-                const mark = element("mark", undefined, "unclear");
-                mark.title = `Say this again: ${unclearWords[segment.unclear] ?? "it may be wrong"}.`;
-                mark.append(node);
-                node = mark;
-            } else if (segment && !segment.final) {
-                const span = element("span", undefined, "tentative");
-                span.append(node);
-                node = span;
-            }
-
-            if (highlighted) {
-                const mark = element("mark", undefined, "source-highlight");
-                mark.append(node);
-                node = mark;
-            }
-
-            paragraph.append(node);
-        }
-
-        transcriptArea.replaceChildren(paragraph);
-        unclearNotice.hidden = !segments.some((s) => s.unclear);
-    }
-
-    function renderResult(result) {
-        renderTranscript(result.transcript);
-        if (result.sorting === "pending") {
-            sortMessage.textContent = "Proposing the fields…";
-        } else if (result.sorting === "unavailable") {
-            sortMessage.textContent = result.message || "The fields couldn't be sorted, so the transcript is kept as plain text.";
-        } else {
-            sortMessage.textContent = "Each proposed field is awaiting your review. Select one to see the words it came from.";
-        }
-
-        for (const name of fieldNames) {
-            renderField(name, result.fields?.[name], result.sorting);
-        }
-
-        const items = result.notCarriedOver ?? [];
-        notCarried.hidden = items.length === 0;
-        notCarriedList.replaceChildren(...items.map((item) => {
-            const text = (result.transcript?.text ?? "").slice(item.start, item.end);
-            const li = element("li");
-            li.append(element("strong", `${instructionWords[item.reason] ?? "Instruction"}: `), document.createTextNode(`“${text}”`));
-            highlightOnFocus(li, [item]);
-            return li;
-        }));
-    }
-
-    function renderField(name, field, sorting) {
-        const container = root.querySelector(`[data-dictation-field="${name}"]`);
-        const status = container.querySelector("[data-field-status]");
-        const value = container.querySelector("[data-field-value]");
-        container.classList.toggle("pending", field?.status === "pending");
-        container.classList.toggle("empty", field?.status === "empty");
-        value.replaceChildren();
-        if (field?.status === "pending") {
-            status.textContent = "Awaiting review";
-            const text = element("p", field.value, "field-value");
-            highlightOnFocus(text, field.sources ?? []);
-            value.append(text);
-            for (const warning of field.warnings ?? []) {
-                const note = element("p", warningWords[warning.code] ?? "Check this field against the transcript.", "field-warning");
-                highlightOnFocus(note, [warning]);
-                value.append(note);
-            }
-        } else if (field?.status === "empty") {
-            status.textContent = "Left empty";
-            const notDictated = (field.reasons ?? []).includes("not_dictated");
-            value.append(element("p", notDictated
-                ? "Nothing was dictated for this field. Fill it in during review if it's needed."
-                : "No suggestion: what was proposed didn't pass the automatic checks. Fill it in during review."));
-        } else {
-            status.textContent = sorting === "unavailable" ? "Not sorted" : sorting === "pending" ? "Proposing…" : "Not dictated yet";
-        }
-    }
-
-    // Hovering or focusing the element highlights its ranges in the transcript; the keyboard reaches it with Tab.
-    function highlightOnFocus(node, ranges) {
-        node.tabIndex = 0;
-        const on = () => renderTranscript(state.transcript, ranges);
-        const off = () => renderTranscript(state.transcript);
-        node.addEventListener("mouseenter", on);
-        node.addEventListener("focus", on);
-        node.addEventListener("mouseleave", off);
-        node.addEventListener("blur", off);
-    }
-
+    reviewButton.addEventListener("click", stageReview);
     startButton.addEventListener("click", start);
     stopButton.addEventListener("click", stop);
     cancelButton.addEventListener("click", cancel);
@@ -561,10 +501,21 @@
         }
     });
 
+    window.addEventListener("beforeunload", event => {
+        if (state.session && !state.persisted && !state.cancelled) {
+            event.preventDefault(); event.returnValue = "";
+        }
+    });
+
     // Leaving the page mid-dictation discards it, as Cancel would.
     window.addEventListener("pagehide", () => {
         if (state.session && !state.cancelled) {
             endRecording();
+            if (!state.persisted && state.session.reviewId) {
+                fetch(`${api}/review/${state.session.reviewId}/discard`, {
+                    method: "POST", headers: { RequestVerificationToken: token }, credentials: "same-origin", keepalive: true,
+                }).catch(() => { });
+            }
             fetch(`${api}/${state.session.sessionId}`, {
                 method: "DELETE",
                 headers: { RequestVerificationToken: token },
