@@ -20,14 +20,14 @@ Sign in to the portal and choose **Results** in the navigation, or **See your te
 
 ## Courses of events and their tests
 
-In `tests/Ehr.Web.Tests/PortalResultsTests.cs` and `ResultExplanationTests.cs`:
+In `tests/Ehr.Web.Tests`: `PortalResultsTests.cs`, `ResultExplanationTests.cs`, and one file per test case in `TestCases/UC6/`:
 
 | ID | Course of events | Test |
 |---|---|---|
-| TC-UC6-01 | Typical: released results, newest first, each with its range and meaning; one recorded read; not cached; the date labelled UTC | `A_patient_sees_their_released_results_newest_first_in_plain_language` |
-| TC-UC6-02 | No results yet | `A_patient_with_no_released_results_is_told_so` |
+| TC-UC6-01 | Typical: released results, newest first, each with its range and meaning; one recorded read; not cached; the date labelled UTC | `TestCases/UC6/TC_UC6_01_SuccessfulFlow.cs`: `A_patient_sees_their_released_results_newest_first_in_plain_language` |
+| TC-UC6-02 | No results yet | `TestCases/UC6/TC_UC6_02_AlternativeFlow.cs`: `A_patient_with_no_released_results_is_told_so` |
 | TC-UC6-03 | Signed out or a clinician | `Nobody_signed_out_and_no_clinician_reaches_the_results_page` |
-| TC-UC6-04 | On-site server down: read-only, the read queued and shipped | `Off_site_with_the_clinic_server_down_results_are_read_only_and_the_read_is_queued` |
+| TC-UC6-04 | On-site server down: read-only, the read queued and shipped | `TestCases/UC6/TC_UC6_04_ExceptionalCondition.cs`: `Off_site_with_the_clinic_server_down_results_are_read_only_and_the_read_is_queued` |
 | TC-UC6-07 | Sign-in fails: "Wrong email or password.", and the results page sends the patient to sign in | `A_wrong_password_is_refused_and_shows_no_results` |
 | TC-FR16-01 | Low, normal and high against both ends | `A_value_is_compared_with_both_ends_of_its_range` |
 | TC-FR16-02 | A range with one end | `A_range_with_one_end_reads_as_people_say_it` |
