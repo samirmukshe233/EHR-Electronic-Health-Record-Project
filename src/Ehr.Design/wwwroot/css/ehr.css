@@ -43,10 +43,13 @@ textarea {
 }
 
 .results summary {
-    display: flex;
+    cursor: pointer;
+}
+
+.results .result-line {
+    display: inline-flex;
     gap: 0.75rem;
     align-items: baseline;
-    cursor: pointer;
 }
 
 .notice.read-only {

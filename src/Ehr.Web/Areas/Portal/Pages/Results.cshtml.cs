@@ -20,6 +20,8 @@ public class ResultsModel(PhiReader phi) : PageModel
 
     public async Task OnGetAsync()
     {
+        // PHI: not kept by the browser, so Back after signing out on a shared computer doesn't show it again.
+        Response.Headers.CacheControl = "no-store";
         var patientId = Guid.Parse(User.FindFirstValue(EhrClaims.PatientId)!);
         var results = await phi.ResultsAsync(patientId, HttpContext.RequestAborted);
         Available = results is not null;

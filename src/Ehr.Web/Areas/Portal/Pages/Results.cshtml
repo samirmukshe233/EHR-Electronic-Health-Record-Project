@@ -24,9 +24,10 @@ else
             var flag = ResultExplanation.Flag(result);
             <li>
                 <details>
-                    <summary>
+                    @* The flex layout is on a span inside the summary, so the summary keeps its open/close marker. *@
+                    <summary><span class="result-line">
                         <strong>@result.Display</strong>
-                        <span>@result.EffectiveAt.UtcDateTime.ToString("MMM d, yyyy")</span>
+                        <span>@result.EffectiveAt.UtcDateTime.ToString("MMM d, yyyy") UTC</span>
                         @if (flag == ResultFlag.High)
                         {
                             <span class="tag restricted">High</span>
@@ -39,7 +40,7 @@ else
                         {
                             <span class="tag">Normal</span>
                         }
-                    </summary>
+                    </span></summary>
                     <dl class="record">
                         @if (ResultExplanation.Value(result) is { } value)
                         {

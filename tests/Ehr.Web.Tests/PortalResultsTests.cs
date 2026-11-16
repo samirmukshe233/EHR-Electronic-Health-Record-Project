@@ -35,7 +35,13 @@ public class PortalResultsTests(WebApps apps) : IClassFixture<WebApps>
         // Signing in opens the portal's home, itself a read of the patient.
         var readsBefore = await apps.AuditEventsAsync(AuditActions.Read, patientId: own);
 
-        var html = await client.GetStringAsync("/portal/results", Cancel);
+        using var response = await client.GetAsync("/portal/results", Cancel);
+        var html = await ReadAsync(response);
+
+        // Not kept by the browser, so Back after signing out doesn't show it again.
+        Assert.True(response.Headers.CacheControl?.NoStore);
+        // The sample's date, labelled with its time zone.
+        Assert.Contains("Nov 2, 2026 UTC", html);
 
         // Newest first.
         Assert.True(html.IndexOf("Hemoglobin A1c", StringComparison.Ordinal) < html.IndexOf("LDL cholesterol", StringComparison.Ordinal));
@@ -52,6 +58,10 @@ public class PortalResultsTests(WebApps apps) : IClassFixture<WebApps>
         Assert.DoesNotContain("Thyroid", html);
         // One view of one patient: one recorded read.
         Assert.Equal(readsBefore + 1, await apps.AuditEventsAsync(AuditActions.Read, patientId: own));
+
+        // Nor the portal's home, which shows the record too.
+        using var home = await client.GetAsync("/portal", Cancel);
+        Assert.True(home.Headers.CacheControl?.NoStore);
     }
 
     // TC-UC6-02: the "no results yet" course.
@@ -79,6 +89,24 @@ public class PortalResultsTests(WebApps apps) : IClassFixture<WebApps>
         var clinician = await SignInAsync(apps.OnPrem, await apps.ClinicianAsync());
         using var staff = await Client(apps.OnPrem, clinician.Jar, followRedirects: false).GetAsync("/portal/results", Cancel);
         Assert.NotEqual(HttpStatusCode.OK, staff.StatusCode);
+    }
+
+    // TC-UC6-07: the "sign-in fails" course: the portal says so and shows no results.
+    [Fact]
+    public async Task A_wrong_password_is_refused_and_shows_no_results()
+    {
+        var patient = await apps.InsertPatientAsync("Casey", "Refused");
+        await apps.InsertResultAsync(patient, "Hemoglobin A1c", "4548-4", 6.9m, "%", 4.0m, 5.6m, Nov2, Nov2);
+        var (email, _) = await apps.CreatePatientAccountAsync(patient);
+        var jar = new CookieContainer();
+        var client = Client(apps.OnPrem, jar);
+
+        using var refused = await PostFormAsync(client, "/portal/sign-in", "/portal/sign-in", ("Input.Email", email), ("Input.Password", "not-the-password-at-all"));
+        Assert.Contains("Wrong email or password.", await ReadAsync(refused));
+
+        using var results = await Client(apps.OnPrem, jar, followRedirects: false).GetAsync("/portal/results", Cancel);
+        Assert.Equal(HttpStatusCode.Redirect, results.StatusCode);
+        Assert.StartsWith("/portal/sign-in", results.Headers.Location!.PathAndQuery);
     }
 
     // TC-UC6-04: the "on-site primary server is down" course (UC2): read from the cloud copy, marked read-only, and
