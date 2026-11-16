@@ -61,8 +61,15 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
         [("ehr_app", "clinical_drafts")] = ["SELECT", "INSERT", "UPDATE"],
         // UC 14 adds replica draft reads under the same private-author/active-panel RLS as the primary.
         [("ehr_read", "clinical_drafts")] = ["SELECT"],
+        // UC 1: orders are append-only; the catalog is read only.
+        [("ehr_app", "orders")] = ["SELECT", "INSERT"],
+        [("ehr_read", "orders")] = ["SELECT"],
+        [("ehr_app", "order_catalog_items")] = ["SELECT"],
+        [("ehr_read", "order_catalog_items")] = ["SELECT"],
         [("ehr_app", "encounters")] = ["SELECT"],
         [("ehr_read", "encounters")] = ["SELECT"],
+        [("ehr_app", "observations")] = ["SELECT"],
+        [("ehr_read", "observations")] = ["SELECT"],
         [("ehr_app", "patient_enrollments")] = ["SELECT", "INSERT", "UPDATE"],
         [("ehr_read", "patient_enrollments")] = ["SELECT"],
         [("ehr_app", "audit_events")] = ["SELECT", "INSERT"],
@@ -159,6 +166,7 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.medication_statements SET display = 'changed'")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.conditions")]
     [InlineData("ehr_read", MigratedDatabase.ReadPassword, "INSERT INTO ehr.encounters (id, patient_id, status, class_code, period_start) VALUES (gen_random_uuid(), gen_random_uuid(), 'finished', 'AMB', now())")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.observations SET status = 'cancelled'")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.audit_events SET reason = 'changed'")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.audit_events")]
     [InlineData("ehr_read", MigratedDatabase.ReadPassword, "INSERT INTO ehr.audit_events (id, occurred_at, action, source) VALUES (uuidv7(), now(), 'read', 'cloud')")]

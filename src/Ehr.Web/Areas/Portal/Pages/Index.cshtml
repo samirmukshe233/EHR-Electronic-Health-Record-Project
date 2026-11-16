@@ -11,7 +11,8 @@
         <dt>Medical record number</dt><dd>@patient.Mrn</dd>
         <dt>Date of birth</dt><dd>@patient.BirthDate.ToString("yyyy-MM-dd")</dd>
     </dl>
-    <p>Results, appointments and messages will appear here.</p>
+    <p><a asp-page="/Results">See your test results</a></p>
+    <p>Appointments and messages will appear here.</p>
 }
 else
 {

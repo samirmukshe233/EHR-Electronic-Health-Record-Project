@@ -1,0 +1,123 @@
+@page "/patients/{id:guid}/orders/new"
+@using Ehr.Data.Patients
+@using Ehr.Domain.Orders
+@model Ehr.Web.Areas.Clinical.Pages.Patients.Orders.NewModel
+@{
+    // The address carries the patient. Without htmx, nothing keeps it in the browser's sessionStorage history.
+    ViewData["UseHtmx"] = false;
+    var patient = Model.Form.Patient;
+    ViewData["Title"] = $"New order: {patient.FamilyName}, {patient.GivenName}";
+    var known = Model.Form.Allergies.Where(a => a.Code != AllergyIntolerance.NoKnownAllergy).ToList();
+}
+@* UC 1 Place an order (Tahseen Arnan). js/orders.js posts the form with fetch, and keeps it filled when the clinic's
+   server can't be reached; without JavaScript it posts as a normal form. *@
+@section Scripts {
+    <script src="~/_content/Ehr.Design/js/orders.js" defer></script>
+}
+<p><a asp-page="/Patients/Chart" asp-all-route-data="Model.ChartLink">Back to the chart</a></p>
+<h1>New order: @patient.FamilyName, @patient.GivenName</h1>
+<dl class="record">
+    <dt>MRN</dt><dd>@patient.Mrn</dd>
+    <dt>Born</dt><dd>@patient.BirthDate.ToString("yyyy-MM-dd")</dd>
+    <dt>Allergies</dt>
+    <dd data-order-allergies>
+        @if (known.Count > 0)
+        {
+            <ul>
+                @foreach (var allergy in known)
+                {
+                    <li>
+                        <strong>@allergy.Display</strong>@if (allergy.Reaction is { } reaction) { <text>: @reaction</text> }
+                        @if (allergy.Criticality == AllergyCriticality.High)
+                        {
+                            <span class="tag">High risk</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        else if (Model.Form.Allergies.Count > 0)
+        {
+            <text>No known allergies</text>
+        }
+        else
+        {
+            <text>No allergy information recorded</text>
+        }
+    </dd>
+</dl>
+
+<nav aria-label="Type of order">
+    <ul class="actions">
+        @foreach (var (type, name) in OrderForms.TypeNames)
+        {
+            var route = Model.Search.RouteData();
+            route["id"] = patient.Id.ToString();
+            route["type"] = type;
+            <li><a asp-page="New" asp-all-route-data="route" aria-current="@(type == Model.KnownType ? "page" : null)">@name</a></li>
+        }
+    </ul>
+</nav>
+
+@if (Model.KnownType is not { } selected)
+{
+    <p>Choose the type of order.</p>
+}
+else
+{
+    <form method="post" class="order-form" data-order-form>
+        <p class="notice error" role="alert" data-order-message hidden="@(Model.Errors.Count == 0)">Not saved. Fix the highlighted fields and sign again.</p>
+        <h2>@OrderForms.TypeNames[selected] order</h2>
+        @{ Field("Item", "order-item", "Item", required: true, Model.Item, "order-items"); }
+        <datalist id="order-items">
+            @foreach (var item in Model.Catalog)
+            {
+                <option value="@item.Display"></option>
+            }
+        </datalist>
+        @foreach (var field in OrderForms.Fields[selected])
+        {
+            Field(field.Name, $"order-{field.Name}", field.Label, field.Required, Model.Details.GetValueOrDefault(field.Name), list: null);
+        }
+        @if (Model.Form.Duplicates.Count > 0)
+        {
+            <section class="notice error" data-order-duplicate>
+                <h3>Already ordered</h3>
+                @foreach (var duplicate in Model.Form.Duplicates)
+                {
+                    <p>An active order for <strong>@duplicate.Display</strong> was signed @duplicate.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
+                }
+                <p>Cancel, or give a reason and sign to order it again.</p>
+                <label for="order-reason">Reason for ordering it again <span>(required)</span></label>
+                <textarea id="order-reason" name="DuplicateReason" rows="2" maxlength="@OrderForms.MaximumReasonLength" required
+                          aria-invalid="@(Model.Errors.ContainsKey("DuplicateReason") ? "true" : null)">@Model.DuplicateReason</textarea>
+            </section>
+        }
+        <div class="actions">
+            <button type="submit">Sign order</button>
+            <a asp-page="/Patients/Chart" asp-all-route-data="Model.ChartLink">Cancel</a>
+        </div>
+    </form>
+}
+
+@functions {
+    // Keyboard first (NFR-12): the page opens with the cursor in the first field to fix, or in the item when there is
+    // nothing to fix yet.
+    string Focused() => Model.Errors.Count == 0 || Model.Errors.ContainsKey("Item")
+        ? "Item"
+        : OrderForms.Fields[Model.KnownType!].Select(detail => detail.Name).FirstOrDefault(Model.Errors.ContainsKey) ?? "";
+
+    // A labelled input, marked when required, and highlighted with its message when it needs fixing.
+    void Field(string name, string id, string label, bool required, string? value, string? list)
+    {
+        var error = Model.Errors.GetValueOrDefault(name);
+        <label for="@id">@label @if (required) { <span>(required)</span> }</label>
+        <input id="@id" name="@(name == "Item" ? "Item" : $"Details[{name}]")" value="@value" list="@list" maxlength="@OrderForms.MaximumLength"
+               autocomplete="off" required="@required" aria-invalid="@(error is null ? null : "true")" autofocus="@(name == Focused())"
+               aria-describedby="@(error is null ? null : $"{id}-error")">
+        @if (error is not null)
+        {
+            <p class="error" id="@id-error">@error</p>
+        }
+    }
+}

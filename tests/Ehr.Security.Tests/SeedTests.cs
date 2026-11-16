@@ -51,7 +51,7 @@ public class SeedRollbackTests(MigratedDatabase database) : IClassFixture<Migrat
     [Fact]
     public async Task A_seed_that_fails_part_way_leaves_the_clinic_as_it_was()
     {
-        // Visits load last. A constraint every new visit breaks fails the seed after the other four tables have loaded.
+        // A constraint every new visit breaks fails the seed after the four tables before visits have loaded.
         await MigratedDatabase.ExecuteAsync(database.SuperuserConnectionString,
             "ALTER TABLE ehr.encounters ADD CONSTRAINT ck_seed_test_no_visits CHECK (false) NOT VALID");
         try

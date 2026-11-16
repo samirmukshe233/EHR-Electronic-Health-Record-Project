@@ -1,19 +1,28 @@
 using System.Data.Common;
 using System.Diagnostics;
 using System.Globalization;
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ehr.Data;
 using Ehr.Data.Accounts;
+using Ehr.Data.Audit;
+using Ehr.Data.Orders;
+using Ehr.Domain.Audit;
 using Ehr.Domain.Patients;
 using Ehr.Seed;
 using Ehr.Testing;
+using Ehr.Web.CloudAudit;
+using Ehr.Web.Forwarding;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Mvc.Testing.Handlers;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -24,9 +33,10 @@ using Npgsql;
 
 namespace Ehr.Bench;
 
-// Server render time for the patient search, the panel and the chart in a clinic of 50,000 synthetic patients (NFR-01,
-// NFR-04; AGENTS.md's gate, which --assert checks, is in Gate). The on-prem app runs in memory, so a request's time is
-// the server's own: authentication, the page's queries and the reads it records, and rendering, with no network in it.
+// Server render time for the patient search, the panel, the chart and the portal's results page in a clinic of 50,000
+// synthetic patients (NFR-01, NFR-04; AGENTS.md's gate, which --assert checks, is in Gate), on-site and off-site
+// (NFR-03). The apps run in memory, so a request's time is the server's own: authentication, the page's queries and
+// the reads it records, and rendering, with no network in it.
 // Each kind of request is made 100 times to warm up, then 1,000 times one after another, and the times are reported as
 // percentiles, with two parts of each apart from the rest: inserting the audit events of the page's reads, and
 // committing its transaction, which waits for them to reach the disk. That wait is only there when the database's
@@ -39,8 +49,15 @@ namespace Ehr.Bench;
 // By default it starts its own PostgreSQL 18, migrated as the tests' is, and seeds it. With --stack it uses the web
 // app's own settings instead, as `dotnet run --project src/Ehr.Web` does, against a primary already seeded with as many
 // patients. Either way it creates a clinician of its own, with a random password nobody keeps, puts 100 of the seeded
-// patients on their panel, signs in with password and authenticator code like a browser, and locks the account at the
-// end. It knows whom to search for from the synthetic clinic itself, so it reads nobody outside the pages it measures.
+// patients on their panel, signs four orders for each of them (UC 1), so the chart it measures lists active orders,
+// signs in with password and authenticator code like a browser, and locks the account at the end. It knows whom to search for from the synthetic clinic itself, so it reads nobody outside the pages it measures.
+//
+// UC 2, off-site (Tahseen Arnan): then the same requests, in the same order, to the cloud app (OffSiteApp), reading as
+// ehr_read with its link to the on-prem app down, as in an on-site outage, with the same session. Each row's name starts
+// "Off-site". The cloud app records its reads in its audit queue, a file flushed to disk before the page is sent, not in
+// the database: so the audit insert is 0, and the queue's append counts as the commit (TimedAuditQueue), since that is
+// where the page waits for the disk, as an on-prem page does at its commit. The gate is the same for these rows. Only in
+// the PostgreSQL it starts itself, which stands in for the replica as in the web tests: --stack has no ehr_read login.
 internal static partial class RenderBenchmark
 {
     // AGENTS.md's gate: each kind of request's p99, excluding the commit, under this (Gate). The full time's p99 not
@@ -56,7 +73,7 @@ internal static partial class RenderBenchmark
     static readonly Uri Base = new("https://localhost");
 
     // The exit code: Finish's.
-    public static async Task<int> RunAsync(int patients, bool stack, bool assert)
+    public static async Task<int> RunAsync(int patients, bool stack, bool assert, string? resultsPath = null)
     {
         MigratedDatabase? database = null;
         try
@@ -97,30 +114,41 @@ internal static partial class RenderBenchmark
             try
             {
                 var panel = await AssignPanelAsync(app, clinicianId, patients);
-                using var client = await SignInAsync(app, email, password, key);
-                var random = new Random(20261115);
-                SyntheticChart Anyone() => SyntheticClinic.Chart(random.Next(patients));
-                static string Date(SyntheticChart chart) => chart.Patient.BirthDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-
-                var results = new List<Result>
+                await SignOrdersAsync(app, clinicianId, panel);
+                var session = new CookieContainer();
+                using var client = await SignInAsync(app, session, email, password, key);
+                await SettleAsync(database);
+                var results = await MeasureEachAsync(client, times, "", panel, patients);
+                // The patient portal's results page (UC6, FR-16; Simar Rekhi), as a patient with released results, the
+                // last patient in the clinic who has some: the local stack's example account uses the first. On-site, so before the
+                // off-site rows.
+                var (patientUserId, patientEmail, patientPassword) = await CreatePatientAccountAsync(app, patients);
+                try
                 {
-                    // The chart first, before the searches have written their many audit events.
-                    await MeasureAsync(client, times, "Chart, a patient on the panel", typing: false, () => $"/patients/{panel[random.Next(panel.Count)]}"),
-                    // The clinic's home with no search: all PanelSize patients on the panel, each a recorded read.
-                    await MeasureAsync(client, times, $"Panel, {PanelSize} patients", typing: false, () => "/patients"),
-                    await MeasureAsync(client, times, "Search, first 3 letters of a name", typing: false, () => $"/patients?name={Anyone().Patient.FamilyName[..3]}"),
-                    await MeasureAsync(client, times, "Search, a whole family name", typing: false, () => $"/patients?name={Anyone().Patient.FamilyName}"),
-                    await MeasureAsync(client, times, "Search, date of birth", typing: false, () => $"/patients?birthdate={Date(Anyone())}"),
-                    await MeasureAsync(client, times, "Search, MRN", typing: false, () => $"/patients?mrn={SyntheticClinic.Mrn(random.Next(patients))}"),
-                    await MeasureAsync(client, times, "Search, name and date of birth", typing: false, () =>
-                    {
-                        var chart = Anyone();
-                        return $"/patients?name={chart.Patient.FamilyName[..4]}&birthdate={Date(chart)}";
-                    }),
-                    await MeasureAsync(client, times, "As you type, first 3 letters", typing: true, () => $"/patients?handler=Results&name={Anyone().Patient.FamilyName[..3]}"),
-                };
+                    using var portal = await PortalSignInAsync(app, patientEmail, patientPassword);
+                    results.Add(await MeasureAsync(portal, times, "Portal results, the patient's own", typing: false, () => "/portal/results"));
+                }
+                finally
+                {
+                    await LockOutPatientAsync(app, patientUserId);
+                }
+
+                if (database is null)
+                {
+                    Console.WriteLine("Off-site: not measured with --stack, which has no ehr_read login for the replica.");
+                }
+                else
+                {
+                    await SettleAsync(database);
+                    results.AddRange(await MeasureOffSiteAsync(app, database, session, panel, patients));
+                }
 
                 await PrintAsync(app, patients, durability, results);
+                if (resultsPath is not null)
+                {
+                    await File.WriteAllTextAsync(resultsPath, ResultsJson(patients, durability, results));
+                }
+
                 return Finish(results, assert, Console.Out);
             }
             finally
@@ -133,6 +161,89 @@ internal static partial class RenderBenchmark
             if (database is not null)
             {
                 await database.DisposeAsync();
+            }
+        }
+    }
+
+    // Before each set of rows, in the PostgreSQL the benchmark started itself: lets the database finish the housekeeping
+    // that what came before left it (the seed's 50,000 patients before the on-site rows; the on-site rows' audit events,
+    // some 200,000, before the off-site ones), so that isn't billed to the first row measured. Without it the first
+    // off-site row, the chart, sometimes ran while PostgreSQL was still vacuuming, analyzing and checkpointing after
+    // the on-site rows, which a replica on its own server wouldn't be doing for them; its p99 went from about 13 ms to
+    // over 30 in one run of two. VACUUM (ANALYZE) and CHECKPOINT do that work now instead of during the rows, and the
+    // .NET heap is collected for the same reason. Not with --stack: that database is somebody's, and is left alone.
+    static async Task SettleAsync(MigratedDatabase? database)
+    {
+        if (database is null)
+        {
+            return;
+        }
+
+        await using var connection = new NpgsqlConnection(database.SuperuserConnectionString);
+        await connection.OpenAsync();
+        foreach (var statement in new[] { "VACUUM (ANALYZE)", "CHECKPOINT" })
+        {
+            await using var command = new NpgsqlCommand(statement, connection) { CommandTimeout = 600 };
+            await command.ExecuteNonQueryAsync();
+        }
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+    }
+
+    // Every kind of request, each row's name after the prefix. The random numbers start from the same seed each time, so
+    // on-site and off-site make the same requests.
+    static async Task<List<Result>> MeasureEachAsync(HttpClient client, DatabaseTimes times, string prefix, List<Guid> panel, int patients)
+    {
+        var random = new Random(20261115);
+        SyntheticChart Anyone() => SyntheticClinic.Chart(random.Next(patients));
+        static string Date(SyntheticChart chart) => chart.Patient.BirthDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+        return
+        [
+            // The chart first, before the searches have written their many audit events.
+            await MeasureAsync(client, times, prefix + "Chart, a patient on the panel", typing: false, () => $"/patients/{panel[random.Next(panel.Count)]}"),
+            // The clinic's home with no search: all PanelSize patients on the panel, each a recorded read.
+            await MeasureAsync(client, times, prefix + $"Panel, {PanelSize} patients", typing: false, () => "/patients"),
+            await MeasureAsync(client, times, prefix + "Search, first 3 letters of a name", typing: false, () => $"/patients?name={Anyone().Patient.FamilyName[..3]}"),
+            await MeasureAsync(client, times, prefix + "Search, a whole family name", typing: false, () => $"/patients?name={Anyone().Patient.FamilyName}"),
+            await MeasureAsync(client, times, prefix + "Search, date of birth", typing: false, () => $"/patients?birthdate={Date(Anyone())}"),
+            await MeasureAsync(client, times, prefix + "Search, MRN", typing: false, () => $"/patients?mrn={SyntheticClinic.Mrn(random.Next(patients))}"),
+            await MeasureAsync(client, times, prefix + "Search, name and date of birth", typing: false, () =>
+            {
+                var chart = Anyone();
+                return $"/patients?name={chart.Patient.FamilyName[..4]}&birthdate={Date(chart)}";
+            }),
+            await MeasureAsync(client, times, prefix + "As you type, first 3 letters", typing: true, () => $"/patients?handler=Results&name={Anyone().Patient.FamilyName[..3]}"),
+            // UC 1's order form (Tahseen Arnan), last so the rows before it make the requests they always did: the patient's
+            // banner and allergies, one recorded read, and the lab catalog.
+            await MeasureAsync(client, times, prefix + "Order form, a patient on the panel", typing: false, () => $"/patients/{panel[random.Next(panel.Count)]}/orders/new?type=lab"),
+        ];
+    }
+
+    // UC 2 (Tahseen Arnan): the same requests to the cloud app, with the on-site session's cookies, during an outage. Its
+    // audit queue goes in a folder of its own, deleted at the end.
+    static async Task<List<Result>> MeasureOffSiteAsync(BenchApp onPrem, MigratedDatabase database, CookieContainer session, List<Guid> panel, int patients)
+    {
+        var queue = Path.Combine(Path.GetTempPath(), $"ehr-bench-cloud-audit-{Guid.NewGuid():N}");
+        try
+        {
+            var times = new DatabaseTimes();
+            await using var cloud = new OffSiteApp(database.ConnectionStringFor("ehr_read", MigratedDatabase.ReadPassword), times, onPrem.Keys, queue);
+            // The check the cloud app makes every couple of seconds, now, so every page measured says read-only.
+            if (await cloud.Services.GetRequiredService<CloudAuditShipper>().ShipAsync(CancellationToken.None))
+            {
+                throw new InvalidOperationException("The off-site app reached the on-prem app through a link that is down.");
+            }
+
+            using var client = cloud.CreateDefaultClient(Base, new RedirectHandler(), new CookieContainerHandler(session));
+            return await MeasureEachAsync(client, times, "Off-site, ", panel, patients);
+        }
+        finally
+        {
+            if (Directory.Exists(queue))
+            {
+                Directory.Delete(queue, recursive: true);
             }
         }
     }
@@ -198,6 +309,29 @@ internal static partial class RenderBenchmark
 
     // After the table: the warnings, then, with --assert, the gate. Returns the exit code, Gate's with --assert and 0
     // without; the warnings never change it.
+    // The run as --results writes it, for the performance test cases (tests/Ehr.Web.Tests/TestCases), which check each
+    // path's p99 against its own requirement's limit: how many patients, whether commits waited for the disk, and each
+    // row's percentiles in milliseconds, for the whole request and excluding the commit.
+    internal static string ResultsJson(int patients, Durability durability, IEnumerable<Result> results) =>
+        JsonSerializer.Serialize(
+            new
+            {
+                patients,
+                durabilityOn = durability.IsOn,
+                durability = durability.ToString(),
+                warmUp = WarmUp,
+                measured = Measured,
+                rows = results.Select(result => new
+                {
+                    name = result.Name,
+                    p50 = Math.Round(Percentile(result.Total, 0.50), 1),
+                    p99 = Math.Round(Percentile(result.Total, 0.99), 1),
+                    p50ExcludingCommit = Math.Round(Percentile(result.ExcludingCommit, 0.50), 1),
+                    p99ExcludingCommit = Math.Round(Percentile(result.ExcludingCommit, 0.99), 1),
+                }),
+            },
+            new JsonSerializerOptions { WriteIndented = true });
+
     internal static int Finish(IEnumerable<Result> results, bool assert, TextWriter output)
     {
         Warn(results, output);
@@ -264,6 +398,9 @@ internal static partial class RenderBenchmark
             Interlocked.Exchange(ref commitTicks, 0);
         }
 
+        // Off-site, the audit queue's append (TimedAuditQueue).
+        public void AddCommit(TimeSpan duration) => Interlocked.Add(ref commitTicks, duration.Ticks);
+
         public DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result)
         {
             CountAudit(command, eventData);
@@ -306,6 +443,19 @@ internal static partial class RenderBenchmark
             {
                 Interlocked.Add(ref auditTicks, eventData.Duration.Ticks);
             }
+        }
+    }
+
+    // UC 2 (Tahseen Arnan): the cloud app's audit queue, its append timed as the request's commit. The append writes the
+    // page's events and flushes them to disk before the page is sent (CloudAuditQueue), as an on-prem page's commit waits
+    // for its audit events to reach the disk; writing a few lines of JSON is a small part of it.
+    internal sealed class TimedAuditQueue(IAuditQueue queue, DatabaseTimes times) : IAuditQueue
+    {
+        public void Enqueue(IReadOnlyCollection<AuditEvent> auditEvents)
+        {
+            var started = Stopwatch.GetTimestamp();
+            queue.Enqueue(auditEvents);
+            times.AddCommit(Stopwatch.GetElapsedTime(started));
         }
     }
 
@@ -367,12 +517,18 @@ internal static partial class RenderBenchmark
         Console.WriteLine($"--assert gates on the p99 excluding the commit, which must be under {BudgetMilliseconds} ms. The same target for the whole request,");
         Console.WriteLine("the commit included, is checked on the clinic server, not on CI runners, whose shared disks make commit times unsteady.");
         Console.WriteLine("A row over it gets a warning, in the row and after the table, which never fails the run.");
+        if (results.Any(result => result.Name.StartsWith("Off-site", StringComparison.Ordinal)))
+        {
+            Console.WriteLine("Off-site: the cloud app reading as ehr_read, its link to the on-prem app down. It records reads in its audit queue, not");
+            Console.WriteLine("the database: Audit is 0, and Commit is its read-only transaction's commit plus the queue's write and flush to disk.");
+        }
+
         Console.WriteLine();
-        Console.WriteLine($"{"",-36}{"p50",7}{"p95",7}{"p99",7}{"max",7}  excl. commit{"p50",6}{"p99",7}  audit{"p50",6}{"p99",7}"
+        Console.WriteLine($"{"",-46}{"p50",7}{"p95",7}{"p99",7}{"max",7}  excl. commit{"p50",6}{"p99",7}  audit{"p50",6}{"p99",7}"
             + $"  commit{"p50",6}{"p99",7}{"max",7}  rest{"p50",6}{"p99",7}");
         foreach (var result in results)
         {
-            Console.WriteLine($"{result.Name,-36}{Percentile(result.Total, 0.5),7:F1}{Percentile(result.Total, 0.95),7:F1}{Percentile(result.Total, 0.99),7:F1}{result.Total.Max(),7:F1}"
+            Console.WriteLine($"{result.Name,-46}{Percentile(result.Total, 0.5),7:F1}{Percentile(result.Total, 0.95),7:F1}{Percentile(result.Total, 0.99),7:F1}{result.Total.Max(),7:F1}"
                 + $"              {Percentile(result.ExcludingCommit, 0.5),6:F1}{Percentile(result.ExcludingCommit, 0.99),7:F1}"
                 + $"       {Percentile(result.Audit, 0.5),6:F1}{Percentile(result.Audit, 0.99),7:F1}"
                 + $"        {Percentile(result.Commit, 0.5),6:F1}{Percentile(result.Commit, 0.99),7:F1}{result.Commit.Max(),7:F1}"
@@ -447,6 +603,47 @@ internal static partial class RenderBenchmark
         return (user.Id, email, password, key);
     }
 
+    // A confirmed portal account, with a random password nobody keeps, for the last patient in the clinic with at least
+    // three released results.
+    static async Task<(Guid Id, string Email, string Password)> CreatePatientAccountAsync(BenchApp app, int patients)
+    {
+        var patient = Enumerable.Range(0, patients).Reverse()
+            .Select(SyntheticClinic.Chart)
+            .First(chart => chart.Results.Count(r => r.IssuedAt is not null) >= 3)
+            .Patient.Id;
+        await using var scope = app.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<PatientUser>>();
+        var email = $"bench-patient-{Guid.NewGuid():N}@example.test";
+        var password = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
+        var user = new PatientUser { UserName = email, Email = email, EmailConfirmed = true, PatientId = patient };
+        Check(await users.CreateAsync(user, password));
+        return (user.Id, email, password);
+    }
+
+    // Signs a patient in at the portal, as a browser does, and returns a client with the session's cookies.
+    static async Task<HttpClient> PortalSignInAsync(BenchApp app, string email, string password)
+    {
+        var client = app.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = Base, HandleCookies = true, AllowAutoRedirect = true });
+        using var home = await PostFormAsync(client, "/portal/sign-in", await client.GetStringAsync("/portal/sign-in"), ("Input.Email", email), ("Input.Password", password));
+        if (home.RequestMessage?.RequestUri?.AbsolutePath != "/portal")
+        {
+            throw new InvalidOperationException($"Signing in at the portal ended at {home.RequestMessage?.RequestUri?.AbsolutePath}, not at /portal.");
+        }
+
+        return client;
+    }
+
+    // The benchmark's patient account can't sign in again either.
+    static async Task LockOutPatientAsync(BenchApp app, Guid patientUserId)
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<PatientUser>>();
+        if (await users.FindByIdAsync(patientUserId.ToString()) is { } user)
+        {
+            Check(await users.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue));
+        }
+    }
+
     // Puts PanelSize patients, spread across the clinic, on the clinician's panel, as the clinician, so their charts
     // open without asking for a reason. Their IDs come from the synthetic clinic, not from the database.
     static async Task<List<Guid>> AssignPanelAsync(BenchApp app, Guid clinicianId, int patients)
@@ -468,10 +665,42 @@ internal static partial class RenderBenchmark
         return panel;
     }
 
-    // Signs in as a browser does, password then authenticator code, and returns a client with the session's cookies.
-    static async Task<HttpClient> SignInAsync(BenchApp app, string email, string password, string key)
+    // UC 1 Place an order (Tahseen Arnan): one active order of each type for every patient on the panel, signed as the
+    // clinician through the database's own signing trigger and policies, so the chart the benchmark measures has its
+    // list of active orders to load. The seed can't make them: an order's signer is a staff account, and the seeded
+    // clinic has none. With --stack they stay on the primary afterwards, as the benchmark's audit events do.
+    static async Task SignOrdersAsync(BenchApp app, Guid clinicianId, List<Guid> panel)
     {
-        var client = app.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = Base, HandleCookies = true, AllowAutoRedirect = true });
+        var items = OrderType.All.Select(type => OrderCatalogItem.Seeded.First(item => item.Type == type)).ToList();
+        await using var scope = app.Services.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<UserContext>().UserId = clinicianId;
+        var db = scope.ServiceProvider.GetRequiredService<EhrDbContext>();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        foreach (var patient in panel)
+        {
+            foreach (var item in items)
+            {
+                db.Add(new Order
+                {
+                    Id = Guid.CreateVersion7(),
+                    PatientId = patient,
+                    Type = item.Type,
+                    CatalogCode = item.Code,
+                    Details = "{}",
+                    Status = OrderStatus.Active,
+                });
+            }
+        }
+
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+    }
+
+    // Signs in as a browser does, password then authenticator code, and returns a client with the session's cookies, which
+    // it keeps in the jar given, for the off-site app too.
+    static async Task<HttpClient> SignInAsync(BenchApp app, CookieContainer session, string email, string password, string key)
+    {
+        var client = app.CreateDefaultClient(Base, new RedirectHandler(), new CookieContainerHandler(session));
         using var codePage = await PostFormAsync(client, "/sign-in", await client.GetStringAsync("/sign-in"), ("Input.Email", email), ("Input.Password", password));
         using var home = await PostFormAsync(client, "/sign-in/code", await codePage.Content.ReadAsStringAsync(), ("Code", Totp.Code(key)));
         if (home.RequestMessage?.RequestUri?.AbsolutePath != "/patients")
@@ -527,6 +756,9 @@ internal static partial class RenderBenchmark
     // which then finds no key it may use, logs only what is critical: nothing here uses those keys.
     internal sealed class BenchApp(string? connectionString, DatabaseTimes? times = null) : WebApplicationFactory<Program>
     {
+        // The keys in memory, which the off-site app shares, as the stack's two apps share theirs.
+        public IDataProtectionProvider Keys { get; } = new EphemeralDataProtectionProvider();
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder
@@ -537,7 +769,7 @@ internal static partial class RenderBenchmark
                 .ConfigureTestServices(services =>
                 {
                     services.Configure<KeyManagementOptions>(options => options.AutoGenerateKeys = false);
-                    services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
+                    services.AddSingleton(Keys);
                     if (times is not null)
                     {
                         services.ConfigureDbContext<EhrDbContext>(options => options.AddInterceptors(times));
@@ -547,6 +779,42 @@ internal static partial class RenderBenchmark
             {
                 builder.UseEnvironment(Environments.Production).UseSetting("ConnectionStrings:Ehr", connectionString);
             }
+        }
+    }
+
+    // UC 2 (Tahseen Arnan): the cloud app in memory, as Production, reading the database as ehr_read with the on-prem
+    // app's keys, its link to the on-prem app down from the start, and its audit queue in the folder given, timed
+    // (TimedAuditQueue). Its shipper's warning every couple of seconds that the on-prem app can't be reached is expected
+    // here, and left out of the console.
+    internal sealed class OffSiteApp(string connectionString, DatabaseTimes times, IDataProtectionProvider keys, string queueDirectory)
+        : WebApplicationFactory<Program>
+    {
+        const string OnPremUrl = "https://onprem.invalid";
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+            builder
+                .UseContentRoot(RepositoryRoot.Combine("src/Ehr.Web"))
+                .UseEnvironment(Environments.Production)
+                .UseSetting("Ehr:Site", "Cloud")
+                .UseSetting("ConnectionStrings:Ehr", connectionString)
+                .UseSetting("Ehr:OnPrem:Url", OnPremUrl)
+                .UseSetting("Ehr:CloudAudit:Key", Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)))
+                .UseSetting("Ehr:CloudAudit:Directory", queueDirectory)
+                .UseSetting("Logging:LogLevel:Default", "Warning")
+                .UseSetting("Logging:LogLevel:Microsoft.AspNetCore.DataProtection", "Critical")
+                .UseSetting("Logging:LogLevel:Ehr.Web.CloudAudit.CloudAuditShipper", "Error")
+                .ConfigureTestServices(services =>
+                {
+                    services.AddSingleton(keys);
+                    services.AddSingleton(new OnPremApp(OnPremUrl, new HttpMessageInvoker(new LinkDown())));
+                    services.AddSingleton<IAuditQueue>(provider => new TimedAuditQueue(provider.GetRequiredService<CloudAuditQueue>(), times));
+                    services.ConfigureDbContext<EhrDbContext>(options => options.AddInterceptors(times));
+                });
+
+        sealed class LinkDown : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+                throw new HttpRequestException("The link to the on-prem app is down.", new SocketException((int)SocketError.ConnectionRefused));
         }
     }
 }

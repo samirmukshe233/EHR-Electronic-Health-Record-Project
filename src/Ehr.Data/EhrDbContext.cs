@@ -1,5 +1,6 @@
 using Ehr.Data.Accounts;
 using Ehr.Data.Audit;
+using Ehr.Data.Orders;
 using Ehr.Data.Patients;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -58,6 +59,15 @@ public class EhrDbContext(DbContextOptions<EhrDbContext> options) : DbContext(op
     public DbSet<AiFieldProposal> AiFieldProposals => Set<AiFieldProposal>();
 
     public DbSet<ClinicalNote> ClinicalNotes => Set<ClinicalNote>();
+
+    // UC 1: the orders clinicians sign, PHI like the chart (read them only through the PHI reader), and the catalog of
+    // what can be ordered, which isn't.
+    public DbSet<Order> Orders => Set<Order>();
+
+    public DbSet<OrderCatalogItem> OrderCatalogItems => Set<OrderCatalogItem>();
+
+    // Test results, shaped on FHIR's Observation. PHI; a patient sees their own once released (the portal's results).
+    public DbSet<Observation> Observations => Set<Observation>();
 
     // One-time portal enrollment codes, as hashes. Grants only: registration looks a code up before anyone is signed in.
     public DbSet<PatientEnrollment> PatientEnrollments => Set<PatientEnrollment>();

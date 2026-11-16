@@ -7,7 +7,7 @@ namespace Ehr.Architecture.Tests;
 
 // CI gate from AGENTS.md: PHI reads only go through the PHI reader, which records them. Every method body in the web
 // app and the domain is scanned for a read of the context's patients set or of the rest of the chart (allergies,
-// medications, diagnoses, visits), through the sets or through EF Core's generic methods that take the entity as a type
+// medications, diagnoses, visits, test results), through the sets or through EF Core's generic methods that take the entity as a type
 // argument (Find, Entry, SqlQuery and the like), and the only type allowed to make one is the PHI reader. The scan is on the compiled
 // IL, nested state machines included, because an async handler's body lives in a compiler-generated type that
 // type-level analysis attributes to nobody. Raw SQL against the tables is the reviewer's to catch; Dapper is allowed in
@@ -28,6 +28,8 @@ public class PhiReaderTests
         ["MedicationStatements"] = typeof(MedicationStatement),
         ["Conditions"] = typeof(Condition),
         ["Encounters"] = typeof(Encounter),
+        ["Orders"] = typeof(Ehr.Data.Orders.Order),
+        ["Observations"] = typeof(Observation),
     };
 
     [Fact]

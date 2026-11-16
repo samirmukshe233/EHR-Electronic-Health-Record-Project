@@ -142,6 +142,21 @@ DROP POLICY IF EXISTS encounters_own_select ON ehr.encounters;
 CREATE POLICY encounters_own_select ON ehr.encounters FOR SELECT
     USING (patient_id = (SELECT ehr.current_patient_id()));
 
+-- Test results (PHI). Clinicians read every patient's. A patient reads only their own, and only once the result is
+-- released and finished (Observation.IssuedAt, ObservationStatus.Released): a result still being worked on, cancelled
+-- or entered in error never reaches the portal, even through a bug in the app. No write policies, as for the chart.
+ALTER TABLE ehr.observations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.observations FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS observations_clinician_select ON ehr.observations;
+CREATE POLICY observations_clinician_select ON ehr.observations FOR SELECT USING ((SELECT ehr.is_clinician()));
+
+DROP POLICY IF EXISTS observations_own_released_select ON ehr.observations;
+CREATE POLICY observations_own_released_select ON ehr.observations FOR SELECT
+    USING (patient_id = (SELECT ehr.current_patient_id())
+        AND issued_at IS NOT NULL
+        AND status IN ('final', 'amended', 'corrected'));
+
 -- Audit events (restricted). Admins read. Anyone the grants let insert may insert: the app role for read and
 -- sign-in events, and the write-audit trigger (40-audit.sql), which runs as the table's owner and is bound by this
 -- policy too because RLS is forced. Nothing updates or deletes (10-grants.sql).
@@ -179,6 +194,26 @@ DROP POLICY IF EXISTS clinical_notes_own_insert ON ehr.clinical_notes;
 CREATE POLICY clinical_notes_own_insert ON ehr.clinical_notes FOR INSERT
     WITH CHECK ((SELECT ehr.is_clinician()) AND signer_id = (SELECT ehr.current_user_id()));
 
+-- UC 1 (Tahseen Arnan). Orders (PHI) are read as signed notes are: by every clinician, on the chart's access model. A
+-- clinician signs an order only as themselves and only for a patient on their active panel, the rule for writing notes;
+-- the signing trigger also locks, checks for a duplicate and sets the time (60-orders.sql). Nothing updates or deletes
+-- an order (10-grants.sql), so there are no policies for either.
+ALTER TABLE ehr.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.orders FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS orders_clinician_select ON ehr.orders;
+CREATE POLICY orders_clinician_select ON ehr.orders FOR SELECT
+    USING ((SELECT ehr.is_clinician()));
+DROP POLICY IF EXISTS orders_own_insert ON ehr.orders;
+CREATE POLICY orders_own_insert ON ehr.orders FOR INSERT
+    WITH CHECK (
+        (SELECT ehr.is_clinician())
+        AND signer_id = (SELECT ehr.current_user_id())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = orders.patient_id AND a.ended_at IS NULL
+        )
+    );
 
 -- UC 13 review results are private to the clinician and the same active-panel draft as UC 14.
 ALTER TABLE ehr.ai_note_reviews ENABLE ROW LEVEL SECURITY;

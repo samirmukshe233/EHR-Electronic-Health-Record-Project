@@ -166,6 +166,7 @@ public class RowLevelSecurityTests(MigratedDatabase database) : IClassFixture<Mi
     [InlineData("medication_statements")]
     [InlineData("conditions")]
     [InlineData("encounters")]
+    [InlineData("observations")]
     public async Task Chart_sections_are_read_by_clinicians_and_by_their_own_patient_only(string table)
     {
         var clinician = await Accounts.StaffAsync(database, StaffRoles.Clinician);
@@ -190,6 +191,54 @@ public class RowLevelSecurityTests(MigratedDatabase database) : IClassFixture<Mi
             // A user ID that is no account at all.
             Assert.Equal(["0"], await Accounts.QueryAsync(connectionString, Guid.CreateVersion7(), count, ("id", row)));
         }
+    }
+
+    // UC6 (Simar Rekhi): a result reaches its patient only once released and finished. Clinicians see it all along.
+    [Theory]
+    [InlineData("final", true, true)]
+    [InlineData("amended", true, true)]
+    [InlineData("corrected", true, true)]
+    [InlineData("final", false, false)]
+    [InlineData("preliminary", true, false)]
+    [InlineData("registered", true, false)]
+    [InlineData("cancelled", true, false)]
+    [InlineData("entered-in-error", true, false)]
+    public async Task A_patient_sees_their_result_only_once_it_is_released_and_finished(string status, bool released, bool patientSees)
+    {
+        var clinician = await Accounts.StaffAsync(database, StaffRoles.Clinician);
+        var patient = await Accounts.PatientAsync(database, clinician);
+        var account = await Accounts.PatientAccountAsync(database, patient);
+        var id = Guid.CreateVersion7();
+        await Accounts.ExecuteAsync(database.SuperuserConnectionString, null,
+            $"INSERT INTO ehr.observations (id, patient_id, display, status, effective_at, issued_at) VALUES (@id, @patient, 'Lipid panel', @status, now(), {(released ? "now()" : "NULL")})",
+            ("id", id), ("patient", patient), ("status", status));
+
+        var count = "SELECT count(*) FROM ehr.observations WHERE id = @id";
+        foreach (var connectionString in new[] { App, Read })
+        {
+            Assert.Equal(["1"], await Accounts.QueryAsync(connectionString, clinician, count, ("id", id)));
+            Assert.Equal([patientSees ? "1" : "0"], await Accounts.QueryAsync(connectionString, account, count, ("id", id)));
+        }
+    }
+
+    // A result may name the lab order it answers (UC 1), but only one of the same patient's.
+    [Fact]
+    public async Task A_result_answers_only_its_own_patients_order()
+    {
+        var clinician = await Accounts.StaffAsync(database, StaffRoles.Clinician);
+        var patient = await Accounts.PatientAsync(database, clinician);
+        var other = await Accounts.PatientAsync(database, clinician);
+        var order = Guid.CreateVersion7();
+        await Accounts.ExecuteAsync(database.SuperuserConnectionString, null,
+            "INSERT INTO ehr.orders (id, patient_id, type, catalog_code, details, status, signer_id) VALUES (@id, @patient, 'lab', 'SYN-LAB-004', '{}', 'active', @signer)",
+            ("id", order), ("patient", patient), ("signer", clinician));
+
+        const string insert = "INSERT INTO ehr.observations (id, patient_id, order_id, display, status, effective_at) VALUES (@id, @patient, @order, 'Lipid panel', 'final', now())";
+        await Accounts.ExecuteAsync(database.SuperuserConnectionString, null, insert,
+            ("id", Guid.CreateVersion7()), ("patient", patient), ("order", order));
+        var error = await Assert.ThrowsAsync<PostgresException>(() => Accounts.ExecuteAsync(database.SuperuserConnectionString, null, insert,
+            ("id", Guid.CreateVersion7()), ("patient", other), ("order", order)));
+        Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, error.SqlState);
     }
 
     [Fact]

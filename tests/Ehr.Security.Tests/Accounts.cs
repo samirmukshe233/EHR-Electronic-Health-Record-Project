@@ -76,6 +76,8 @@ static class Accounts
         ["medication_statements"] = "INSERT INTO ehr.medication_statements (id, patient_id, display, status) VALUES (@id, @patient, 'Lisinopril 10 mg tablet', 'active')",
         ["conditions"] = "INSERT INTO ehr.conditions (id, patient_id, display, clinical_status) VALUES (@id, @patient, 'Essential (primary) hypertension', 'active')",
         ["encounters"] = "INSERT INTO ehr.encounters (id, patient_id, status, class_code, period_start) VALUES (@id, @patient, 'finished', 'AMB', now())",
+        // A released result, the kind its patient may see (30-rls.sql).
+        ["observations"] = "INSERT INTO ehr.observations (id, patient_id, display, status, effective_at, issued_at) VALUES (@id, @patient, 'Hemoglobin A1c', 'final', now(), now())",
     };
 
     public static async Task<Guid> ChartRowAsync(MigratedDatabase database, string table, Guid patientId)

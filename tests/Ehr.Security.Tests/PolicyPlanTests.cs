@@ -20,9 +20,11 @@ public class PolicyPlanTests(MigratedDatabase database) : IClassFixture<Migrated
     [InlineData("medication_statements")]
     [InlineData("conditions")]
     [InlineData("encounters")]
+    [InlineData("observations")]
     [InlineData("audit_events")]
     [InlineData("clinical_drafts")]
     [InlineData("clinical_notes")]
+    [InlineData("orders")]
     public async Task Policies_ask_who_the_user_is_once_per_statement(string table)
     {
         var clinician = await Accounts.StaffAsync(database, StaffRoles.Clinician);

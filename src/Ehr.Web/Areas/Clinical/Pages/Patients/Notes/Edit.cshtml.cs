@@ -3,10 +3,14 @@ using Ehr.Data.Patients;
 using Ehr.Domain.Notes;
 using Ehr.Domain.Patients;
 using Ehr.Domain.Phi;
+using Ehr.Web.Forwarding;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ehr.Web.Areas.Clinical.Pages.Patients.Notes;
 
+// Off-site with the clinic's server unreachable, a save without JavaScript shows the three fields again on the "Not
+// saved" page (UC 2); with it, note-editor.js keeps them on screen.
+[ShownIfNotSaved(nameof(History), nameof(Assessment), nameof(Plan))]
 public class EditModel(PhiReader phi, PatientAssignments assignments, BreakGlass breakGlass, ClinicalNotes notes)
     : PatientNotePage(phi, assignments, breakGlass)
 {
