@@ -212,6 +212,12 @@ jobs:
       - name: Build
         run: cargo build --locked
 
+      # Every test, in a release build as clinicians run the app. That includes the encrypted store's tests
+      # (TC-UC7-04, NFR-06) and the offline chart timing (TC-NF-02, NFR-02), which is skipped in debug builds;
+      # --show-output prints its times.
+      - name: Test
+        run: cargo test --locked --release -- --show-output
+
   dictation:
     name: Dictation
     runs-on: ubuntu-latest
