@@ -4,6 +4,9 @@
 -- patient on their panel). There is no UPDATE or DELETE grant on orders (10-grants.sql): once signed, an order stays.
 --
 -- Before each insert it:
+--   0. refuses any transaction that isn't READ COMMITTED, the level page handlers run at. Under REPEATABLE READ or
+--      SERIALIZABLE the transaction that waited at the lock would still check for a duplicate against its old
+--      snapshot, miss the order it waited for, and let both through.
 --   1. locks the patient's row, FOR NO KEY UPDATE, so one patient's orders are signed one at a time: a second
 --      transaction waits here until the first ends, and then sees its order. The lock needs the UPDATE on patients that
 --      ehr_app has. Foreign keys to the patient take a weaker lock, which this one doesn't block, and plain reads take
@@ -13,13 +16,18 @@
 --   3. refuses an active order for an item the patient already has an active order for, unless it gives a reason. Two
 --      submissions at once can't both get through: the second waited at the lock. The error is unique_violation (23505),
 --      which Ehr.Domain.Orders.ClinicalOrders turns into the order form's warning.
---   4. sets the signing time to the transaction's, whatever the client sent. The signer is the column's default, the
+--   4. sets the signing time to the clock's, as signing a note does, whatever the client sent: an order that waited
+--      at the lock is signed after the one it waited for. The signer is the column's default, the
 --      signed-in user, and the row-level security policy refuses any other.
 CREATE OR REPLACE FUNCTION ehr.sign_order() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = pg_catalog, pg_temp
 AS $$
 BEGIN
+    IF current_setting('transaction_isolation') <> 'read committed' THEN
+        RAISE EXCEPTION 'An order is signed in a READ COMMITTED transaction' USING ERRCODE = '0A000';
+    END IF;
+
     PERFORM 1 FROM ehr.patients WHERE id = NEW.patient_id FOR NO KEY UPDATE;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Only a clinician may sign an order for this patient' USING ERRCODE = '42501';
@@ -38,7 +46,7 @@ BEGIN
             USING ERRCODE = '23505';
     END IF;
 
-    NEW.signed_at := now();
+    NEW.signed_at := clock_timestamp();
     RETURN NEW;
 END
 $$;

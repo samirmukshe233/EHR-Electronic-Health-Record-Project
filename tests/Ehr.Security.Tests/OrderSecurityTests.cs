@@ -61,10 +61,11 @@ public class OrderSecurityTests(MigratedDatabase database) : IClassFixture<Migra
 
         Assert.Equal([$"{clinician} true"], await Accounts.QueryAsync(App, clinician,
             "SELECT signer_id || ' ' || (signed_at > now() - interval '1 minute') FROM ehr.orders WHERE id = @id", ("id", order)));
-        // The trigger's audit row: the clinician as the actor, at the signing time, against the patient.
+        // The trigger's audit row: the clinician as the actor, against the patient, at the signing time: the transaction's
+        // start for the audit row, the clock a moment later for the signature.
         Assert.Equal([$"insert {clinician} {patient} onprem true"], await Accounts.QueryAsync(database.SuperuserConnectionString, null,
             """
-            SELECT e.action || ' ' || e.actor_id || ' ' || e.patient_id || ' ' || e.source || ' ' || (e.occurred_at = o.signed_at)
+            SELECT e.action || ' ' || e.actor_id || ' ' || e.patient_id || ' ' || e.source || ' ' || (o.signed_at - e.occurred_at BETWEEN interval '0' AND interval '5 seconds')
             FROM ehr.audit_events e JOIN ehr.orders o ON o.id = e.row_id
             WHERE e.table_name = 'orders' AND e.row_id = @id
             """,
@@ -219,6 +220,33 @@ public class OrderSecurityTests(MigratedDatabase database) : IClassFixture<Migra
             command.Parameters.AddWithValue("patient", patient);
             return command;
         }
+    }
+
+    // The duplicate check reads what the order it waited for committed, which only READ COMMITTED lets it see. A
+    // caller at a stricter level, as the desktop sync APIs are, would check against an old snapshot, so it is refused.
+    [Theory]
+    [InlineData(System.Data.IsolationLevel.RepeatableRead)]
+    [InlineData(System.Data.IsolationLevel.Serializable)]
+    public async Task An_order_outside_a_read_committed_transaction_is_refused(System.Data.IsolationLevel level)
+    {
+        var (clinician, patient) = await OnPanelAsync();
+        await using var connection = new NpgsqlConnection(App);
+        await connection.OpenAsync(Cancel);
+        await using var transaction = await connection.BeginTransactionAsync(level, Cancel);
+        await using (var set = new NpgsqlCommand("SELECT set_config('app.user_id', @actor, true)", connection, transaction))
+        {
+            set.Parameters.AddWithValue("actor", clinician.ToString());
+            await set.ExecuteNonQueryAsync(Cancel);
+        }
+
+        await using var sign = new NpgsqlCommand(InsertOrder, connection, transaction);
+        sign.Parameters.AddWithValue("id", Guid.CreateVersion7());
+        sign.Parameters.AddWithValue("patient", patient);
+        var error = await Assert.ThrowsAsync<PostgresException>(() => sign.ExecuteNonQueryAsync(Cancel));
+
+        Assert.Equal(PostgresErrorCodes.FeatureNotSupported, error.SqlState);
+        await transaction.RollbackAsync(Cancel);
+        Assert.Equal(["0"], await CountAsync(patient));
     }
 
     // Nothing can change a status afterwards, so an order inserted as anything but active would be stuck that way.
