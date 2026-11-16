@@ -68,7 +68,18 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
         await page.Keyboard.PressAsync("Alt+Shift+D");
         await page.WaitForFunctionAsync("document.querySelector('[data-dictation-transcript]').textContent.includes('Fluids and rest.')");
         await page.Keyboard.PressAsync("Alt+Shift+D");
-        await page.WaitForURLAsync("**/review/*");
+        try
+        {
+            await page.WaitForURLAsync("**/review/*");
+        }
+        catch (TimeoutException)
+        {
+            // Say what the page was showing, so a failure on a slow runner explains itself.
+            var status = await page.Locator("[data-dictation-status]").TextContentAsync();
+            var transcript = await page.Locator("[data-dictation-transcript]").TextContentAsync();
+            Assert.Fail($"The dictation never reached its review. Page: {page.Url}. Status: \"{status}\". Transcript: \"{transcript}\".");
+        }
+
         await page.WaitForFunctionAsync("document.querySelector('[data-review-progress]').textContent.includes('0 of 3')");
     }
 
@@ -182,7 +193,16 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
         Assert.False(await page.Locator("[data-dictation-manual]").IsHiddenAsync());
         await page.UnrouteAsync("**/review/*/stage");
         await page.Locator("[data-dictation-review]").PressAsync("Enter");
-        await page.WaitForURLAsync("**/review/*");
+        try
+        {
+            await page.WaitForURLAsync("**/review/*");
+        }
+        catch (TimeoutException)
+        {
+            var status = await page.Locator("[data-dictation-status]").TextContentAsync();
+            Assert.Fail($"The retry never reached the review. Page: {page.Url}. Status: \"{status}\".");
+        }
+
         Assert.Contains("0 of 3", await page.Locator("[data-review-progress]").TextContentAsync());
     }
 }
