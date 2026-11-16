@@ -31,6 +31,8 @@ public sealed class DictationSidecarStub : HttpMessageHandler
 
     public ConcurrentQueue<ReceivedRequest> Received { get; } = new();
 
+    public bool IncludePlan { get; set; }
+
     public StubSorting Sorting { get; set; }
 
     // Every request fails to connect.
@@ -50,6 +52,7 @@ public sealed class DictationSidecarStub : HttpMessageHandler
         sessions.Clear();
         Received.Clear();
         Sorting = StubSorting.Done;
+        IncludePlan = false;
         Unreachable = false;
         Slow = false;
         Undecodable = false;
@@ -197,7 +200,9 @@ public sealed class DictationSidecarStub : HttpMessageHandler
                             new { code = "near_unclear_passage", start = 6, end = 9 },
                         },
                     },
-                    plan = new { status = "empty", reasons = new[] { "not_dictated" } },
+                    plan = IncludePlan
+                        ? (object)new { status = "pending", value = Sentences[4], sources = new[] { new { start = Sentences.Take(4).Sum(s => s.Length + 1), end = Sentences.Take(4).Sum(s => s.Length + 1) + Sentences[4].Length } }, warnings = Array.Empty<object>() }
+                        : new { status = "empty", reasons = new[] { "not_dictated" } },
                 },
                 notCarriedOver,
                 provenance,

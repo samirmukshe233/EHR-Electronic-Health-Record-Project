@@ -150,9 +150,10 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
     public Task<bool> IsAssignedAsync(Guid patient, CancellationToken cancellationToken) =>
         db.PatientAssignments.AnyAsync(a => a.PatientId == patient && a.ClinicianId == user.UserId && a.EndedAt == null, cancellationToken);
 
-    public async Task<ClinicalDraft?> ReadDraftAsync(Guid id, Guid patient, CancellationToken cancellationToken)
+    public async Task<ClinicalDraft?> ReadDraftAsync(Guid id, Guid patient, CancellationToken cancellationToken, bool tracking = true)
     {
-        var draft = await db.ClinicalDrafts.SingleOrDefaultAsync(
+        var drafts = tracking ? db.ClinicalDrafts.AsQueryable() : db.ClinicalDrafts.AsNoTracking();
+        var draft = await drafts.SingleOrDefaultAsync(
             d => d.Id == id && d.PatientId == patient && d.ClinicianId == user.UserId, cancellationToken);
         if (draft is not null)
         {
@@ -220,6 +221,48 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         }
 
         return note;
+    }
+
+    public async Task<ClinicalDraft?> LockDraftAsync(Guid id, Guid patient, CancellationToken cancel) =>
+        await ClinicalDraftLock.AcquireAsync(db, id, patient, cancel) ? await ReadDraftAsync(id, patient, cancel) : null;
+
+    public async Task<AiNoteReview?> AiReviewAsync(Guid id, CancellationToken cancel, bool tracking = false)
+    {
+        var query = tracking ? db.AiNoteReviews.AsQueryable() : db.AiNoteReviews.AsNoTracking();
+        var review = await query.SingleOrDefaultAsync(r => r.Id == id && r.ClinicianId == user.UserId, cancel);
+        if (review is not null)
+        {
+            audit.Record(AuditActions.Read, review.PatientId, "ai_note_reviews", review.Id);
+            await db.SaveChangesAsync(cancel);
+        }
+
+        return review;
+    }
+
+    public async Task<IReadOnlyList<AiNoteReview>> AiReviewsAsync(Guid draft, CancellationToken cancel)
+    {
+        var reviews = await db.AiNoteReviews.AsNoTracking().Where(r => r.DraftId == draft && r.ClinicianId == user.UserId)
+            .OrderBy(r => r.CreatedAt).ToListAsync(cancel);
+        if (reviews.Count > 0)
+        {
+            audit.RecordReads("ai_note_reviews", reviews.Select(r => (r.PatientId, r.Id)));
+            await db.SaveChangesAsync(cancel);
+        }
+
+        return reviews;
+    }
+
+    public async Task<IReadOnlyList<AiFieldProposal>> AiProposalsAsync(Guid review, CancellationToken cancel, bool tracking = false)
+    {
+        var query = tracking ? db.AiFieldProposals.AsQueryable() : db.AiFieldProposals.AsNoTracking();
+        var proposals = await query.Where(p => p.ReviewId == review).OrderBy(p => p.Field).ToListAsync(cancel);
+        if (proposals.Count > 0)
+        {
+            audit.RecordReads("ai_field_proposals", proposals.Select(p => (p.PatientId, p.Id)));
+            await db.SaveChangesAsync(cancel);
+        }
+
+        return proposals;
     }
 
     // A list of patients, in name order, each one a recorded read, and whether more match than the limit.

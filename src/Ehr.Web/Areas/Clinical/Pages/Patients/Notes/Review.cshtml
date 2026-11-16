@@ -1,0 +1,94 @@
+@page "/patients/{patientId:guid}/notes/drafts/{draftId:guid}/review/{reviewId:guid}"
+@using Ehr.Domain.Notes
+@using Ehr.Data.Patients
+@model Ehr.Web.Areas.Clinical.Pages.Patients.Notes.ReviewModel
+@{
+    ViewData["Title"] = "Review AI-proposed fields";
+}
+<p><a asp-page="/Patients/Chart" asp-route-id="@Model.Patient.Id">Back to chart</a></p>
+<h1>Review AI-proposed fields</h1>
+<partial name="_PatientIdentity" model="Model.Patient" />
+<p>Compare every suggestion with your original words. Accepted and edited values enter the note only when you complete review. Orders and allergy changes are never executed by this workflow.</p>
+<section data-note-review data-dictation data-stage-url="@($"/api/dictation/sessions/review/{Model.Review.Id}/stage")">
+    <script type="application/json" data-review-snapshot>@Json.Serialize(Model.Snapshot)</script>
+    <p id="note-save-status" role="status" aria-live="polite">Saved review</p>
+    <div id="note-errors" class="notice error" role="alert" tabindex="-1" hidden="@(Model.Errors.Count == 0)">
+        @foreach (var error in Model.Errors) { <p>@error</p> }
+    </div>
+    <p data-review-progress role="status" aria-live="polite">@(Model.Proposals.Count(p => p.State != AiProposalStates.Pending)) of @Model.Proposals.Count proposals reviewed.</p>
+    @Html.AntiForgeryToken()
+    @if (Model.Review.State == AiReviewStates.Recording && !Model.Signed)
+    {
+        <p class="notice">This dictation has not been staged for review. Retrieve its finished result, or discard the temporary dictation and continue manually. No AI text has entered the note.</p>
+        <button type="button" data-review-retrieve>Retrieve finished dictation</button>
+        <form method="post" asp-page-handler="Discard" data-review-submit>
+            <button>Discard unfinished dictation and continue manually</button>
+        </form>
+    }
+    @if (Model.Signed) { <p class="notice">The note is signed. This review evidence is read-only.</p> }
+    <div class="review-columns">
+        <section>
+            <h2>Original transcript</h2>
+            <div class="transcript" data-dictation-transcript><p>@Model.Result?.Transcript.Text</p></div>
+            <p class="notice" data-dictation-unclear hidden>Marked passages were unclear. Check them before approving.</p>
+            <p data-dictation-sort-message></p>
+            <section class="notice" data-dictation-not-carried hidden>
+                <h3>Not carried over</h3>
+                <p>Place any indicated orders or allergy updates through their normal clinical workflow.</p>
+                <ul data-dictation-not-carried-list></ul>
+            </section>
+        </section>
+        <section>
+            <h2>Proposed fields</h2>
+            <dl class="proposed-fields">
+                @foreach (var field in new[] { "history", "assessment", "plan" })
+                {
+                    var proposal = Model.Proposals.SingleOrDefault(p => p.Field == field);
+                    <div class="proposed-field" data-dictation-field="@field" data-proposal-id="@proposal?.Id" data-review-state="@proposal?.State">
+                        <dt>@(char.ToUpperInvariant(field[0]) + field[1..]) <span class="field-status" data-field-status>@(proposal?.State ?? "No usable suggestion")</span></dt>
+                        <dd data-field-value>@proposal?.OriginalValue</dd>
+                        @if (proposal is { State: AiProposalStates.Pending } && !Model.Signed)
+                        {
+                            <dd data-review-controls>
+                                <form method="post" asp-page-handler="Decide" data-review-submit>
+                                    <input type="hidden" name="Version" value="@Model.Draft.Version" />
+                                    <input type="hidden" name="ProposalId" value="@proposal.Id" />
+                                    <input type="hidden" name="DecisionKey" value="@(Model.ProposalId == proposal.Id && Model.DecisionKey != Guid.Empty ? Model.DecisionKey : Guid.NewGuid())" />
+                                    <div class="actions">
+                                        <button name="Decision" value="accepted">Accept @field</button>
+                                        <button name="Decision" value="rejected">Reject @field</button>
+                                    </div>
+                                    <details>
+                                        <summary>Edit @field</summary>
+                                        <label for="edited-@field">Corrected @field</label>
+                                        <textarea id="edited-@field" name="EditedValue" rows="5">@(Model.ProposalId == proposal.Id ? Model.EditedValue : proposal.OriginalValue)</textarea>
+                                        <button name="Decision" value="edited">Approve edited @field</button>
+                                    </details>
+                                </form>
+                            </dd>
+                        }
+                        <dd data-approved-value>@(proposal?.State == AiProposalStates.Rejected ? "Rejected: no text will be copied." : proposal?.ApprovedValue)</dd>
+                    </div>
+                }
+            </dl>
+        </section>
+    </div>
+    <details>
+        <summary>Current saved note — compare before adding approved values</summary>
+        <partial name="_NoteContent" model="NoteContent.From(Model.Draft)" />
+    </details>
+    @if (Model.Review.State == AiReviewStates.Pending && !Model.Signed)
+    {
+        <form method="post" asp-page-handler="Complete" data-review-submit data-review-complete>
+            <input type="hidden" name="Version" value="@Model.Draft.Version" />
+            <label class="note-confirm"><input type="checkbox" name="Append" value="true" /> Append approved values to fields that already contain text, preserving the existing text.</label>
+            <button disabled="@(Model.Proposals.Any(p => p.State == AiProposalStates.Pending))">Add approved fields and continue to note</button>
+        </form>
+    }
+    else if (Model.Review.State != AiReviewStates.Recording || Model.Signed)
+    {
+        <p><a asp-page="Edit" asp-route-patientId="@Model.Patient.Id" asp-route-draftId="@Model.Draft.Id">Continue to note</a></p>
+    }
+</section>
+<script src="~/_content/Ehr.Design/js/dictation-view.js" defer></script>
+<script src="~/_content/Ehr.Design/js/note-review.js" defer></script>

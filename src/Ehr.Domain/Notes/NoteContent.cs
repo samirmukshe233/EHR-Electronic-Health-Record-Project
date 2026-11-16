@@ -3,7 +3,7 @@ using Ehr.Data.Patients;
 
 namespace Ehr.Domain.Notes;
 
-// The editor boundary also accepts future clinician-approved UC 13 values. No review flags come from clients.
+// The editor and UC 13 transfer share this structured-content boundary. No review flags come from clients.
 public sealed record NoteContent(string History, string Assessment, string Plan)
 {
     public const int MaximumFieldLength = 16_000;
@@ -14,6 +14,15 @@ public sealed record NoteContent(string History, string Assessment, string Plan)
     public static NoteContent From(ClinicalDraft draft) => draft.StructuredVersion == draft.Version
         ? new(draft.History ?? "", draft.Assessment ?? "", draft.Plan ?? "")
         : new(draft.Body, "", "");
+
+    public void ApplyTo(ClinicalDraft draft)
+    {
+        draft.History = History;
+        draft.Assessment = Assessment;
+        draft.Plan = Plan;
+        draft.Body = Body;
+        draft.StructuredVersion = ++draft.Version;
+    }
 
     public IReadOnlyList<string> Validate(bool signing)
     {

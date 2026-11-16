@@ -93,7 +93,7 @@ public class LoggingTests(WebApps apps) : IClassFixture<WebApps>
         app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(category).IsEnabled(level);
 
     // Every line the apps' logging configuration lets through, with its level and category.
-    sealed class CapturedLogs : ILoggerProvider
+    internal sealed class CapturedLogs : ILoggerProvider
     {
         public ConcurrentQueue<string> Messages { get; } = new();
 

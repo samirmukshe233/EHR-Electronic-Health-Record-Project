@@ -178,3 +178,21 @@ CREATE POLICY clinical_notes_clinician_select ON ehr.clinical_notes FOR SELECT
 DROP POLICY IF EXISTS clinical_notes_own_insert ON ehr.clinical_notes;
 CREATE POLICY clinical_notes_own_insert ON ehr.clinical_notes FOR INSERT
     WITH CHECK ((SELECT ehr.is_clinician()) AND signer_id = (SELECT ehr.current_user_id()));
+
+
+-- UC 13 review results are private to the clinician and the same active-panel draft as UC 14.
+ALTER TABLE ehr.ai_note_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.ai_note_reviews FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ai_note_reviews_own ON ehr.ai_note_reviews;
+CREATE POLICY ai_note_reviews_own ON ehr.ai_note_reviews FOR ALL
+    USING ((SELECT ehr.is_clinician()) AND clinician_id = (SELECT ehr.current_user_id())
+        AND EXISTS (SELECT 1 FROM ehr.clinical_drafts d
+            WHERE d.id = ai_note_reviews.draft_id AND d.patient_id = ai_note_reviews.patient_id
+              AND d.clinician_id = (SELECT ehr.current_user_id())));
+
+ALTER TABLE ehr.ai_field_proposals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.ai_field_proposals FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ai_field_proposals_own ON ehr.ai_field_proposals;
+CREATE POLICY ai_field_proposals_own ON ehr.ai_field_proposals FOR ALL
+    USING ((SELECT ehr.is_clinician()) AND EXISTS (SELECT 1 FROM ehr.ai_note_reviews r
+        WHERE r.id = ai_field_proposals.review_id AND r.patient_id = ai_field_proposals.patient_id));

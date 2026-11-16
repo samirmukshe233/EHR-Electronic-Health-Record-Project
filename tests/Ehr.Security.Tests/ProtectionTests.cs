@@ -45,6 +45,8 @@ public class ProtectionTests(MigratedDatabase database) : IClassFixture<Migrated
         ["allergy_intolerances"] = Protection.Phi,
         ["medication_statements"] = Protection.Phi,
         ["conditions"] = Protection.Phi,
+        ["ai_note_reviews"] = Protection.Phi,
+        ["ai_field_proposals"] = Protection.Phi,
         ["clinical_notes"] = Protection.Phi,
         ["clinical_drafts"] = Protection.Phi,
         ["encounters"] = Protection.Phi,

@@ -98,6 +98,7 @@ public static partial class DictationApi
     {
         var sessions = endpoints.MapGroup(Path).AddEndpointFilter(RequireCurrentAccountAsync).AddEndpointFilter(RequireFormTokenAsync);
         sessions.MapPost("/", StartAsync);
+        MapNoteReview(sessions);
         sessions.MapPost("/{id}/audio", SendAudioAsync).WithMetadata(new RequestSizeLimitAttribute(MaxChunkBytes));
         sessions.MapPost("/{id}/stop", StopAsync);
         sessions.MapPost("/{id}/result", ResultAsync);

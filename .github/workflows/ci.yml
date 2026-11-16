@@ -41,6 +41,9 @@ jobs:
       - name: Build
         run: dotnet build Ehr.slnx --configuration Release --no-restore
 
+      - name: Install Chromium for clinical workflow tests
+        run: pwsh tests/Ehr.Web.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
       - name: Check formatting
         run: dotnet format Ehr.slnx --verify-no-changes --no-restore
 

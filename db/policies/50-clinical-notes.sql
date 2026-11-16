@@ -41,7 +41,13 @@ BEGIN
        OR NEW.plan IS DISTINCT FROM draft.plan THEN
         RAISE EXCEPTION 'The draft changed; review the saved version before signing' USING ERRCODE = '23514';
     END IF;
-    IF draft.has_unreviewed_proposals THEN
+    -- The cached flag is never sufficient proof. Consult immutable bindings and authoritative decisions too.
+    IF draft.has_unreviewed_proposals
+       OR EXISTS (SELECT 1 FROM ehr.ai_note_reviews r WHERE r.draft_id = draft.id AND r.state IN ('recording', 'pending'))
+       OR EXISTS (SELECT 1 FROM ehr.ai_field_proposals p JOIN ehr.ai_note_reviews r ON r.id = p.review_id
+                  WHERE r.draft_id = draft.id AND p.state = 'pending')
+       OR EXISTS (SELECT 1 FROM ehr.ai_note_reviews r WHERE r.draft_id = draft.id AND r.state = 'completed'
+                  AND (r.imported_version IS NULL OR r.imported_version > draft.version)) THEN
         RAISE EXCEPTION 'Associated AI proposals require server-side review' USING ERRCODE = '23514';
     END IF;
     IF draft.history IS NULL OR draft.assessment IS NULL OR draft.plan IS NULL
