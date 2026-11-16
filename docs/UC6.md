@@ -40,7 +40,7 @@ In `tests/Ehr.Security.Tests`:
 | ID | Rule | Test |
 |---|---|---|
 | TC-UC6-06 | A patient sees a result only once released and finished, through both roles | `A_patient_sees_their_result_only_once_it_is_released_and_finished` |
-| TC-UC6-05 | A patient can't read another patient's results (the page takes no result ID, so this replaces "the patient changes a result's ID"): zero rows | the `observations` case of `Chart_sections_are_read_by_clinicians_and_by_their_own_patient_only`, and `A_patient_sees_their_result_only_once_it_is_released_and_finished` |
+| TC-UC6-05 | A patient can't read another patient's results (the page takes no result ID, so this replaces "the patient changes a result's ID"): zero rows | `TestCases/UC6/TC_UC6_05_InvalidInput.cs`: `A_patient_cannot_read_another_patients_results`; also the `observations` case of `Chart_sections_are_read_by_clinicians_and_by_their_own_patient_only`, and `A_patient_sees_their_result_only_once_it_is_released_and_finished` |
 | TC-UC6-12 | A result answers only its own patient's order (FR-31) | `A_result_answers_only_its_own_patients_order` |
 | TC-UC6-08 | Results can't be changed at runtime, and any write is audited; grants, protection, policies and RLS for the table: policies, audit trigger and RLS for the table | the `observations` rows in `RuntimeRoleTests`, `ProtectionTests`, `PolicyPlanTests`, `WriteAuditTests` and `RowLevelSecurityTests` |
 
