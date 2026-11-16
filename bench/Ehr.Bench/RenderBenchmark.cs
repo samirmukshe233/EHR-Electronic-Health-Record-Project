@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using Ehr.Data;
 using Ehr.Data.Accounts;
 using Ehr.Data.Audit;
+using Ehr.Data.Orders;
 using Ehr.Domain.Audit;
 using Ehr.Domain.Patients;
 using Ehr.Seed;
@@ -47,8 +48,8 @@ namespace Ehr.Bench;
 // By default it starts its own PostgreSQL 18, migrated as the tests' is, and seeds it. With --stack it uses the web
 // app's own settings instead, as `dotnet run --project src/Ehr.Web` does, against a primary already seeded with as many
 // patients. Either way it creates a clinician of its own, with a random password nobody keeps, puts 100 of the seeded
-// patients on their panel, signs in with password and authenticator code like a browser, and locks the account at the
-// end. It knows whom to search for from the synthetic clinic itself, so it reads nobody outside the pages it measures.
+// patients on their panel, signs four orders for each of them (UC 1), so the chart it measures lists active orders,
+// signs in with password and authenticator code like a browser, and locks the account at the end. It knows whom to search for from the synthetic clinic itself, so it reads nobody outside the pages it measures.
 //
 // UC 2, off-site (Tahseen Arnan): then the same requests, in the same order, to the cloud app (OffSiteApp), reading as
 // ehr_read with its link to the on-prem app down, as in an on-site outage, with the same session. Each row's name starts
@@ -112,6 +113,7 @@ internal static partial class RenderBenchmark
             try
             {
                 var panel = await AssignPanelAsync(app, clinicianId, patients);
+                await SignOrdersAsync(app, clinicianId, panel);
                 var session = new CookieContainer();
                 using var client = await SignInAsync(app, session, email, password, key);
                 var results = await MeasureEachAsync(client, times, "", panel, patients);
@@ -546,6 +548,37 @@ internal static partial class RenderBenchmark
 
         await transaction.CommitAsync();
         return panel;
+    }
+
+    // UC 1 Place an order (Tahseen Arnan): one active order of each type for every patient on the panel, signed as the
+    // clinician through the database's own signing trigger and policies, so the chart the benchmark measures has its
+    // list of active orders to load. The seed can't make them: an order's signer is a staff account, and the seeded
+    // clinic has none. With --stack they stay on the primary afterwards, as the benchmark's audit events do.
+    static async Task SignOrdersAsync(BenchApp app, Guid clinicianId, List<Guid> panel)
+    {
+        var items = OrderType.All.Select(type => OrderCatalogItem.Seeded.First(item => item.Type == type)).ToList();
+        await using var scope = app.Services.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<UserContext>().UserId = clinicianId;
+        var db = scope.ServiceProvider.GetRequiredService<EhrDbContext>();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        foreach (var patient in panel)
+        {
+            foreach (var item in items)
+            {
+                db.Add(new Order
+                {
+                    Id = Guid.CreateVersion7(),
+                    PatientId = patient,
+                    Type = item.Type,
+                    CatalogCode = item.Code,
+                    Details = "{}",
+                    Status = OrderStatus.Active,
+                });
+            }
+        }
+
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
     }
 
     // Signs in as a browser does, password then authenticator code, and returns a client with the session's cookies, which

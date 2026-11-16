@@ -26,6 +26,7 @@ public class PhiReaderTests
         ["MedicationStatements"] = typeof(MedicationStatement),
         ["Conditions"] = typeof(Condition),
         ["Encounters"] = typeof(Encounter),
+        ["Orders"] = typeof(Ehr.Data.Orders.Order),
     };
 
     [Fact]

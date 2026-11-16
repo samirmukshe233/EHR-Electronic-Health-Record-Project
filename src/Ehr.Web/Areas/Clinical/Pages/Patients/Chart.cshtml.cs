@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace Ehr.Web.Areas.Clinical.Pages.Patients;
 
-// A patient's chart: demographics, allergies, medications, diagnoses and recent visits, read only for now. A patient
+// A patient's chart: demographics, allergies, medications, diagnoses, recent visits and active orders (UC 1). A patient
 // off the clinician's panel first asks for a reason (Reason, BreakGlass); then the read goes through the PHI reader,
 // which records it as one read of the patient, and a patient this clinician may not see is not found, which gives
 // nothing away. From here a clinician puts the patient on their panel or takes them off it, and issues the patient a
@@ -30,6 +30,12 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
     // The "No known allergy" entry when nothing else is recorded: not the same as no allergy information at all.
     public AllergyIntolerance? NoKnownAllergies =>
         KnownAllergies.Count == 0 ? Chart.Allergies.FirstOrDefault(a => a.Code == AllergyIntolerance.NoKnownAllergy) : null;
+
+    // UC 1: the order just signed, from the order form's redirect, when it is among the active orders.
+    [BindProperty(SupportsGet = true)]
+    public Guid? Ordered { get; set; }
+
+    public Ehr.Domain.Orders.ActiveOrder? SignedOrder => Chart.Orders.FirstOrDefault(order => order.Id == Ordered);
 
     public IReadOnlyList<ClinicalDraft> Drafts { get; private set; } = [];
     public IReadOnlyList<ClinicalNote> Notes { get; private set; } = [];
