@@ -108,34 +108,7 @@ public partial class CloudForwardingTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Empty(await apps.RowsAsync(shortcut));
     }
 
-    [Fact]
-    public async Task A_form_post_that_cannot_be_forwarded_gets_a_page_that_explains()
-    {
-        var patient = await apps.InsertPatientAsync("Lane", "Unsaved");
-        var signedIn = await CookieHeaderAsync(apps.OnPrem, await apps.ClinicianAsync());
-        using var client = CreateClient(apps.CloudCutOff, handleCookies: false);
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"/patients/{patient}/reason")
-        {
-            Content = Form(("Reason", "Covering the night shift")),
-        };
-        request.Headers.Add("Cookie", signedIn);
-
-        using var response = await client.SendAsync(request, Cancel);
-
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
-        var html = await response.Content.ReadAsStringAsync(Cancel);
-        Assert.Contains("Nothing was saved, because the clinic's server can't be reached.", html);
-        // Back to the form, by the browser's history where JavaScript runs, by its address where it doesn't.
-        Assert.Contains($"<a href=\"/patients/{patient}/reason\" data-back>Back</a>", html);
-        var assets = PageAssets().Matches(html).Select(match => match.Groups[1].Value).ToList();
-        Assert.Equal(["/_content/Ehr.Design/css/ehr.css", "/_content/Ehr.Design/js/back-link.js"], assets);
-        foreach (var asset in assets)
-        {
-            using var file = await client.GetAsync(asset, Cancel);
-            Assert.Equal(HttpStatusCode.OK, file.StatusCode);
-        }
-    }
+    // A form post that can't be forwarded, and its "Not saved" page: TestCases/UC2/TC_UC2_03_InvalidInput.cs.
 
     [Fact]
     public async Task An_htmx_post_that_cannot_be_forwarded_still_gets_the_short_message()
