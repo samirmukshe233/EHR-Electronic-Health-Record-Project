@@ -54,6 +54,7 @@ public class WriteAuditTests(MigratedDatabase database) : IClassFixture<Migrated
     [InlineData("medication_statements")]
     [InlineData("conditions")]
     [InlineData("encounters")]
+    [InlineData("observations")]
     public async Task A_chart_section_row_is_recorded_against_its_patient(string table)
     {
         var clinician = await Accounts.StaffAsync(database, StaffRoles.Clinician);

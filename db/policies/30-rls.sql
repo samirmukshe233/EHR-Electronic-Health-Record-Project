@@ -142,6 +142,21 @@ DROP POLICY IF EXISTS encounters_own_select ON ehr.encounters;
 CREATE POLICY encounters_own_select ON ehr.encounters FOR SELECT
     USING (patient_id = (SELECT ehr.current_patient_id()));
 
+-- Test results (PHI). Clinicians read every patient's. A patient reads only their own, and only once the result is
+-- released and finished (Observation.IssuedAt, ObservationStatus.Released): a result still being worked on, cancelled
+-- or entered in error never reaches the portal, even through a bug in the app. No write policies, as for the chart.
+ALTER TABLE ehr.observations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.observations FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS observations_clinician_select ON ehr.observations;
+CREATE POLICY observations_clinician_select ON ehr.observations FOR SELECT USING ((SELECT ehr.is_clinician()));
+
+DROP POLICY IF EXISTS observations_own_released_select ON ehr.observations;
+CREATE POLICY observations_own_released_select ON ehr.observations FOR SELECT
+    USING (patient_id = (SELECT ehr.current_patient_id())
+        AND issued_at IS NOT NULL
+        AND status IN ('final', 'amended', 'corrected'));
+
 -- Audit events (restricted). Admins read. Anyone the grants let insert may insert: the app role for read and
 -- sign-in events, and the write-audit trigger (40-audit.sql), which runs as the table's owner and is bound by this
 -- policy too because RLS is forced. Nothing updates or deletes (10-grants.sql).

@@ -351,6 +351,36 @@ public sealed class WebApps : IAsyncLifetime
     public async Task ShipCloudAuditAsync() =>
         Assert.True(await Cloud.Services.GetRequiredService<CloudAuditShipper>().ShipAsync(TestContext.Current.CancellationToken));
 
+    // A test result for the patient, inserted as the superuser the way the lab interface will. Released (issued) unless
+    // issuedAt is null.
+    public async Task<Guid> InsertResultAsync(
+        Guid patientId, string display, string? code, decimal? value, string? unit, decimal? low, decimal? high,
+        DateTimeOffset effectiveAt, DateTimeOffset? issuedAt, string status = "final", string? note = null)
+    {
+        var id = Guid.CreateVersion7();
+        await using var connection = await OpenDatabaseAsync();
+        await using var command = new NpgsqlCommand(
+            """
+            INSERT INTO ehr.observations (id, patient_id, code, display, status, value, unit, reference_low, reference_high, effective_at, issued_at, note)
+            VALUES (@id, @patient, @code, @display, @status, @value, @unit, @low, @high, @effective, @issued, @note)
+            """,
+            connection);
+        command.Parameters.AddWithValue("id", id);
+        command.Parameters.AddWithValue("patient", patientId);
+        command.Parameters.AddWithValue("code", NpgsqlTypes.NpgsqlDbType.Varchar, (object?)code ?? DBNull.Value);
+        command.Parameters.AddWithValue("display", display);
+        command.Parameters.AddWithValue("status", status);
+        command.Parameters.AddWithValue("value", NpgsqlTypes.NpgsqlDbType.Numeric, (object?)value ?? DBNull.Value);
+        command.Parameters.AddWithValue("unit", NpgsqlTypes.NpgsqlDbType.Varchar, (object?)unit ?? DBNull.Value);
+        command.Parameters.AddWithValue("low", NpgsqlTypes.NpgsqlDbType.Numeric, (object?)low ?? DBNull.Value);
+        command.Parameters.AddWithValue("high", NpgsqlTypes.NpgsqlDbType.Numeric, (object?)high ?? DBNull.Value);
+        command.Parameters.AddWithValue("effective", effectiveAt);
+        command.Parameters.AddWithValue("issued", NpgsqlTypes.NpgsqlDbType.TimestampTz, (object?)issuedAt ?? DBNull.Value);
+        command.Parameters.AddWithValue("note", NpgsqlTypes.NpgsqlDbType.Varchar, (object?)note ?? DBNull.Value);
+        await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        return id;
+    }
+
     // How many audit events match, read as the superuser.
     // Events an anonymous request recorded: the patient, and no actor.
     public async Task<long> AuditEventsWithoutActorAsync(string action, Guid patientId)

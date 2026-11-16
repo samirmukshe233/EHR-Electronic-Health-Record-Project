@@ -94,6 +94,29 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         orderby order.SignedAt descending, order.Id
         select new ActiveOrder(order.Id, order.Type, item.Display, order.Details, order.SignedAt);
 
+    // A patient's released test results for the portal (UC6, FR-16; Simar Rekhi), newest first. Row-level security
+    // returns only the signed-in patient's own results, and only released, finished ones (db/policies/30-rls.sql); the
+    // same conditions are asked here too, so a clinician's session can't show a patient's unreleased result through
+    // this method either. One view of one patient, so one recorded read of the patient, as for the chart: the only
+    // kind of read the cloud app's audit queue takes (CloudAuditEvents), so the page works off-site too.
+    public async Task<PatientResults?> ResultsAsync(Guid patientId, CancellationToken cancellationToken)
+    {
+        var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+        if (patient is null)
+        {
+            return null;
+        }
+
+        var results = await db.Observations.AsNoTracking()
+            .Where(o => o.PatientId == patientId && o.IssuedAt != null && ObservationStatus.Released.Contains(o.Status))
+            .OrderByDescending(o => o.EffectiveAt).ThenBy(o => o.Display).ThenBy(o => o.Id)
+            .ToListAsync(cancellationToken);
+
+        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+        await db.SaveChangesAsync(cancellationToken);
+        return new PatientResults(patient, results);
+    }
+
     // The shortest name a search takes. Every patient listed is a recorded read, and one letter matches hundreds.
     public const int MinimumNameLength = 2;
 

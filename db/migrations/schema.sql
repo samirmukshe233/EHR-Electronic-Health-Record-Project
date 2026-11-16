@@ -608,3 +608,36 @@ VALUES ('20261116033502_Orders', '10.0.13');
 
 COMMIT;
 
+START TRANSACTION;
+ALTER TABLE ehr.orders ADD CONSTRAINT ak_orders_id_patient_id UNIQUE (id, patient_id);
+
+CREATE TABLE ehr.observations (
+    id uuid NOT NULL,
+    patient_id uuid NOT NULL,
+    order_id uuid,
+    code character varying(20),
+    display character varying(200) NOT NULL,
+    status character varying(20) NOT NULL,
+    value numeric(12,4),
+    unit character varying(20),
+    reference_low numeric(12,4),
+    reference_high numeric(12,4),
+    effective_at timestamp with time zone NOT NULL,
+    issued_at timestamp with time zone,
+    note character varying(500),
+    CONSTRAINT pk_observations PRIMARY KEY (id),
+    CONSTRAINT ck_observations_reference_range CHECK (reference_low <= reference_high),
+    CONSTRAINT ck_observations_status CHECK (status IN ('registered', 'preliminary', 'final', 'amended', 'corrected', 'cancelled', 'entered-in-error')),
+    CONSTRAINT fk_observations_orders_order_id_patient_id FOREIGN KEY (order_id, patient_id) REFERENCES ehr.orders (id, patient_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_observations_patients_patient_id FOREIGN KEY (patient_id) REFERENCES ehr.patients (id) ON DELETE RESTRICT
+);
+
+CREATE INDEX ix_observations_order_id_patient_id ON ehr.observations (order_id, patient_id);
+
+CREATE INDEX ix_observations_patient_id_effective_at ON ehr.observations (patient_id, effective_at);
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261116040750_Observations', '10.0.13');
+
+COMMIT;
+

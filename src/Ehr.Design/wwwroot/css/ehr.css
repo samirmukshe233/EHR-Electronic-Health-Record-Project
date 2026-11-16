@@ -32,6 +32,26 @@ textarea {
     border-left: 4px solid currentColor;
 }
 
+.results {
+    list-style: none;
+    padding: 0;
+}
+
+.results > li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.results summary {
+    cursor: pointer;
+}
+
+.results .result-line {
+    display: inline-flex;
+    gap: 0.75rem;
+    align-items: baseline;
+}
+
 .notice.read-only {
     color: #8a5300;
 }
