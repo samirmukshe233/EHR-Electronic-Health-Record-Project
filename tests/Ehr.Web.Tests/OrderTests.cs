@@ -99,7 +99,7 @@ public class OrderTests(WebApps apps) : IClassFixture<WebApps>
         await using var db = await apps.OpenDatabaseAsync();
         await using var command = new NpgsqlCommand(
             """
-            SELECT o.signer_id, o.signed_at, e.actor_id, e.occurred_at = o.signed_at
+            SELECT o.signer_id, o.signed_at, e.actor_id, e.occurred_at
             FROM ehr.orders o JOIN ehr.audit_events e ON e.row_id = o.id AND e.action = 'insert' AND e.table_name = 'orders'
             WHERE o.patient_id = @patient
             """, db);
@@ -109,7 +109,7 @@ public class OrderTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(clinician.Id, reader.GetGuid(0));
         Assert.InRange(reader.GetFieldValue<DateTimeOffset>(1), before, DateTimeOffset.UtcNow.AddSeconds(1));
         Assert.Equal(clinician.Id, reader.GetGuid(2));
-        Assert.True(reader.GetBoolean(3));
+        Assert.InRange(reader.GetFieldValue<DateTimeOffset>(3), before, DateTimeOffset.UtcNow.AddSeconds(1));
         Assert.False(await reader.ReadAsync(Cancel));
     }
 

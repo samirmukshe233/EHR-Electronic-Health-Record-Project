@@ -48,8 +48,9 @@ public sealed class ClinicalOrders(EhrDbContext db)
         return (found, errors);
     }
 
-    // Signs the order: the database sets the signer and the time. Null when the database refused it as a duplicate
-    // without a reason, one signed at the same moment as another; the order page then warns as for any duplicate.
+    // Signs the order: the database sets the signer and the time. A blank reason is none. Null when the database refused
+    // it as a duplicate without a reason, one signed at the same moment as another; the order page then warns as for any
+    // duplicate. Only in the page's own transaction, READ COMMITTED, which the signing trigger requires.
     public async Task<Order?> SignAsync(Guid patient, OrderCatalogItem item, string details, string? duplicateReason, CancellationToken cancellationToken)
     {
         var order = new Order
@@ -60,7 +61,7 @@ public sealed class ClinicalOrders(EhrDbContext db)
             CatalogCode = item.Code,
             Details = details,
             Status = OrderStatus.Active,
-            DuplicateReason = duplicateReason,
+            DuplicateReason = string.IsNullOrWhiteSpace(duplicateReason) ? null : duplicateReason.Trim(),
         };
         var transaction = db.Database.CurrentTransaction!;
         await transaction.CreateSavepointAsync(Savepoint, cancellationToken);
