@@ -73,6 +73,46 @@ public class OffSiteOutageTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Contains("what you entered may still be there", html);
     }
 
+    // UC 1's order form during an outage: the order is refused, and what was entered is kept. With JavaScript,
+    // js/orders.js posts with fetch, gets the 503 and leaves the form filled; without it, the "Not saved" page shows the
+    // order's fields again.
+    [Fact]
+    public async Task An_order_placed_during_an_outage_is_refused_and_its_entries_are_kept()
+    {
+        var clinician = await apps.ClinicianAsync();
+        var patient = await apps.InsertPatientAsync("Quill", "Unordered");
+        await apps.AssignAsync(clinician, patient);
+        var session = await SignInAsync(apps.OnPrem, clinician);
+        var path = $"/patients/{patient}/orders/new?type=medication";
+        // Loaded while the clinic's server could be reached; sent once it can't.
+        var token = Token(await session.Client.GetStringAsync(path, Cancel));
+        var cutOff = Client(apps.CloudCutOff, session.Jar);
+        (string Name, object Value)[] order =
+        [
+            ("Item", "Metformin 500 mg tablet"), ("Details[dose]", "500 mg"), ("Details[route]", "By mouth"),
+            ("Details[frequency]", "Twice a day <with meals>"),
+        ];
+
+        // As the script sends it: refused, with nothing for the script to replace the form with.
+        using var fetched = await HtmxPostAsync(cutOff, path, token, order);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, fetched.StatusCode);
+        Assert.DoesNotContain("<form", await fetched.Content.ReadAsStringAsync(Cancel));
+
+        // As a plain form: the "Not saved" page, with each entry to copy.
+        using var posted = await PlainPostAsync(cutOff, path, token, order);
+        var html = await NotSavedAsync(posted);
+        Assert.Contains("What you entered is below: copy it", html);
+        Assert.Contains(">\nMetformin 500 mg tablet</textarea>", html);
+        Assert.Contains(">\n500 mg</textarea>", html);
+        Assert.Contains(">\nBy mouth</textarea>", html);
+        Assert.Contains(">\nTwice a day &lt;with meals&gt;</textarea>", html);
+
+        await using var db = await apps.OpenDatabaseAsync();
+        await using var count = new Npgsql.NpgsqlCommand("SELECT count(*) FROM ehr.orders WHERE patient_id = @patient", db);
+        count.Parameters.AddWithValue("patient", patient);
+        Assert.Equal(0L, await count.ExecuteScalarAsync(Cancel));
+    }
+
     // Without JavaScript the editor's save is a plain form post; with it, note-editor.js keeps the text on screen.
     [Fact]
     public async Task A_note_saved_without_JavaScript_is_shown_again_and_the_draft_offers_no_editor()

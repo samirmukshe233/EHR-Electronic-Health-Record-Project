@@ -23,6 +23,7 @@ The tests are in `tests/Ehr.Web.Tests` unless named otherwise. `CloudCutOff` is 
 | Alternative: restore | Barman restores the primary to a point in time | `infra/barman`, `infra/compose` ("Backup and point-in-time restore") | The drill below |
 | NFR-03: off-site render time | p99 server time under 20 ms, excluding the commit, at 50,000 patients | `bench/Ehr.Bench/RenderBenchmark.cs` (`OffSiteApp`, `TimedAuditQueue`), CI's benchmark job | `BenchmarkTests.Off_site_the_audit_queues_append_counts_as_the_commit`; the run below |
 | UC 14, UC 9 during an outage | Notes and the dictation page are read from the replica and audited; signing, new notes and dictation are refused | `Notes/*.cshtml`, `Dictate.cshtml`, `Api/Dictation` | `OffSiteOutageTests.Notes_are_read_from_the_replica_and_audited_and_note_writes_are_refused`, `OffSiteOutageTests.The_dictation_page_read_is_audited_and_dictation_is_refused`, `ClinicalNoteTests.Primary_outage_refuses_signature_and_keeps_the_server_draft_available`, `DictationApiTests.Off_site_with_the_link_down_dictation_says_the_server_cannot_be_reached` |
+| UC 1 during an outage | An order is refused, and what was entered is kept | `Orders/New.cshtml.cs` (`ShownIfNotSaved`), `Ehr.Design/wwwroot/js/orders.js` | `OffSiteOutageTests.An_order_placed_during_an_outage_is_refused_and_its_entries_are_kept`, `OrderTests.TC_UC1_06_Off_site_with_the_clinics_server_down_the_order_is_not_saved` |
 | UC 8 (desktop) during an outage | Draft push and pull, and the offline panel, are refused (503); quick text sync still reads the replica | `Api/Desktop/DraftSyncApi.cs`, `Api/Desktop/DesktopApi.cs` | `OffSiteOutageTests.The_desktop_apps_draft_sync_and_offline_panel_are_refused_and_quick_text_sync_still_reads` |
 | Signing in during an outage | Not possible; see Limits | `CloudForwardingMiddleware.cs` | `OffSiteOutageTests.During_an_outage_nobody_can_sign_in_off_site` |
 
@@ -37,6 +38,7 @@ The tests are in `tests/Ehr.Web.Tests` unless named otherwise. `CloudCutOff` is 
 | Note editor: Save draft, autosave, Sign note… | The text stays on screen with "could not confirm this save" | "Not saved" page with History, Assessment and Plan shown again | **New:** the draft as last saved, no editor |
 | Note confirmation: Confirm and sign | The page stays, "Signature not confirmed" | "Not saved" page; only a checkbox was set | **New:** no signature offered |
 | Dictation | Recording carries on; the audio waits in the page and is sent again when the connection returns | Needs JavaScript; not offered | Not offered |
+| Order form (UC 1): Sign order | The form stays filled and says nothing was saved (`orders.js`) | "Not saved" page with the item, the details and the duplicate reason shown again | The chart doesn't offer "New order" |
 | Quick text: Add, Save, Keep mine | htmx leaves the form as typed and says "Not saved" | "Not saved" page with Shortcut and Body shown again | **New:** no add form or Edit buttons |
 | Sign-in steps (password, code, enrollment, new password, setup) | "Not saved" page; nothing typed is shown back | Same | Still offered (sign-in unchanged) |
 | Sign out | Works: the cloud app does it and queues the event | Same | Offered |
@@ -83,7 +85,7 @@ Run on 2026-11-15 (US Central; 2026-11-16 UTC) on the local Compose stack, with 
 | `__ef_migrations_history` | 12 | 12 |
 | `restore_drill` | 5 (10 after the change) | 5 |
 
-Every count matched. The drill's limit: `clinical_notes` and `clinical_drafts`, added since the cloud milestone, were empty on this stack, so it shows that their schema restores, not their rows; orders (UC 1) weren't on `main` yet.
+Every count matched. The drill's limit: `clinical_notes` and `clinical_drafts`, added since the cloud milestone, were empty on this stack, so it shows that their schema restores, not their rows; orders (UC 1) weren't on `main` when it ran.
 
 ## Limits
 

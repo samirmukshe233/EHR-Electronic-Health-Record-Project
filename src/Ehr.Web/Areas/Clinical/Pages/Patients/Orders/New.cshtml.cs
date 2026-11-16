@@ -2,6 +2,7 @@ using Ehr.Data.Orders;
 using Ehr.Domain.Orders;
 using Ehr.Domain.Patients;
 using Ehr.Domain.Phi;
+using Ehr.Web.Forwarding;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -17,6 +18,9 @@ namespace Ehr.Web.Areas.Clinical.Pages.Patients.Orders;
 // The same rule as the chart's "New note": only for a patient on the clinician's panel. Anyone else, a clinician under
 // emergency access included, is sent back to the chart before anything about the patient is read. Off-site, the cloud
 // app forwards the post to the on-prem app; js/orders.js posts it with fetch, so when that fails the form stays filled.
+// Without JavaScript, the cloud app's "Not saved" page shows the order's fields again to copy (UC 2, ShownIfNotSaved).
+[ShownIfNotSaved(nameof(Item), "Details[indication]", "Details[dose]", "Details[route]", "Details[frequency]", "Details[duration]",
+    "Details[reason]", "Details[notes]", nameof(DuplicateReason))]
 public class NewModel(PhiReader phi, PatientAssignments assignments, ClinicalOrders orders) : PageModel
 {
     [BindProperty(SupportsGet = true)]
