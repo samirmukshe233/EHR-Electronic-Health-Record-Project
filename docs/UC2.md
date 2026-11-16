@@ -47,7 +47,20 @@ The tests are in `tests/Ehr.Web.Tests` unless named otherwise. `CloudCutOff` is 
 
 The benchmark (`bench/Ehr.Bench`, see "Synthetic data and the benchmark" in the README) now makes the same requests off-site after the on-site ones: to the cloud app reading as `ehr_read`, with its link to the on-site server down, as in this use case. The cloud app records reads in its audit queue rather than the database, so in the off-site rows the audit insert is 0 and the queue's write and flush to disk count as the commit: that is where the page waits for the disk, as an on-site page does at its commit. `--assert` gates the off-site rows as it does the on-site ones: p99 excluding the commit under 20 ms.
 
-**Pending.** The results, and whether the off-site rows stay gated, wait on a run on a quiet machine. The first full run at 50,000 patients passed on-site but failed six off-site rows, only in their tails (p50s of 2 to 5 ms); it ran while other builds, tests and benchmarks were running on the same machine, so it isn't a reading. The owner decides what to do if a clean run fails the same way.
+A run at 50,000 patients with `--assert`, durability on, nothing else running, on an Apple Silicon Mac (macOS 26.5.1, PostgreSQL 18.6), passed (exit 0). Milliseconds:
+
+| Kind of request | On-site p50 / p99 excl. commit | On-site p99 in full | Off-site p50 / p99 excl. commit | Off-site p99 in full |
+|---|---:|---:|---:|---:|
+| Chart, a patient on the panel | 3.7 / 4.7 | 5.2 | 5.2 / 14.5 | 21.2 |
+| Panel, 100 patients | 4.7 / 7.2 | 9.0 | 5.7 / 11.8 | 20.8 |
+| Search, first 3 letters of a name | 4.7 / 9.1 | 9.6 | 6.2 / 11.5 | 16.7 |
+| Search, a whole family name | 1.3 / 1.9 | 2.3 | 5.0 / 8.3 | 13.5 |
+| Search, date of birth | 1.2 / 1.8 | 2.1 | 4.4 / 7.4 | 12.7 |
+| Search, MRN | 1.2 / 4.3 | 4.9 | 4.2 / 7.5 | 12.1 |
+| Search, name and date of birth | 1.4 / 4.3 | 5.1 | 5.0 / 9.2 | 14.1 |
+| As you type, first 3 letters | 4.8 / 11.2 | 11.7 | 5.5 / 10.5 | 15.2 |
+
+Off-site, the queue's write and flush took 4.0 to 4.4 ms at p50. The off-site chart and panel get the full-time warning (p99 21.2 and 20.8 ms, the flush included), which doesn't fail the run; their 20 ms target is for the cloud server. An earlier run, made while other builds, tests and benchmarks were running on the same machine, failed six off-site rows in their tails only, so CI's shared runners may be close to the line for these rows.
 
 ## Restore drill
 
