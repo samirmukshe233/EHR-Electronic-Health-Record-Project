@@ -12,8 +12,7 @@ namespace Ehr.Web.Tests.TestCases.UC1;
 // Purpose / scenario: A clinician signs a lab order for a patient on their panel. The chart confirms the order and
 //   lists it under active orders, and the audit row names the clinician and the time.
 // Type: Functional (successful flow)
-// Requirements: FR-05, FR-29, FR-32 (UC 1's functional requirements; which of them this case traces to is to be
-//   confirmed against the SE document, which isn't in the repository)
+// Requirements: FR-05, FR-29, FR-32
 // Use case: UC 1, Place an order
 // Preconditions: The clinician is signed in on the on-site app, with password and authenticator code, and the patient
 //   is on their panel. The patient has no active orders. The clinic's server is up.

@@ -11,8 +11,7 @@ namespace Ehr.Web.Tests.TestCases.UC2;
 //   the cloud replica, the page shows the read-only notice, and the read is queued and then shipped to the on-site
 //   audit log.
 // Type: Functional (successful flow)
-// Requirements: FR-02, FR-33, FR-34, FR-35, FR-36 (UC 2's functional requirements; which of them this case traces to is to be
-//   confirmed against the SE document, which isn't in the repository)
+// Requirements: FR-02, FR-32, FR-33, FR-34
 // Use case: UC 2, Read records during an on-site outage
 // Preconditions: The clinician signed in off-site while the on-site server was up, and the patient is on their panel.
 //   The on-site app's database then goes down (PrimaryDown on the CloudPrimaryDrill app), and the cloud app's check
