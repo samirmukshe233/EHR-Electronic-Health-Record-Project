@@ -5,7 +5,7 @@ install, as below) and its results recorded here.
 
 | Field | Value |
 |---|---|
-| Test Case ID | TC-UC6-06 (and TC-UC5-05, the portal sign-in in the same run) |
+| Test Case ID | TC-UC6-06 (and TC-UC5-05, the portal sign-in in the same run: `../UC5/TC_UC5_05_Nfr11_ModernBrowsers.md`) |
 | Purpose / scenario | A patient signs in, reads their test results, opens one, signs out and presses Back, in each modern browser; the page behaves the same in each. |
 | Type | Non-functional |
 | Requirements | NFR-11 |

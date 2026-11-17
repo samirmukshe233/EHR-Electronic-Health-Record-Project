@@ -29,7 +29,7 @@ The numbered test cases are the ones in the SE document (Assignment 4, sections 
 | TC-UC6-03 | Invalid input: signed out, or a clinician, can't reach the page | `PortalResultsTests.Nobody_signed_out_and_no_clinician_reaches_the_results_page` |
 | TC-UC6-04 | Exceptional condition: on-site server down; read-only, the read queued and shipped | `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_04_ExceptionalCondition.cs` |
 | TC-UC6-05 | NFR-01: the results page on-site, p99 of the whole request, the commit included, under 15 ms at 50,000 patients with durability on. It runs only against a run of the render benchmark (`tests/Ehr.Web.Tests/TestCases/PerformanceResults.cs` says how) and is skipped in the normal test run | `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_05_Nfr01_OnSiteNavigation.cs` |
-| TC-UC6-06 | NFR-11: the results page in modern browsers (manual, with the results from PR #43); the same run is TC-UC5-05 for the portal sign-in | `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_06_Nfr11_ModernBrowsers.md` |
+| TC-UC6-06 | NFR-11: the results page in modern browsers (manual, with the results from PR #43); the same run is TC-UC5-05 for the portal sign-in (`tests/Ehr.Web.Tests/TestCases/UC5/TC_UC5_05_Nfr11_ModernBrowsers.md`) | `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_06_Nfr11_ModernBrowsers.md` |
 
 Supporting tests, not numbered in the SE document:
 
