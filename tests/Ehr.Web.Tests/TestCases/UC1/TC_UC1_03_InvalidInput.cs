@@ -8,8 +8,7 @@ namespace Ehr.Web.Tests.TestCases.UC1;
 // Purpose / scenario: The clinician signs an order with a required field left empty. The field is highlighted with
 //   its message, nothing is saved, and what was entered stays in the form.
 // Type: Functional (invalid input)
-// Requirements: FR-05, FR-29, FR-32 (UC 1's functional requirements; which of them this case traces to is to be
-//   confirmed against the SE document, which isn't in the repository)
+// Requirements: FR-05
 // Use case: UC 1, Place an order
 // Preconditions: The clinician is signed in on the on-site app and the patient is on their panel. The patient has no
 //   orders. The clinic's server is up.

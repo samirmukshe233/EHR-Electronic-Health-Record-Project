@@ -14,7 +14,7 @@ namespace Ehr.Web.Tests.TestCases.UC2;
 //   write no table; a write refused during an outage leaves the primary's rows unchanged; and after recovery the
 //   save lands once, on the primary.
 // Type: Non-functional (data integrity: one authoritative copy)
-// Requirements: NFR-09
+// Requirements: NFR-09 (FR-36 as supporting evidence)
 // Use case: UC 2, Read records during an on-site outage
 // Preconditions: The database is migrated with db/policies applied. The clinician signed in off-site while the
 //   on-site server was up. For the outage, the on-site app's database is down (PrimaryDown on the CloudPrimaryDrill
