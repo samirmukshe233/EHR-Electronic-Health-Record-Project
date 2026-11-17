@@ -107,7 +107,7 @@ public class AiFieldReviewTests(WebApps apps) : IClassFixture<WebApps>
     }
 
     [Fact]
-    public async Task TC_UC13_01_02_03_09_trusted_result_accept_edit_reject_then_manual_complete_and_sign()
+    public async Task TC_UC13_01_02_03_trusted_result_accept_edit_reject_then_manual_complete_and_sign()
     {
         var f = await StageAsync();
         Assert.Equal(1, await Scalar("SELECT count(*) FROM ehr.clinical_drafts WHERE id = @id AND history = '' AND assessment = '' AND plan = '' AND has_unreviewed_proposals", f.Draft));
@@ -155,7 +155,7 @@ public class AiFieldReviewTests(WebApps apps) : IClassFixture<WebApps>
     }
 
     [Fact]
-    public async Task TC_UC13_04_08_pending_records_block_finish_and_forged_flag_signing()
+    public async Task TC_UC13_04_pending_records_block_finish_and_forged_flag_signing()
     {
         var f = await StageAsync();
         using var finish = await ReviewPost(f, "Complete", ("Version", 2));
@@ -175,7 +175,7 @@ public class AiFieldReviewTests(WebApps apps) : IClassFixture<WebApps>
     }
 
     [Fact]
-    public async Task TC_UC13_05_unavailable_model_keeps_transcript_and_manual_editor_without_proposals()
+    public async Task Unavailable_model_keeps_transcript_and_manual_editor_without_proposals()
     {
         sidecar.Sorting = StubSorting.Unavailable;
         var f = await BeginAsync();
@@ -192,7 +192,7 @@ public class AiFieldReviewTests(WebApps apps) : IClassFixture<WebApps>
     }
 
     [Fact]
-    public async Task TC_UC13_06_other_clinician_and_wrong_patient_cannot_read_or_decide()
+    public async Task Other_clinician_and_wrong_patient_cannot_read_or_decide()
     {
         var f = await StageAsync();
         var other = await apps.CreateStaffAsync("Synthetic reviewer", StaffRoles.Clinician);
@@ -213,7 +213,7 @@ public class AiFieldReviewTests(WebApps apps) : IClassFixture<WebApps>
     }
 
     [Fact]
-    public async Task TC_UC13_07_duplicate_stage_decision_and_completion_are_idempotent()
+    public async Task TC_UC13_06_duplicate_stage_decision_and_completion_are_idempotent()
     {
         var f = await StageAsync(plan: false);
         using var stageAgain = await Stage(f, 1);

@@ -58,6 +58,7 @@ public class DesktopSignInTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(0, await apps.AuditEventsAsync(AuditActions.Read, actorId: clinician.Id, patientId: other));
     }
 
+    // TC-UC8-05 (NFR-09) in the SE document (Sara Lelo): a replayed operation adds no second draft and keeps the newer one.
     [Fact]
     public async Task Draft_sync_only_returns_the_authors_drafts_and_deduplicates_an_outdated_retry()
     {

@@ -101,7 +101,7 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
     }
 
     [Fact]
-    public async Task TC_NFR12_entire_dictation_review_manual_completion_and_signature_work_from_the_keyboard()
+    public async Task TC_UC13_05_UC14_05_entire_dictation_review_manual_completion_and_signature_work_from_the_keyboard()
     {
         var (patient, session) = await AccountAsync();
         await using var server = await ClinicalBrowserHost.StartAsync(apps);
