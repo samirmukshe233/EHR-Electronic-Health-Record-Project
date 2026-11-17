@@ -732,6 +732,7 @@ mod tests {
         pending.remove(0)
     }
 
+    /// TC-UC7-06 (NFR-06): a wrong key can neither read nor change the store; the right one recovers the draft.
     #[test]
     fn the_file_is_encrypted_and_opens_only_with_its_key() {
         let database = TempDatabase::new();
@@ -1177,7 +1178,7 @@ mod tests {
         assert_eq!(database.open().watermark().unwrap(), "12345");
     }
 
-    /// TC-NF-02 (NFR-02, with NFR-04): opening a cached chart offline takes under 5 ms. This times what the
+    /// TC-UC7-05 (NFR-02, with NFR-04): opening a cached chart offline takes under 5 ms. This times what the
     /// offline_chart command does when a clinician picks a chart from their offline panel: the chart, its drafts and
     /// its recordings, read from the encrypted database and decoded. Drawing the page in the web view isn't included.
     /// The desktop app keeps only the clinician's own panel, never the clinic's 50,000 patients, so the database holds
@@ -1223,7 +1224,7 @@ mod tests {
 
         let slowest = *times.iter().max().unwrap();
         println!(
-            "TC-NF-02: {OPENS} opens of one chart in a panel of {PANEL}; slowest {slowest:?}; all: {times:?}"
+            "TC-UC7-05: {OPENS} opens of one chart in a panel of {PANEL}; slowest {slowest:?}; all: {times:?}"
         );
         assert!(
             slowest < limit,

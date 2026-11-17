@@ -170,7 +170,7 @@ public class ClinicalNoteTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(HttpStatusCode.NotFound, sign.StatusCode);
     }
 
-    // TC-UC14-05: simultaneous signing can return success or an explicit conflict, but never two records.
+    // TC-UC14-06: simultaneous signing can return success or an explicit conflict, but never two records.
     [Fact]
     public async Task Concurrent_signatures_and_stale_updates_never_duplicate_or_overwrite()
     {
@@ -203,7 +203,7 @@ public class ClinicalNoteTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(0, (await SignedAsync(page.Draft)).Count);
     }
 
-    // TC-UC14-06: both a broken link and a primary that answers but cannot save refuse signatures.
+    // Supporting test (not numbered in the SE document): both a broken link and a primary that answers but cannot save refuse signatures.
     [Fact]
     public async Task Primary_outage_refuses_signature_and_keeps_the_server_draft_available()
     {
