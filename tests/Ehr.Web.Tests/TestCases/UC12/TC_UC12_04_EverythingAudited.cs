@@ -10,7 +10,7 @@ namespace Ehr.Web.Tests.TestCases.UC12;
 // Purpose / scenario: Everything done under emergency access is in the audit log, under the clinician's account: the
 //   grant with its reason, the row the grant wrote, every view of the chart, and a change made to the patient's record
 //   from it. The admin's audit page, filtered by the patient, lists the same events.
-// Type: Functional (logging)
+// Type: Functional (exceptional condition)
 // Requirements: FR-32, with FR-06
 // Use case: UC 12, Open a chart through emergency access
 // Preconditions: A clinician who has finished setup, an admin, and a patient off the clinician's panel.
