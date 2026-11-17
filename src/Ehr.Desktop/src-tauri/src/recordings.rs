@@ -136,11 +136,15 @@ pub fn finish(db: &mut Connection, owner: Uuid, recording: &Recording, body: &st
     tx.commit()
 }
 
+/// The desktop sync tests: also TC-UC8-06 (NFR-10). CI's desktop job (.github/workflows/ci.yml) runs them on macOS and
+/// Windows, the team's two platforms.
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{draft_sync, drafts};
 
+    /// TC-UC7-04 (FR-23): audio recorded offline is kept on the device, encrypted, reopens with its upload position,
+    /// and its transcript becomes a draft in the outbox. The upload itself, after reconnecting, is TC-UC8-04 in sync.rs.
     #[test]
     fn recording_reopens_with_its_upload_position_and_hands_off_to_the_draft_outbox() {
         let file = std::env::temp_dir().join(format!("ehr-recording-{}.db", Uuid::now_v7()));

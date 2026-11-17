@@ -796,6 +796,9 @@ mod tests {
         assert_eq!(store.waiting().unwrap(), 0, "Quick text has its own queue");
     }
 
+    /// TC-UC7-01 (FR-21, FR-22): a downloaded chart and the draft written on it reopen without a connection.
+    /// Also TC-UC7-02 (FR-21): only the clinician's downloaded charts are available offline; a chart that wasn't
+    /// downloaded, or another clinician's, can't be opened or drafted on.
     #[test]
     fn an_assigned_chart_and_its_draft_reopen_without_a_connection() {
         let database = TempDatabase::new();
@@ -845,6 +848,102 @@ mod tests {
         assert_eq!(
             drafts::pending(&store.connection, clinician, None).unwrap()[0].id,
             drafts[0].id
+        );
+    }
+
+    /// TC-UC7-03 (FR-22): an existing draft is edited offline. The edit is stored encrypted, waits in the outbox
+    /// as a new change based on the version the clinician edited, and is refused for another clinician, for a chart
+    /// that isn't downloaded, and for a version replaced since.
+    #[test]
+    fn an_existing_draft_is_edited_offline_and_waits_encrypted_in_the_outbox() {
+        let database = TempDatabase::new();
+        let clinician = Uuid::now_v7();
+        let colleague = Uuid::now_v7();
+        let patient = Uuid::now_v7();
+        let another = Uuid::now_v7();
+        let chart = |id| charts::Chart {
+            id,
+            name: "Synthetic Patient".to_owned(),
+            mrn: "SYN1".to_owned(),
+            birth_date: "1980-01-01".to_owned(),
+            gender: "unknown".to_owned(),
+            allergies: vec![],
+            medications: vec![],
+            conditions: vec![],
+            visits: vec![],
+        };
+
+        // The draft exists: written on the chart and saved by the server as version 1, before going offline.
+        let mut store = database.open();
+        store.replace_panel(clinician, &[chart(patient)]).unwrap();
+        store
+            .save_clinical_draft(clinician, patient, "Synthetic first draft")
+            .unwrap();
+        let first = store.clinical_pending(clinician).unwrap().remove(0);
+        let id = Uuid::parse_str(&first.id).unwrap();
+        store
+            .apply_clinical_answer(
+                clinician,
+                &first,
+                draft_sync::PushResult::Applied {
+                    current: draft_sync::ServerDraft {
+                        id: first.id.clone(),
+                        patient_id: patient.to_string(),
+                        body: "Synthetic first draft".to_owned(),
+                        version: 1,
+                    },
+                },
+            )
+            .unwrap();
+        assert!(store.clinical_pending(clinician).unwrap().is_empty());
+        drop(store);
+
+        // Offline: the store reopens, and the clinician edits the draft.
+        let mut store = database.open();
+        assert!(matches!(
+            store.edit_clinical(colleague, patient, id, Some(1), "Wrong owner"),
+            Err(Error::ChangedSince)
+        ));
+        assert!(matches!(
+            store.edit_clinical(clinician, another, id, Some(1), "Wrong chart"),
+            Err(Error::ChangedSince)
+        ));
+        assert!(matches!(
+            store.edit_clinical(clinician, patient, id, Some(0), "Stale version"),
+            Err(Error::ChangedSince)
+        ));
+        store
+            .edit_clinical(clinician, patient, id, Some(1), "Synthetic edited offline")
+            .unwrap();
+
+        let edit = store.clinical_pending(clinician).unwrap().remove(0);
+        assert_eq!(edit.id, first.id);
+        assert_ne!(edit.key, first.key, "the edit is a new change");
+        assert_eq!(edit.body, "Synthetic edited offline");
+        assert_eq!(edit.base_version, Some(1));
+        let (_, drafts) = store.offline_chart(clinician, patient).unwrap();
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].body, "Synthetic edited offline");
+        assert_eq!(drafts[0].state, "pending");
+        assert!(store.clinical_pending(colleague).unwrap().is_empty());
+
+        // Once the chart is no longer downloaded, the draft can't be edited offline.
+        store.replace_panel(clinician, &[]).unwrap();
+        assert!(matches!(
+            store.edit_clinical(clinician, patient, id, Some(1), "Not on the panel"),
+            Err(Error::ChangedSince)
+        ));
+        drop(store);
+
+        // At rest: the file isn't plain SQLite, the edit's words aren't in it, and a wrong key can't open it.
+        let file = std::fs::read(&database.0).unwrap();
+        assert!(!file.starts_with(b"SQLite format 3"));
+        let words = b"Synthetic edited offline";
+        assert!(!file.windows(words.len()).any(|bytes| bytes == words));
+        assert!(Store::open(&database.0, &[8; 32]).is_err());
+        assert_eq!(
+            database.open().clinical_pending(clinician).unwrap()[0].body,
+            "Synthetic edited offline"
         );
     }
 
