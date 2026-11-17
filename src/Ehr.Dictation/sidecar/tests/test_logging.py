@@ -15,6 +15,8 @@ SPOKEN = "zebrafinch"
 PROPOSED = "Quokkas twice daily"
 
 
+# TC-UC9-05 (NFR-07): a whole dictation logs none of its words, neither what was said nor what was proposed.
+# Also covered by test_audio.py (nothing written to disk) and DictationApiTests (nothing saved by the web app).
 def test_a_dictation_logs_none_of_its_words(settings, caplog, capfd):
     caplog.set_level(logging.DEBUG)
     records: list[logging.LogRecord] = []

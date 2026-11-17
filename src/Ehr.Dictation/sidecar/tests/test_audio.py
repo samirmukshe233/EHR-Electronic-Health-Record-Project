@@ -57,6 +57,7 @@ def test_refuses_bytes_that_are_not_audio_without_repeating_ffmpeg():
     assert "exit code" in str(refused.value)
 
 
+# Also TC-UC9-05 (NFR-07): decoding writes nothing to disk. The primary test is in test_logging.py.
 def test_nothing_is_written_to_disk(tmp_path, monkeypatch):
     monkeypatch.setenv("TMPDIR", str(tmp_path))
     monkeypatch.chdir(tmp_path)

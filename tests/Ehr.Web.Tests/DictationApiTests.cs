@@ -32,6 +32,8 @@ public class DictationApiTests(WebApps apps) : IClassFixture<WebApps>
 
     static CancellationToken Cancel => TestContext.Current.CancellationToken;
 
+    // TC-UC10-01 (FR-08, FR-11, FR-12, FR-13): the proposed fields come back awaiting review, with their sources. Also
+    // TC-UC9-01 (FR-07, FR-10, FR-32, NFR-14), through the web app: the transcript grows as the clinician speaks.
     [Fact]
     public async Task A_clinician_dictates_and_gets_the_fields_as_pending_proposals()
     {
@@ -218,6 +220,7 @@ public class DictationApiTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Empty(service.Received);
     }
 
+    // Also TC-UC9-03 (FR-10): anything but audio is refused, 415. The primary test is in the sidecar's test_sessions.py.
     [Theory]
     [InlineData("text/plain")]
     [InlineData("application/json")]
@@ -254,6 +257,7 @@ public class DictationApiTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(DictationApi.MaxChunkBytes, Assert.Single(service.Received, request => request.PathAndQuery.Contains("/audio")).Body.Length);
     }
 
+    // Also TC-UC9-05 (NFR-07): the web app saves nothing of a dictation. The primary test is the sidecar's test_logging.py.
     [Fact]
     public async Task Nothing_is_saved_by_a_whole_dictation()
     {
@@ -301,6 +305,8 @@ public class DictationApiTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Null(json["fields"]);
     }
 
+    // TC-UC10-04 (FR-11, FR-13): the language model is down, so the transcript comes back as plain text and the
+    // fields aren't sorted. Also covered by the sidecar's test_sessions.py and DictationPageTests.
     [Fact]
     public async Task An_unavailable_model_returns_the_transcript_and_says_the_fields_could_not_be_sorted()
     {
@@ -458,6 +464,7 @@ public class DictationApiTests(WebApps apps) : IClassFixture<WebApps>
     }
 
     // How transcription resumes after a dropped connection: the service says which chunk it needs next.
+    // Also TC-UC9-04 (FR-07, FR-10), through the web app. The primary test is the sidecar's test_sessions.py.
     [Fact]
     public async Task A_chunk_out_of_order_is_answered_with_the_one_to_send_next()
     {
@@ -493,6 +500,7 @@ public class DictationApiTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal("stopped", await ErrorAsync(late));
     }
 
+    // Also TC-UC9-03 (FR-10): audio that can't be decoded is refused, 422. The primary test is the sidecar's test_sessions.py.
     [Fact]
     public async Task Audio_that_cannot_be_decoded_is_refused_with_422()
     {

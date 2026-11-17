@@ -13,6 +13,8 @@ public class DictationOrdersTests
 {
     static readonly string[] Assemblies = [typeof(Ehr.Web.Site).Assembly.Location, typeof(PhiReader).Assembly.Location];
 
+    // Also TC-UC10-02 (FR-14): no dictation code can reach the order code. The primary test is the sidecar's
+    // test_validation.py.
     [Fact]
     public void Nothing_in_the_dictation_code_reaches_orders()
     {

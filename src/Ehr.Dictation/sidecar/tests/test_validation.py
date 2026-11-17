@@ -39,6 +39,8 @@ def own(text: str, value: str, *sources: str):
 # ---- What goes out ---------------------------------------------------------------------------------------------------
 
 
+# Also TC-UC10-01 (FR-08, FR-11, FR-12, FR-13): a grounded value goes out awaiting review, with its sources.
+# The primary test is DictationApiTests.
 def test_a_grounded_value_is_pending_with_where_it_came_from():
     text = transcript(DICTATION)
 
@@ -231,6 +233,8 @@ def test_a_drug_is_superseded_only_when_the_correction_names_another():
 # ---- Grounding (FR-12) -----------------------------------------------------------------------------------------------
 
 
+# TC-UC10-03 (FR-12, FR-13): a value with a word the transcript doesn't have isn't grounded, so it's discarded
+# and the field stays empty.
 @pytest.mark.parametrize(("said", "value"), [
     ("Decrease metformin to 500 mg.", "Increase metformin to 500 mg."),
     ("Left knee pain for two weeks.", "Right knee pain for two weeks."),
@@ -645,6 +649,8 @@ DOCUMENTATION = [
 ]
 
 
+# TC-UC10-02 (FR-14): a dictated order or allergy list change is never carried into a field. Also covered by
+# tests/Ehr.Architecture.Tests/DictationOrdersTests.cs.
 @pytest.mark.parametrize("value", DIRECTIVES)
 def test_an_order_or_allergy_list_change_is_never_carried(value):
     checked = own(value.replace("О", "O").replace("​", ""), value)
