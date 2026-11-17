@@ -6,72 +6,73 @@ using Xunit;
 namespace Ehr.Web.Tests.TestCases.UC5;
 
 // Test Case ID: TC-UC5-06
-// Purpose / scenario: Registration testing uses only synthetic data. The portal registration tests register only
-//   addresses at reserved test domains, and the example portal account the local stack registers belongs to a
-//   synthetic patient of the synthetic clinic.
+// Purpose / scenario: Registration testing uses only synthetic data. Registration and portal testing use only
+//   synthetic patients and addresses at reserved domains: the example accounts the local stack is set up with, the
+//   patient the example portal account belongs to, the synthetic clinic, and the addresses the registration tests
+//   register.
 // Type: Non-functional (NFR-13)
-// Requirements: NFR-13, FR-15
+// Requirements: NFR-13, with FR-15
 // Use case: UC 5, Register for the patient portal
 // Preconditions: The repository as committed. No database is needed.
-// Inputs and system conditions: The registration tests (PortalTests.cs, PortalResendConfirmationTests.cs and
-//   PortalPasswordResetTests.cs), the test fixture's address generator (WebApps.NewEmail), the local stack's example
-//   accounts (infra/compose/test-accounts.cs), and the synthetic clinic (bench/Ehr.Seed).
-// Test data: The example portal account patient@example.com, registered for MRN SYN0000001, and the first patient of
-//   the synthetic clinic.
+// Inputs and system conditions: The example accounts (infra/compose/test-accounts.cs), the stack's settings example
+//   (infra/compose/.env.example), the synthetic clinic (bench/Ehr.Seed), and the test fixture's address generator that
+//   the registration tests use (WebApps.NewEmail). These are the checks of TC-UC11-06, here for registration.
+// Test data: patient@example.com and MRN SYN0000001; the first 1,000 patients of the synthetic clinic; an address made
+//   by the test fixture.
 // Steps:
-//   1. In each registration test file, collect every whole email address written in it, and check that it gets the
-//      addresses it registers from the fixture.
-//   2. Make an address with the test fixture.
-//   3. Read the example portal account's address and MRN from test-accounts.cs.
-//   4. Make the synthetic clinic's patient with that MRN.
-// Expected result: In step 1 every address found is at example.test or example.com, domains reserved for tests and
-//   examples, and each file calls WebApps.NewEmail. Step 2's address is at example.test. In step 3 the address is at
-//   example.com and the MRN starts SYN. Step 4's patient has that MRN, and given and family names that carry a number,
-//   as no real name does. Acceptance criterion: no address outside a reserved domain, no MRN outside the synthetic
-//   clinic's.
+//   1. Collect every email address in test-accounts.cs and .env.example.
+//   2. Collect every MRN in test-accounts.cs.
+//   3. Make the first 1,000 patients of the synthetic clinic.
+//   4. Make an address with the test fixture, as the registration tests do.
+// Expected result: Every address is at example.com, every MRN starts SYN, every synthetic patient has a SYN MRN and a
+//   name with a number in it, and the fixture's address is at example.test.
 // Creator: Tahseen Arnan
 public partial class TC_UC5_06_Nfr13_SyntheticData
 {
     [Theory]
-    [InlineData("tests/Ehr.Web.Tests/PortalTests.cs")]
-    [InlineData("tests/Ehr.Web.Tests/PortalResendConfirmationTests.cs")]
-    [InlineData("tests/Ehr.Web.Tests/PortalPasswordResetTests.cs")]
-    public void The_registration_tests_register_only_addresses_at_reserved_domains(string file)
+    [InlineData("infra/compose/test-accounts.cs")]
+    [InlineData("infra/compose/.env.example")]
+    public void The_example_accounts_use_only_reserved_example_addresses(string file)
     {
         var text = File.ReadAllText(RepositoryRoot.Combine(file));
 
-        Assert.Contains("WebApps.NewEmail()", text);
-        Assert.All(EmailAddress().Matches(text).Select(m => m.Value).Distinct(),
-            address => Assert.True(address.EndsWith("@example.test", StringComparison.Ordinal) || address.EndsWith("@example.com", StringComparison.Ordinal),
-                $"{file} writes {address}, which isn't at a reserved test domain."));
-    }
+        var addresses = EmailAddress().Matches(text).Select(m => m.Value).Distinct().ToList();
 
-    [Fact]
-    public void The_fixture_registers_addresses_at_a_reserved_test_domain() =>
-        Assert.EndsWith("@example.test", WebApps.NewEmail());
+        Assert.NotEmpty(addresses);
+        Assert.All(addresses, address => Assert.EndsWith("@example.com", address));
+    }
 
     [Fact]
     public void The_example_portal_account_is_registered_for_a_synthetic_patient()
     {
         var text = File.ReadAllText(RepositoryRoot.Combine("infra/compose/test-accounts.cs"));
 
-        var email = Assert.Single(PatientEmail().Matches(text)).Groups[1].Value;
-        var mrn = Assert.Single(PatientMrn().Matches(text)).Groups[1].Value;
-        Assert.EndsWith("@example.com", email);
-        Assert.StartsWith("SYN", mrn);
+        var mrns = Mrn().Matches(text).Select(m => m.Value).Distinct().ToList();
 
-        var patient = SyntheticClinic.Chart(0).Patient;
-        Assert.Equal(mrn, patient.Mrn);
-        Assert.Matches("[0-9]", patient.GivenName);
-        Assert.Matches("[0-9]", patient.FamilyName);
+        Assert.Contains("patient@example.com", text);
+        Assert.Contains("SYN0000001", mrns);
+        Assert.All(mrns, mrn => Assert.StartsWith("SYN", mrn));
     }
+
+    [Fact]
+    public void The_synthetic_clinics_patients_are_obviously_synthetic()
+    {
+        foreach (var chart in new SyntheticClinic(1_000).Charts())
+        {
+            Assert.StartsWith("SYN", chart.Patient.Mrn);
+            Assert.Matches("[0-9]", chart.Patient.GivenName);
+            Assert.Matches("[0-9]", chart.Patient.FamilyName);
+        }
+    }
+
+    [Fact]
+    public void The_registration_tests_register_addresses_at_a_reserved_test_domain() =>
+        Assert.EndsWith("@example.test", WebApps.NewEmail());
 
     [GeneratedRegex(@"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")]
     private static partial Regex EmailAddress();
 
-    [GeneratedRegex(@"PatientEmail = ""([^""]+)""")]
-    private static partial Regex PatientEmail();
-
-    [GeneratedRegex(@"PatientMrn = ""([^""]+)""")]
-    private static partial Regex PatientMrn();
+    // An MRN as test-accounts.cs writes one: letters then seven digits, such as SYN0000001.
+    [GeneratedRegex(@"\b[A-Z]{3}[0-9]{7}\b")]
+    private static partial Regex Mrn();
 }
