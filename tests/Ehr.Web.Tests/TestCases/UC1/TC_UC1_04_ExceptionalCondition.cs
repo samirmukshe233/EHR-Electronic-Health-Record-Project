@@ -11,8 +11,7 @@ namespace Ehr.Web.Tests.TestCases.UC1;
 // Purpose / scenario: Off-site, with the on-site server unreachable, the clinician signs an order. It isn't saved,
 //   the page says why, and the form keeps its entries.
 // Type: Functional (exceptional condition)
-// Requirements: FR-05, FR-29, FR-32 (UC 1's functional requirements; which of them this case traces to is to be
-//   confirmed against the SE document, which isn't in the repository)
+// Requirements: FR-05, FR-33, FR-34
 // Use case: UC 1, Place an order
 // Preconditions: The clinician signed in while the on-site server was up, and the patient is on their panel. The
 //   cloud app's link to the on-site server is then down (the CloudCutOff app), and its check has found that out.

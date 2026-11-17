@@ -10,8 +10,7 @@ namespace Ehr.Web.Tests.TestCases.UC2;
 // Purpose / scenario: During the outage the clinician submits a change, which can't be made. It is refused with the
 //   "Not saved" page, which says why and shows again what was typed.
 // Type: Functional (invalid input)
-// Requirements: FR-02, FR-33, FR-34, FR-35, FR-36 (UC 2's functional requirements; which of them this case traces to is to be
-//   confirmed against the SE document, which isn't in the repository)
+// Requirements: FR-33, FR-34
 // Use case: UC 2, Read records during an on-site outage
 // Preconditions: The clinician signed in while the on-site server was up. The cloud app's link to the on-site server
 //   is then down (the CloudCutOff app).

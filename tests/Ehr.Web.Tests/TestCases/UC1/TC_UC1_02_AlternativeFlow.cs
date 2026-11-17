@@ -8,8 +8,7 @@ namespace Ehr.Web.Tests.TestCases.UC1;
 // Purpose / scenario: The clinician orders an item the patient already has an active order for. The form warns and
 //   saves nothing until a reason is given; with a reason, the order is saved. Two submissions at once save one order.
 // Type: Functional (alternative flow)
-// Requirements: FR-05, FR-29, FR-32 (UC 1's functional requirements; which of them this case traces to is to be
-//   confirmed against the SE document, which isn't in the repository)
+// Requirements: FR-05
 // Use case: UC 1, Place an order
 // Preconditions: The clinician is signed in on the on-site app and the patient is on their panel. The patient has one
 //   active order for the item, signed in step 1. The clinic's server is up.
