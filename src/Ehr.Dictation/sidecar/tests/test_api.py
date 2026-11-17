@@ -112,6 +112,7 @@ def test_after_cancel_the_dictation_is_gone(settings):
     assert after.status_code == unknown.status_code == 404
 
 
+# Also TC-UC9-03 (FR-10): bytes that aren't audio are refused at stop. The primary test is in test_sessions.py.
 def test_bytes_that_are_not_audio_are_refused_at_stop(settings):
     with client(settings) as http:
         session_id = http.post("/v1/sessions", headers=HEADERS).json()["sessionId"]

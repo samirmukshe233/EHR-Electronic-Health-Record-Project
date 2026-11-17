@@ -11,7 +11,7 @@ namespace Ehr.Web.Tests.TestCases.UC12;
 // Purpose / scenario: Only a clinician can use emergency access. An admin, who manages accounts and reviews the audit
 //   log but doesn't treat patients, is refused the patient pages and the reason form even by typing their addresses,
 //   and someone signed out is sent to sign in. Nothing is read or granted for either.
-// Type: Functional (alternative course: the wrong role)
+// Type: Functional (alternative flow)
 // Requirements: FR-29, with FR-06
 // Use case: UC 12, Open a chart through emergency access
 // Preconditions: An admin who has finished setup, and a patient off every panel.

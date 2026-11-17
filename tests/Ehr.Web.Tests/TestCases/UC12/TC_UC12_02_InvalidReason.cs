@@ -9,8 +9,8 @@ namespace Ehr.Web.Tests.TestCases.UC12;
 // Test Case ID: TC-UC12-02
 // Purpose / scenario: Emergency access is never granted without a real reason: one of 10 to 500 characters once the
 //   spaces around it are taken off. Each refused reason gets its own message, nothing is recorded, and the chart stays
-//   closed; a reason exactly 10 characters long is accepted, and is recorded without the spaces.
-// Type: Functional (invalid input, with the boundary)
+//   closed; at the boundary, a reason exactly 10 characters long is accepted, and is recorded without the spaces.
+// Type: Functional (invalid input)
 // Requirements: FR-06
 // Use case: UC 12, Open a chart through emergency access
 // Preconditions: A clinician who has finished setup, and a patient off their panel with no emergency access given yet.

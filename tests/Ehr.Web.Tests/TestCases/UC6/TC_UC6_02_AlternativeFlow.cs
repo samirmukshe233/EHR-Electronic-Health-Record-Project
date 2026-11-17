@@ -7,7 +7,7 @@ namespace Ehr.Web.Tests.TestCases.UC6;
 // Purpose / scenario: A signed-in patient with no released results opens their test results and is told they have
 //   none yet, and pointed to their care team; a result that isn't released doesn't appear.
 // Type: Functional (alternative flow)
-// Requirements: see docs/UC6.md
+// Requirements: FR-16
 // Use case: UC 6, View test results in the portal
 // Preconditions: The patient has a confirmed portal account and is signed in on the on-site app. The clinic's server
 //   is up.

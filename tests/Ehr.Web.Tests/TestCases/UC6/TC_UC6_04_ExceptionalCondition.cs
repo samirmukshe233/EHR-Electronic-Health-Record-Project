@@ -12,7 +12,7 @@ namespace Ehr.Web.Tests.TestCases.UC6;
 //   results: they are read from the cloud copy, the page is marked read-only, and the read is recorded in the cloud
 //   app's queue for the clinic's server.
 // Type: Functional (exceptional condition)
-// Requirements: see docs/UC6.md
+// Requirements: FR-16, FR-32, FR-34
 // Use case: UC 6, View test results in the portal
 // Preconditions: The patient has a confirmed portal account and signed in through the cloud app while it could reach
 //   the clinic's server. The cloud app's link to the clinic's server is then down, and its audit queue can't ship.

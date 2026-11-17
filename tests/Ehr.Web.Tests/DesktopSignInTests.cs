@@ -34,6 +34,9 @@ public class DesktopSignInTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(1, await apps.AuditEventsAsync(AuditActions.SignIn, actorId: account.Id));
     }
 
+    // TC-UC7-02 (FR-21) in the SE document (Sara Lelo), server side: the offline download holds only the clinician's
+    // assigned charts, so only those are available offline. The client side is store.rs
+    // (an_assigned_chart_and_its_draft_reopen_without_a_connection).
     [Fact]
     public async Task Offline_download_only_includes_the_clinicians_assigned_charts()
     {
@@ -58,7 +61,10 @@ public class DesktopSignInTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(0, await apps.AuditEventsAsync(AuditActions.Read, actorId: clinician.Id, patientId: other));
     }
 
-    // TC-UC8-05 (NFR-09) in the SE document (Sara Lelo): a replayed operation adds no second draft and keeps the newer one.
+    // TC-UC8-01, TC-UC8-03 and TC-UC8-05 in the SE document (Sara Lelo), server side, all in this one test:
+    //   TC-UC8-01 (FR-24): a draft pushed after reconnecting is applied;
+    //   TC-UC8-03 (FR-24): a pull since the watermark brings back the edit saved on the server since;
+    //   TC-UC8-05 (NFR-09, FR-24): a replayed operation adds no second draft and keeps the newer one.
     [Fact]
     public async Task Draft_sync_only_returns_the_authors_drafts_and_deduplicates_an_outdated_retry()
     {

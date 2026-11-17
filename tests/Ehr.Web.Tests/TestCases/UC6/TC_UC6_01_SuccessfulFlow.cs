@@ -9,7 +9,7 @@ namespace Ehr.Web.Tests.TestCases.UC6;
 // Purpose / scenario: A signed-in patient opens their test results and sees their own released results, newest first,
 //   each with its value, normal range, flag and plain-language meaning, and nobody else's results.
 // Type: Functional (successful flow)
-// Requirements: FR-16
+// Requirements: FR-16, FR-32
 // Use case: UC 6, View test results in the portal
 // Preconditions: The patient has a confirmed portal account and is signed in on the on-site app. The clinic's server
 //   is up.

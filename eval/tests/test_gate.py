@@ -158,6 +158,8 @@ def test_partial_results_or_a_baseline_flag_fail(eval_dir):
     assert len(check(eval_dir / "results", eval_dir)) == 2
 
 
+# TC-UC10-06 (NFR-05, FR-12, FR-14): field safety, checked on every change: committed eval results that show an
+# order or allergy change fail CI's eval step (ci.yml, "Check the committed eval results").
 def test_an_order_or_allergy_change_shown_fails(eval_dir):
     shown = results(eval_dir)
     shown["metrics"]["order_allergy"]["shown"] = 1
@@ -212,6 +214,9 @@ def test_a_metric_the_baseline_has_and_the_results_lack_fails(eval_dir):
     assert "note-field F1" in problem
 
 
+# TC-UC9-06 (NFR-14, FR-07): English dictation accuracy. Committed results scoring below the accepted baseline fail
+# CI's eval step; the live-transcript speed is test_sessions.py. Also TC-UC10-06 (NFR-05, FR-12, FR-14): the
+# structuring scores and time are held to the baseline on every change.
 def test_a_score_below_the_accepted_baseline_fails(eval_dir):
     save(eval_dir, "baseline.json", results(eval_dir))
     worse = results(eval_dir)

@@ -54,6 +54,8 @@ public class DictationPageTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(before + 1, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient));
     }
 
+    // Also TC-UC9-01 (FR-07, FR-10, FR-32, NFR-14), from the dictation page. The primary test is the sidecar's
+    // test_sessions.py.
     [Fact]
     public async Task The_page_token_drives_a_whole_dictation_to_pending_fields()
     {
@@ -86,6 +88,7 @@ public class DictationPageTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(clinician.Id.ToString(), chunk.Headers[DictationSidecar.OwnerHeader]);
     }
 
+    // Also TC-UC10-04 (FR-11, FR-13), from the dictation page. The primary test is DictationApiTests.
     [Fact]
     public async Task With_the_model_unavailable_the_transcript_comes_back_with_the_message_the_page_shows()
     {

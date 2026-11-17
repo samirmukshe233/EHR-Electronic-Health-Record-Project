@@ -49,6 +49,8 @@ async def dictate(sessions: Sessions, owner: str = ALICE) -> str:
     return session.id
 
 
+# TC-UC9-01 (FR-07, FR-10, FR-32, NFR-14): chunks sent in order as the clinician speaks build the live transcript,
+# which grows with each chunk. Also covered, through the web app, by DictationApiTests and DictationPageTests.
 def test_chunks_in_order_build_a_live_transcript(settings):
     async def run():
         sessions, _ = make(settings)
@@ -65,6 +67,8 @@ def test_chunks_in_order_build_a_live_transcript(settings):
     assert [s["final"] for s in last["segments"]] == [True, True, False]
 
 
+# Also TC-UC9-04 (FR-07, FR-10): what resuming relies on. A chunk sent again is ignored, and one that skips ahead
+# is refused with the one to send next. The whole resumption is the next test.
 def test_a_chunk_sent_again_is_ignored_and_one_that_skips_ahead_is_refused(settings):
     async def run():
         sessions, _ = make(settings)
@@ -80,6 +84,38 @@ def test_a_chunk_sent_again_is_ignored_and_one_that_skips_ahead_is_refused(setti
 
     assert again == first and session.next_seq == 1
     assert (skipped.status, skipped.code, skipped.extra) == (409, "out_of_order", {"expectedSeq": 1})
+
+
+# TC-UC9-04 (FR-07, FR-10): the connection drops and the transcript resumes. Mid-dictation, chunk 4 reaches the
+# sidecar but its answer is lost, so the client sends it again; then chunk 5 is lost on the way, so the client's next
+# chunk skips ahead and is told to send 5. Sending from there, the live transcript carries on from where it was, and the
+# final transcript is the one a dictation with no drop gives.
+def test_after_a_dropped_connection_the_transcript_resumes_where_it_left_off(settings):
+    async def uninterrupted():
+        sessions, _ = make(settings)
+        return await sessions.stop(await dictate(sessions), ALICE)
+
+    async def interrupted():
+        sessions, _ = make(settings)
+        session = sessions.start(ALICE)
+        parts = chunks()
+        before = [await sessions.add_audio(session.id, ALICE, seq, parts[seq]) for seq in range(5)]
+        resent = await sessions.add_audio(session.id, ALICE, 4, parts[4])
+        with pytest.raises(SessionError) as skipped:
+            await sessions.add_audio(session.id, ALICE, 6, parts[6])
+        resumed_from = skipped.value.extra["expectedSeq"]
+        after = [await sessions.add_audio(session.id, ALICE, seq, parts[seq]) for seq in range(resumed_from, len(parts))]
+        return before, resent, skipped.value, after, await sessions.stop(session.id, ALICE)
+
+    expected = asyncio.run(uninterrupted())
+    before, resent, skipped, after, result = asyncio.run(interrupted())
+
+    assert resent == before[-1]
+    assert (skipped.status, skipped.code, skipped.extra) == (409, "out_of_order", {"expectedSeq": 5})
+    assert [a["receivedSeq"] for a in after] == list(range(5, 10))
+    assert after[0]["transcript"]["text"].startswith(before[-1]["transcript"]["text"])
+    assert after[-1]["audioSeconds"] == 10.0
+    assert result["transcript"] == expected["transcript"] and result["transcript"]["final"]
 
 
 def test_a_dictation_is_invisible_to_anyone_else(settings):
@@ -169,6 +205,8 @@ def test_the_result_waits_for_fields_that_take_longer_than_stop(settings):
     assert waited["sorting"] == "done" and waited["fields"]["history"]["status"] == "pending"
 
 
+# Also TC-UC10-04 (FR-11, FR-13): with the language model down, slow or answering nonsense, the transcript stays
+# as plain text and the result says why the fields weren't sorted. The primary test is DictationApiTests.
 @pytest.mark.parametrize(("llama", "reason"), [
     (FakeLlama(status=503), "model_unavailable"),
     (FakeLlama(GROUNDED, delay=3), "model_timeout"),
@@ -218,6 +256,7 @@ def test_audio_after_stop_and_a_result_before_it_are_refused(settings):
     assert (early.status, early.code, late.status, late.code) == (409, "not_stopped", 409, "stopped")
 
 
+# TC-UC9-02 (FR-13): cancel discards the dictation: its audio and transcript are gone, and it can't be stopped.
 def test_cancel_discards_audio_and_transcript(settings):
     async def run():
         sessions, _ = make(settings)
@@ -252,6 +291,7 @@ def test_idle_dictations_and_old_results_are_discarded(settings):
     assert asyncio.run(run())["sorting"] == "done"
 
 
+# TC-UC10-05 (NFR-15): every result names the models, llama-server build, prompt, schema and code that made it.
 def test_every_result_says_which_models_prompt_and_schema_made_it(settings):
     async def run():
         sessions, _ = make(settings)
@@ -385,6 +425,8 @@ def test_cancel_stops_a_model_call_in_flight(settings):
 # ---- Every call answers within its budget --------------------------------------------------------------------------
 
 
+# Also TC-UC9-06 (NFR-14, FR-07), the live-transcript speed: a chunk is answered within its budget even while
+# MedASR is busy. The accuracy part is the eval gate (eval/tests/test_gate.py, and ci.yml's eval step).
 def test_a_chunk_is_answered_in_time_while_medasr_is_busy_and_the_next_one_catches_up(settings):
     async def run():
         sessions, _ = make(settings, call_seconds=0.3)
@@ -404,6 +446,7 @@ def test_a_chunk_is_answered_in_time_while_medasr_is_busy_and_the_next_one_catch
     assert caught_up["transcript"]["text"].startswith("speech")
 
 
+# Also TC-UC9-06 (NFR-14, FR-07), the live-transcript speed: stop answers within its budget.
 def test_stop_answers_within_its_budget_and_the_result_follows(settings):
     async def run():
         sessions, _ = make(settings, stop_wait_seconds=0.2)
@@ -451,6 +494,8 @@ def test_a_chunk_ffmpeg_cant_decode_in_time_is_refused_as_busy_and_can_be_sent_a
     assert again["receivedSeq"] == 0 and again["audioSeconds"] == 2.0
 
 
+# TC-UC9-03 (FR-10): audio that isn't audio, or can't be decoded, is refused (422 not_audio). Also covered by
+# test_api.py (at stop) and, through the web app, DictationApiTests (415 and 422).
 def test_bytes_that_are_not_audio_are_refused_as_not_audio(settings):
     def broken(data: bytes, **_: object):
         raise AudioError("ffmpeg couldn't decode the audio (exit code 1).")

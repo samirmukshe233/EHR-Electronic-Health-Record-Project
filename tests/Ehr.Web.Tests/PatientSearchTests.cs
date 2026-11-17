@@ -602,8 +602,8 @@ public partial class PatientSearchTests(WebApps apps) : IClassFixture<WebApps>
     // A family name no other test uses, so a search finds only this test's patients.
     static string Unique(string stem) => stem + Guid.NewGuid().ToString("N")[..8];
 
-    // The patients a page lists, in order, by the chart links in its results.
-    static List<Guid> Listed(string html) =>
+    // The patients a page lists, in order, by the chart links in its results. Also used by TestCases/UC3.
+    internal static List<Guid> Listed(string html) =>
         [.. ChartLink().Matches(html).Select(match => Guid.Parse(match.Groups[1].Value))];
 
     // The results table's row for the patient.

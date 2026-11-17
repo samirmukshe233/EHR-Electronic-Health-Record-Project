@@ -11,7 +11,7 @@ namespace Ehr.Web.Tests.TestCases.UC12;
 // Purpose / scenario: A chart off the clinician's panel asks for a reason before it shows anything, opens once one is
 //   given, stays open to that clinician for four hours without asking again, and asks again once those hours are over.
 //   Each use is flagged for an admin's review on the audit page.
-// Type: Functional (typical course of events)
+// Type: Functional (successful flow)
 // Requirements: FR-06
 // Use case: UC 12, Open a chart through emergency access
 // Preconditions: A clinician who has finished setup, an admin, and two patients: one on the clinician's panel and one

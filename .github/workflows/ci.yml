@@ -168,7 +168,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The team's machines: Apple Silicon Macs and x64 Windows PCs.
+        # The team's machines: Apple Silicon Macs and x64 Windows PCs. Running the desktop sync tests on both is
+        # TC-UC8-06, NFR-10.
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -213,8 +214,8 @@ jobs:
         run: cargo build --locked
 
       # Every test, in a release build as clinicians run the app. That includes the encrypted store's tests
-      # (TC-UC7-06, NFR-06) and the offline chart timing (TC-UC7-05, NFR-02), which is skipped in debug builds;
-      # --show-output prints its times.
+      # (TC-UC7-06, NFR-06), the offline chart timing (TC-UC7-05, NFR-02), which is skipped in debug builds, and the
+      # other UC 7 and UC 8 test cases (TC-UC7-01 to 04, TC-UC8-01, 02, 04 and 06); --show-output prints its times.
       - name: Test
         run: cargo test --locked --release -- --show-output
 

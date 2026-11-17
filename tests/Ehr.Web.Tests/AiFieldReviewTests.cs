@@ -212,8 +212,10 @@ public class AiFieldReviewTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(HttpStatusCode.NotFound, mismatch.StatusCode);
     }
 
+    // Supporting test (not numbered in the SE document): a stage, decision or completion sent again, one after another,
+    // is applied once. The concurrent case, TC-UC13-06, is the test named for it below.
     [Fact]
-    public async Task TC_UC13_06_duplicate_stage_decision_and_completion_are_idempotent()
+    public async Task Duplicate_stage_decision_and_completion_are_idempotent()
     {
         var f = await StageAsync(plan: false);
         using var stageAgain = await Stage(f, 1);
@@ -282,8 +284,11 @@ public class AiFieldReviewTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
     }
 
+    // TC-UC13-06 (NFR-09) in the SE document (Satwik Yash Padhy): concurrent review decisions stay consistent. Two
+    // conflicting decisions sent at once, two identical ones, and two completions at once never double-apply or silently
+    // replace a decision.
     [Fact]
-    public async Task Simultaneous_decisions_and_completions_never_double_apply_or_silently_replace_a_decision()
+    public async Task TC_UC13_06_Simultaneous_decisions_and_completions_never_double_apply_or_silently_replace_a_decision()
     {
         var f = await StageAsync(plan: false);
         var proposals = await Proposals(f);
