@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Ehr.Web.Tests.TestCases.UC6;
 
-// Test Case ID: TC-UC6-14
+// Test Case ID: TC-UC6-05
 // Purpose / scenario: On-site, a patient's own test results page takes under 15 ms of server time at the 99th
 //   percentile.
 // Type: Non-functional (performance)
@@ -22,7 +22,7 @@ namespace Ehr.Web.Tests.TestCases.UC6;
 //   audit event included, is under 15 ms. This is NFR-01's target, not the 20 ms gate CI applies to the p99 excluding
 //   the commit. Acceptance criterion: p99, commit included, < 15 ms.
 // Creator: Simar Rekhi
-public class TC_UC6_14_Nfr01_OnSiteNavigation
+public class TC_UC6_05_Nfr01_OnSiteNavigation
 {
     const double LimitMilliseconds = 15;
 

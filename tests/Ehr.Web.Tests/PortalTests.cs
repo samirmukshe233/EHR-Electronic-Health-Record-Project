@@ -15,6 +15,8 @@ public partial class PortalTests(WebApps apps) : IClassFixture<WebApps>
 {
     static CancellationToken Cancel => TestContext.Current.CancellationToken;
 
+    // TC-UC5-01 (register with a code), TC-UC5-02 (sign-in refused before confirming) and TC-UC5-03 (confirm, sign in,
+    // see only their own record) in the SE document (Simar Rekhi).
     [Fact]
     public async Task A_patient_registers_with_a_code_confirms_signs_in_and_sees_only_their_record()
     {
@@ -58,6 +60,7 @@ public partial class PortalTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(1, await apps.AuditEventsAsync(AuditActions.EnrollmentIssued, actorId: clinician.Id, patientId: own));
     }
 
+    // TC-UC5-04 in the SE document (Simar Rekhi): an invented or used code is refused.
     [Fact]
     public async Task A_code_that_was_never_issued_or_was_used_is_refused()
     {
@@ -157,7 +160,7 @@ public partial class PortalTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Contains(queued, e => e.Action == AuditActions.SignOut && e.PatientId == patient && e.ActorId is not null && e.TableName is null);
     }
 
-    // TC-UC5-09 (Simar Rekhi): UC5's "email already registered" course. The page answers as it does for a registration
+    // Supporting test (Simar Rekhi): UC5's "email already registered" course. The page answers as it does for a registration
     // that worked, the address's owner is told by email and offered sign-in, and the code stays unused, so the patient
     // can register with another address.
     [Fact]
@@ -278,7 +281,7 @@ public partial class PortalTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal("/portal", PathOf(signedIn));
     }
 
-    // TC-UC5-10 (Simar Rekhi): invalid entries are named in place, and nothing is created.
+    // Supporting test (Simar Rekhi): invalid entries are named in place, and nothing is created.
     [Fact]
     public async Task A_short_password_or_a_mismatch_is_named_in_place()
     {

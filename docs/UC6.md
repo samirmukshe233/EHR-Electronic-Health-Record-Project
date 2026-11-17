@@ -20,34 +20,27 @@ Sign in to the portal and choose **Results** in the navigation, or **See your te
 
 ## Courses of events and their tests
 
-In `tests/Ehr.Web.Tests`: `PortalResultsTests.cs`, `ResultExplanationTests.cs`, and one file per test case in `TestCases/UC6/`:
+The numbered test cases are the ones in the SE document (Assignment 4, sections 7.2 and 7.3), with the same IDs.
 
 | ID | Course of events | Test |
 |---|---|---|
-| TC-UC6-01 | Typical: released results, newest first, each with its range and meaning; one recorded read; not cached; the date labelled UTC | `TestCases/UC6/TC_UC6_01_SuccessfulFlow.cs`: `A_patient_sees_their_released_results_newest_first_in_plain_language` |
-| TC-UC6-02 | No results yet | `TestCases/UC6/TC_UC6_02_AlternativeFlow.cs`: `A_patient_with_no_released_results_is_told_so` |
-| TC-UC6-03 | Signed out or a clinician | `Nobody_signed_out_and_no_clinician_reaches_the_results_page` |
-| TC-UC6-04 | On-site server down: read-only, the read queued and shipped | `TestCases/UC6/TC_UC6_04_ExceptionalCondition.cs`: `Off_site_with_the_clinic_server_down_results_are_read_only_and_the_read_is_queued` |
-| TC-UC6-07 | Sign-in fails: "Wrong email or password.", and the results page sends the patient to sign in | `A_wrong_password_is_refused_and_shows_no_results` |
-| TC-FR16-01 | Low, normal and high against both ends | `A_value_is_compared_with_both_ends_of_its_range` |
-| TC-FR16-02 | A range with one end | `A_range_with_one_end_reads_as_people_say_it` |
-| TC-FR16-03 | Numbers without trailing zeros | `Numbers_drop_the_zeros_the_database_keeps` |
-| TC-FR16-04 | No number or no range | `Without_a_number_or_a_range_the_patient_is_sent_to_their_care_team` |
-| TC-FR16-05 | What the test measures | `Known_tests_say_what_they_measure_and_unknown_ones_say_nothing` |
+| TC-UC6-01 | Successful flow: released results, newest first, each with its range and meaning; one recorded read; not cached; the date labelled UTC | `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_01_SuccessfulFlow.cs` |
+| TC-UC6-02 | Alternative flow: no results yet | `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_02_AlternativeFlow.cs` |
+| TC-UC6-03 | Invalid input: signed out, or a clinician, can't reach the page | `PortalResultsTests.Nobody_signed_out_and_no_clinician_reaches_the_results_page` |
+| TC-UC6-04 | Exceptional condition: on-site server down; read-only, the read queued and shipped | `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_04_ExceptionalCondition.cs` |
+| TC-UC6-05 | NFR-01: the results page on-site, p99 of the whole request, the commit included, under 15 ms at 50,000 patients with durability on. It runs only against a run of the render benchmark (`tests/Ehr.Web.Tests/TestCases/PerformanceResults.cs` says how) and is skipped in the normal test run | `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_05_Nfr01_OnSiteNavigation.cs` |
+| TC-UC6-06 | NFR-11: the results page in modern browsers (manual, with the results from PR #43); the same run is TC-UC5-05 for the portal sign-in | `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_06_Nfr11_ModernBrowsers.md` |
 
-In `tests/Ehr.Security.Tests`:
+Supporting tests, not numbered in the SE document:
 
-| ID | Rule | Test |
-|---|---|---|
-| TC-UC6-06 | A patient sees a result only once released and finished, through both roles | `A_patient_sees_their_result_only_once_it_is_released_and_finished` |
-| TC-UC6-05 | A patient can't read another patient's results (the page takes no result ID, so this replaces "the patient changes a result's ID"): zero rows | `TestCases/UC6/TC_UC6_05_InvalidInput.cs`: `A_patient_cannot_read_another_patients_results`; also the `observations` case of `Chart_sections_are_read_by_clinicians_and_by_their_own_patient_only`, and `A_patient_sees_their_result_only_once_it_is_released_and_finished` |
-| TC-UC6-12 | A result answers only its own patient's order (FR-31) | `A_result_answers_only_its_own_patients_order` |
-| TC-UC6-08 | Results can't be changed at runtime, and any write is audited; grants, protection, policies and RLS for the table: policies, audit trigger and RLS for the table | the `observations` rows in `RuntimeRoleTests`, `ProtectionTests`, `PolicyPlanTests`, `WriteAuditTests` and `RowLevelSecurityTests` |
-
-The render benchmark measures "Portal results, the patient's own" against NFR-01.
-
-- TC-UC6-14 (NFR-01): `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_14_Nfr01_OnSiteNavigation.cs`. The results page on-site: p99 of the whole request, the commit included, under 15 ms at 50,000 patients with durability on. It runs only against a run of the render benchmark (`tests/Ehr.Web.Tests/TestCases/PerformanceResults.cs` says how) and is skipped in the normal test run.
-- TC-UC6-15 (NFR-11, any modern browser): a manual test case with the browser results from PR #43, `tests/Ehr.Web.Tests/TestCases/UC6/TC_UC6_15_Nfr11_ModernBrowsers.md`.
+| Rule | Test |
+|---|---|
+| Sign-in fails: "Wrong email or password.", and the results page sends the patient to sign in | `PortalResultsTests.A_wrong_password_is_refused_and_shows_no_results` |
+| A patient can't read another patient's results (the page takes no result ID): zero rows, through both roles | `tests/Ehr.Security.Tests/PortalResultsIsolationTests.cs`, and the `observations` case of `RowLevelSecurityTests.Chart_sections_are_read_by_clinicians_and_by_their_own_patient_only` |
+| A patient sees a result only once released and finished, through both roles | `RowLevelSecurityTests.A_patient_sees_their_result_only_once_it_is_released_and_finished` |
+| A result answers only its own patient's order (FR-31) | `RowLevelSecurityTests.A_result_answers_only_its_own_patients_order` |
+| Results can't be changed at runtime, and any write is audited | the `observations` rows in `RuntimeRoleTests`, `ProtectionTests`, `PolicyPlanTests`, `WriteAuditTests` and `RowLevelSecurityTests` |
+| FR-16's plain-language rules: low, normal and high against both ends; a range with one end; numbers without trailing zeros; no number or no range; what the test measures | `ResultExplanationTests` |
 
 ## Human review
 
@@ -65,13 +58,13 @@ These need line-by-line review by someone other than Simar (AGENTS.md):
 
 ## Not built
 
-The A3 UC 6 specification includes these; each is a Not Run test case in A4.
+The A3 UC 6 specification includes these; they are listed as remaining work in the SE document (section 7.5).
 
-| Not Run case | Part of UC 6 | Requirement | What's left |
-|---|---|---|---|
-| TC-UC6-11 | Typical step 1: the portal home lists upcoming appointments | FR-17 | An appointments table with its database rules, seeded appointments, and the home page's list |
-| TC-UC6-09 | Step 1 alternative: a proxy chooses which patient's records to view | FR-19 | A proxy authorization table, a patient picker after sign-in, and row-level security keyed on the chosen patient rather than the account's own |
-| TC-UC6-10 | Step 3 alternative: send a secure message to the care team from a result, with a confirmation | FR-18 | A messages table with its rules, a compose form linked from each result, and a clinician inbox |
-| TC-UC6-13 | Outage alternative: "messages cannot be sent until the server is back" | FR-18 | Depends on messaging; the form would show that message while the site is read-only, as the order form does |
+| Part of UC 6 | Requirement | What's left |
+|---|---|---|
+| Typical step 1: the portal home lists upcoming appointments | FR-17 | An appointments table with its database rules, seeded appointments, and the home page's list |
+| Step 1 alternative: a proxy chooses which patient's records to view | FR-19 | A proxy authorization table, a patient picker after sign-in, and row-level security keyed on the chosen patient rather than the account's own |
+| Step 3 alternative: send a secure message to the care team from a result, with a confirmation | FR-18 | A messages table with its rules, a compose form linked from each result, and a clinician inbox |
+| Outage alternative: "messages cannot be sent until the server is back" | FR-18 | Depends on messaging; the form would show that message while the site is read-only, as the order form does |
 
 Outside UC 6 itself: nothing writes results (no lab interface), and the clinician's chart doesn't list them (see Limits).

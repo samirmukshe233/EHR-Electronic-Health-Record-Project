@@ -5,7 +5,7 @@ using Xunit;
 namespace Ehr.Web.Tests;
 
 // Unit tests of ResultExplanation, the plain-language wording of a test result for the portal (FR-16; Simar Rekhi). No
-// database: each builds one result and checks the words. Test cases TC-FR16-01 to TC-FR16-05 in the SE document.
+// database: each builds one result and checks the words. Supporting unit tests for FR-16, not numbered test cases in the SE document.
 public class ResultExplanationTests
 {
     [Theory]
