@@ -282,11 +282,15 @@ pub fn resolve(
     Ok(updated == 1)
 }
 
+/// The desktop sync tests: also TC-UC8-06 (NFR-10). CI's desktop job (.github/workflows/ci.yml) runs them on macOS and
+/// Windows, the team's two platforms.
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::drafts;
 
+    /// TC-UC8-02 (FR-24): a draft the server changed since keeps both versions, and only the clinician's explicit
+    /// choice, to keep theirs or resend their own on the server's version, changes it.
     #[test]
     fn conflict_keeps_both_versions_and_only_an_explicit_choice_changes_the_draft() {
         let mut db = Connection::open_in_memory().unwrap();

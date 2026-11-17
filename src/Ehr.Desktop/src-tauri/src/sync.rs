@@ -669,6 +669,8 @@ fn reason(error: &reqwest::Error) -> String {
     cause.to_string()
 }
 
+/// The desktop sync tests: also TC-UC8-06 (NFR-10). CI's desktop job (.github/workflows/ci.yml) runs them on macOS and
+/// Windows, the team's two platforms.
 #[cfg(test)]
 mod tests {
     use std::io::{BufRead, BufReader, Read, Write};
@@ -837,6 +839,8 @@ mod tests {
         client_with(servers, &credentials(Some(session())))
     }
 
+    /// TC-UC8-01 (FR-24), client side: once a server answers, a round brings back what changed and sends what waited
+    /// in the outbox. The clinical draft push it makes is TC-UC8-01's server side, DesktopSignInTests.cs.
     #[tokio::test]
     async fn a_round_pulls_then_sends_the_outbox() {
         let server = FakeServer::start(server_that_applies);
@@ -1198,5 +1202,136 @@ mod tests {
         assert_eq!(signed_out, Ok(()));
         assert_eq!(client.account(), None);
         assert_eq!(saved(&credentials), None);
+    }
+
+    /// TC-UC8-04 (FR-24, FR-23): a recording made offline waits on the device, and once a server can be reached the
+    /// next round uploads it in chunks, stops the transcription session, and turns the transcript that comes back into
+    /// a draft in the outbox. The fake server answers as the on-prem app's offline dictation routes do
+    /// (`/api/desktop/offline-dictation`, DictationApi.cs), with a chunk size small enough that the audio goes in three
+    /// chunks.
+    #[tokio::test]
+    async fn a_recording_made_offline_is_transcribed_into_a_draft_after_reconnecting() {
+        let clinician = Uuid::now_v7();
+        let patient = Uuid::now_v7();
+        let store = memory_store();
+        store::lock(&store)
+            .replace_panel(
+                clinician,
+                &[Chart {
+                    id: patient,
+                    name: "Synthetic Patient".to_owned(),
+                    mrn: "SYN1".to_owned(),
+                    birth_date: "1980-01-01".to_owned(),
+                    gender: "unknown".to_owned(),
+                    allergies: vec![],
+                    medications: vec![],
+                    conditions: vec![],
+                    visits: vec![],
+                }],
+            )
+            .unwrap();
+        store::lock(&store)
+            .save_recording(clinician, patient, "audio/webm;codecs=opus", b"abcde")
+            .unwrap();
+        let mut signed_in = session();
+        signed_in["offlineAccess"] =
+            json!({ "clinicianId": clinician, "expiresUnixSeconds": 4_102_444_800u64 });
+        let credentials = credentials(Some(signed_in));
+
+        // Offline: nothing is reached, and the recording stays on the device.
+        let offline = client_with(&[&nothing_there()], &credentials)
+            .round(&store)
+            .await;
+        assert_eq!(offline.server, None);
+        assert!(
+            store::lock(&store)
+                .next_recording(clinician)
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(store::lock(&store).clinical_waiting(clinician).unwrap(), 1);
+
+        // Reconnected.
+        let transcript = "Synthetic transcript of the offline visit.";
+        let server = FakeServer::start(move |(method, _, _)| {
+            let route = method
+                .split_once('?')
+                .map_or(method.as_str(), |(path, _)| path);
+            let seq = method
+                .split("seq=")
+                .nth(1)
+                .map(|seq| seq.parse::<u64>().unwrap());
+            match route {
+                r if r.starts_with(&format!("GET {PATH}")) => (200, json!({ "watermark": "1", "quickTexts": [] }).to_string()),
+                "POST /api/desktop/drafts/pull" => (200, json!({ "watermark": "1", "drafts": [] }).to_string()),
+                "POST /api/desktop/offline-dictation/start" => (
+                    201,
+                    json!({ "sessionId": "synthetic-session-0001", "maxSeconds": 600, "maxChunkBytes": 2 }).to_string(),
+                ),
+                "POST /api/desktop/offline-dictation/synthetic-session-0001/audio" => (
+                    200,
+                    json!({ "receivedSeq": seq.unwrap(), "audioSeconds": 0.1, "transcript": { "text": "", "final": false, "segments": [] } }).to_string(),
+                ),
+                "POST /api/desktop/offline-dictation/synthetic-session-0001/stop" => (
+                    200,
+                    json!({ "transcript": { "text": transcript, "final": true, "segments": [] }, "sorting": "done", "fields": [], "notCarriedOver": [], "provenance": {} }).to_string(),
+                ),
+                other => panic!("unexpected request {other}"),
+            }
+        });
+        let online = client_with(&[&server.url], &credentials)
+            .round(&store)
+            .await;
+
+        assert_eq!(
+            online,
+            Report {
+                server: Some(server.url.clone()),
+                problem: None
+            }
+        );
+        let dictation: Vec<_> = server
+            .requests()
+            .into_iter()
+            .filter(|(method, _, _)| method.contains("offline-dictation"))
+            .collect();
+        let routes: Vec<_> = dictation
+            .iter()
+            .map(|(method, _, _)| {
+                method
+                    .replace(&patient.to_string(), "{patient}")
+                    .replace("/api/desktop/offline-dictation", "")
+            })
+            .collect();
+        assert_eq!(
+            routes,
+            [
+                "POST /start?patient={patient}",
+                "POST /synthetic-session-0001/audio?patient={patient}&seq=0",
+                "POST /synthetic-session-0001/audio?patient={patient}&seq=1",
+                "POST /synthetic-session-0001/audio?patient={patient}&seq=2",
+                "POST /synthetic-session-0001/stop?patient={patient}",
+            ]
+        );
+        assert!(
+            dictation
+                .iter()
+                .all(|(_, authorization, _)| authorization.as_deref() == Some("Bearer the-token"))
+        );
+        let uploaded: String = dictation[1..4]
+            .iter()
+            .map(|(_, _, body)| body.as_str())
+            .collect();
+        assert_eq!(uploaded, "abcde");
+
+        let local = store::lock(&store);
+        assert!(
+            local.next_recording(clinician).unwrap().is_none(),
+            "the audio is gone once transcribed"
+        );
+        let draft = local.clinical_pending(clinician).unwrap().remove(0);
+        assert_eq!(draft.patient_id, patient.to_string());
+        assert_eq!(draft.body, transcript);
+        assert_eq!(draft.base_version, None, "a new draft, waiting to be sent");
     }
 }
