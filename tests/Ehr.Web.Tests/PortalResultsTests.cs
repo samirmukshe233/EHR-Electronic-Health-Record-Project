@@ -7,8 +7,8 @@ namespace Ehr.Web.Tests;
 
 // UC6 "View test results" and FR-16 (Simar Rekhi): a signed-in patient sees their own released results, newest first,
 // in plain language, and nobody else's; a patient with none is told so; and the page works off-site, read-only, while
-// the clinic's server is down. TC-UC6-01, 02 and 04 are in TestCases/UC6, one file each, and use the dates and the
-// sign-in below; TC-UC6-03 and the sign-in-fails test stay here.
+// the clinic's server is down. TC-UC6-01 to 04 are in TestCases/UC6, one file each, and use the dates and the sign-in
+// below; the sign-in-fails test, a supporting test, stays here.
 public class PortalResultsTests(WebApps apps) : IClassFixture<WebApps>
 {
     internal static readonly DateTimeOffset Nov2 = new(2026, 11, 2, 15, 0, 0, TimeSpan.Zero);
@@ -17,20 +17,8 @@ public class PortalResultsTests(WebApps apps) : IClassFixture<WebApps>
 
     static CancellationToken Cancel => TestContext.Current.CancellationToken;
 
-    // TC-UC6-01 and TC-UC6-02 moved to TestCases/UC6/TC_UC6_01_SuccessfulFlow.cs and TC_UC6_02_AlternativeFlow.cs.
-
-    // TC-UC6-03: no one but a signed-in patient reaches the page.
-    [Fact]
-    public async Task Nobody_signed_out_and_no_clinician_reaches_the_results_page()
-    {
-        using var anonymous = await Client(apps.OnPrem, new CookieContainer(), followRedirects: false).GetAsync("/portal/results", Cancel);
-        Assert.Equal(HttpStatusCode.Redirect, anonymous.StatusCode);
-        Assert.StartsWith("/portal/sign-in", anonymous.Headers.Location!.PathAndQuery);
-
-        var clinician = await SignInAsync(apps.OnPrem, await apps.ClinicianAsync());
-        using var staff = await Client(apps.OnPrem, clinician.Jar, followRedirects: false).GetAsync("/portal/results", Cancel);
-        Assert.NotEqual(HttpStatusCode.OK, staff.StatusCode);
-    }
+    // TC-UC6-01, TC-UC6-02 and TC-UC6-03 moved to TestCases/UC6/TC_UC6_01_SuccessfulFlow.cs, TC_UC6_02_AlternativeFlow.cs
+    // and TC_UC6_03_InvalidInput.cs.
 
     // Supporting test: the "sign-in fails" course: the portal says so and shows no results.
     [Fact]

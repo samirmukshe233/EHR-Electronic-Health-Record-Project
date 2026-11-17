@@ -6,7 +6,7 @@ namespace Ehr.Web.Tests.TestCases.UC6;
 // Purpose / scenario: On-site, a patient's own test results page takes under 15 ms of server time at the 99th
 //   percentile.
 // Type: Non-functional (performance)
-// Requirements: NFR-01
+// Requirements: NFR-01, NFR-04
 // Use case: UC 6, View test results in the portal
 // Preconditions: A run of the render benchmark (bench/Ehr.Bench) on a machine doing nothing else: its own PostgreSQL
 //   18 with fsync, synchronous_commit and full_page_writes on, seeded with 50,000 synthetic patients; the on-site app
