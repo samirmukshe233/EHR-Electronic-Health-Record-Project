@@ -155,6 +155,52 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(1, await apps.AuditEventsAsync(AuditActions.SignNote, patientId: patient));
     }
 
+    // TC-UC14-05 (NFR-12) in the SE document (Satwik Yash Padhy): write and sign a note with the keyboard only, typed
+    // from scratch with no dictation. From the chart, the keyboard reaches "New note", fills History, Assessment and
+    // Plan in the editor, which saves them, then reviews, confirms and signs. The test above is TC-UC14-05 through
+    // dictation review.
+    [Fact]
+    public async Task TC_UC14_05_a_note_typed_from_scratch_is_written_and_signed_from_the_keyboard()
+    {
+        var (patient, session) = await AccountAsync();
+        await using var server = await ClinicalBrowserHost.StartAsync(apps);
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await LaunchAsync(playwright);
+        await using var context = await ContextAsync(browser, session);
+        var page = await context.NewPageAsync();
+        var errors = new List<string>();
+        page.PageError += (_, error) => errors.Add(error);
+        await page.GotoAsync($"{server.Url}/patients/{patient}");
+
+        await TabToAsync(page, "form[action*='handler=NewNote'] button");
+        await page.Keyboard.PressAsync("Enter");
+        await page.WaitForURLAsync("**/notes/drafts/**");
+        await TabToAsync(page, "#History");
+        await page.Keyboard.InsertTextAsync("Synthetic keyboard history");
+        await TabToAsync(page, "#Assessment");
+        await page.Keyboard.InsertTextAsync("Synthetic keyboard assessment");
+        await TabToAsync(page, "#Plan");
+        await page.Keyboard.InsertTextAsync("Synthetic keyboard plan");
+        await page.WaitForFunctionAsync("document.getElementById('note-save-status').textContent === 'Saved'");
+        await TabToAsync(page, "[data-review]");
+        await page.Keyboard.PressAsync("Enter");
+        await page.WaitForURLAsync("**/confirm?version=*");
+        await TabToAsync(page, "[name=Confirmed][type=checkbox]");
+        await page.Keyboard.PressAsync("Space");
+        await page.Keyboard.PressAsync("Tab");
+        await page.Keyboard.PressAsync("Enter");
+        await page.WaitForURLAsync("**/notes/*?signed=True");
+
+        var signed = await page.Locator("main").TextContentAsync();
+        Assert.Contains("Signed · read-only", signed);
+        Assert.Contains("Synthetic keyboard history", signed);
+        Assert.Contains("Synthetic keyboard assessment", signed);
+        Assert.Contains("Synthetic keyboard plan", signed);
+        Assert.Equal(0, await page.Locator("textarea").CountAsync());
+        Assert.Empty(errors);
+        Assert.Equal(1, await apps.AuditEventsAsync(AuditActions.SignNote, patientId: patient));
+    }
+
     [Fact]
     public async Task Failed_review_requests_preserve_edited_text_focus_errors_and_retry_without_duplicate_decisions()
     {
