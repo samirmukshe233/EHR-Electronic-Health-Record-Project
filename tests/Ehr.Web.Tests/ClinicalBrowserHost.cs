@@ -24,8 +24,11 @@ sealed class ClinicalBrowserHost : IAsyncDisposable
     ClinicalBrowserHost(WebApps apps)
     {
         key = RSA.Create(2048);
-        certificate = new CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)
+        using var created = new CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)
             .CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        // Loaded again from its PFX: on Windows, SChannel can't serve TLS with the ephemeral key CreateSelfSigned gives,
+        // and Chromium then sees the connection closed. Macs and Linux accept either.
+        certificate = X509CertificateLoader.LoadPkcs12(created.Export(X509ContentType.Pfx), null);
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { ContentRootPath = AppContext.BaseDirectory });
         builder.Logging.ClearProviders();
         builder.WebHost.ConfigureKestrel(options => options.Listen(System.Net.IPAddress.Loopback, 0, listen => listen.UseHttps(certificate)));
