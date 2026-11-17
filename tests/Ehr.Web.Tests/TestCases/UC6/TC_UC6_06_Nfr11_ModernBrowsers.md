@@ -1,11 +1,11 @@
-# TC-UC6-15 — The results page works in any modern browser
+# TC-UC6-06 — The results page works in any modern browser
 
 A manual test case: the repository has no browser automation, so this one is run by hand (or with a local Playwright
 install, as below) and its results recorded here.
 
 | Field | Value |
 |---|---|
-| Test Case ID | TC-UC6-15 |
+| Test Case ID | TC-UC6-06 (and TC-UC5-05, the portal sign-in in the same run) |
 | Purpose / scenario | A patient signs in, reads their test results, opens one, signs out and presses Back, in each modern browser; the page behaves the same in each. |
 | Type | Non-functional |
 | Requirements | NFR-11 |

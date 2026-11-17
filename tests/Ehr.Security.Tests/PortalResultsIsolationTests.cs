@@ -2,9 +2,9 @@ using Ehr.Data.Accounts;
 using Ehr.Testing;
 using Xunit;
 
-namespace Ehr.Security.Tests.TestCases.UC6;
+namespace Ehr.Security.Tests;
 
-// Test Case ID: TC-UC6-05
+// Supporting test for UC 6 (FR-30, FR-31), not one of the SE document's numbered test cases.
 // Purpose / scenario: A patient tries to read another patient's test results. The results page takes no result or
 //   patient ID, so the attempt is made where it would have to succeed: in the database, as the patient's session,
 //   asking for the other patient's result by its ID and by that patient's ID. Row-level security returns zero rows.
@@ -27,7 +27,7 @@ namespace Ehr.Security.Tests.TestCases.UC6;
 // Expected result: Each patient counts 1 for their own result and 0 for the other patient's, by result ID and by
 //   patient ID; every result each session can see is their own. The clinician counts 1 for each, so the rows exist.
 // Creator: Simar Rekhi
-public class TC_UC6_05_InvalidInput(MigratedDatabase database) : IClassFixture<MigratedDatabase>
+public class PortalResultsIsolationTests(MigratedDatabase database) : IClassFixture<MigratedDatabase>
 {
     string App => database.ConnectionStringFor("ehr_app", MigratedDatabase.AppPassword);
 

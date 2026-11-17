@@ -8,7 +8,7 @@ namespace Ehr.Web.Tests;
 // UC6 "View test results" and FR-16 (Simar Rekhi): a signed-in patient sees their own released results, newest first,
 // in plain language, and nobody else's; a patient with none is told so; and the page works off-site, read-only, while
 // the clinic's server is down. TC-UC6-01, 02 and 04 are in TestCases/UC6, one file each, and use the dates and the
-// sign-in below; TC-UC6-03 and 07 stay here.
+// sign-in below; TC-UC6-03 and the sign-in-fails test stay here.
 public class PortalResultsTests(WebApps apps) : IClassFixture<WebApps>
 {
     internal static readonly DateTimeOffset Nov2 = new(2026, 11, 2, 15, 0, 0, TimeSpan.Zero);
@@ -32,7 +32,7 @@ public class PortalResultsTests(WebApps apps) : IClassFixture<WebApps>
         Assert.NotEqual(HttpStatusCode.OK, staff.StatusCode);
     }
 
-    // TC-UC6-07: the "sign-in fails" course: the portal says so and shows no results.
+    // Supporting test: the "sign-in fails" course: the portal says so and shows no results.
     [Fact]
     public async Task A_wrong_password_is_refused_and_shows_no_results()
     {
