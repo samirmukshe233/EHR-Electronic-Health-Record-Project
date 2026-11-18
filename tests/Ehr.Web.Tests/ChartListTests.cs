@@ -133,6 +133,46 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(1, await apps.AuditEventsAsync(AuditActions.ReadSensitive, clinician.Id, patient, AuditSources.Cloud));
     }
 
+    // An entry marked sensitive after it was added is sensitive throughout its history: the history page leaves out
+    // every change to it, the ones made before it was marked included. And the desktop app's offline copy never holds
+    // sensitive items: it is told how many it wasn't given.
+    [Fact]
+    public async Task An_entry_marked_sensitive_later_leaves_the_history_and_the_offline_copy()
+    {
+        var clinician = await apps.CreateStaffAsync("Dr. Later", StaffRoles.Clinician);
+        var patient = await apps.InsertPatientAsync("Synthetic", "Marked later");
+        await apps.AssignAsync(clinician, patient);
+        var session = await SignInAsync(apps.OnPrem, clinician);
+        using var added = await SaveAsync(session.Client, patient, "medications", null, ("Name", "sertraline 50 MG Oral Tablet"), ("Status", "active"));
+        using var other = await SaveAsync(session.Client, patient, "medications", null, ("Name", "lisinopril 10 MG Oral Tablet"), ("Status", "active"));
+        using var anxiety = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Generalized anxiety disorder"), ("Status", "active"));
+        Assert.Contains("sertraline", await session.Client.GetStringAsync($"/patients/{patient}/chart-history", Cancel));
+        var entry = Guid.Parse((await RowsAsync(apps, "medication_statements", patient, "id::text", "display DESC")).First());
+
+        using var marked = await SaveAsync(session.Client, patient, "medications", entry, ("Name", "sertraline 50 MG Oral Tablet"), ("Status", "active"), ("Sensitive", "true"));
+
+        var before = await apps.AuditEventsAsync(AuditActions.ReadSensitive, clinician.Id, patient);
+        var history = await session.Client.GetStringAsync($"/patients/{patient}/chart-history", Cancel);
+        Assert.DoesNotContain("sertraline", history, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("anxiety", history, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("lisinopril", history);
+        // The sertraline's two changes and the diagnosis's one.
+        Assert.Contains("Sensitive items hidden: 3 changes are not shown.", Words(history));
+        Assert.Equal(before, await apps.AuditEventsAsync(AuditActions.ReadSensitive, clinician.Id, patient));
+        var shown = Words(await session.Client.GetStringAsync($"/patients/{patient}/chart-history?sensitive=true", Cancel));
+        Assert.Contains("Sensitive: no → yes", shown);
+        Assert.Equal(before + 1, await apps.AuditEventsAsync(AuditActions.ReadSensitive, clinician.Id, patient));
+
+        var token = await apps.DesktopSignInAsync(apps.OnPrem, clinician);
+        using var offline = await DesktopSignInTests.PostAsync(apps.OnPrem, "/api/desktop/offline-panel", token);
+        var copy = await offline.Content.ReadAsStringAsync(Cancel);
+        Assert.Contains("lisinopril 10 MG Oral Tablet", copy);
+        Assert.DoesNotContain("sertraline", copy, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("anxiety", copy, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"sensitiveNotKept\":2", copy);
+        Assert.Equal(before + 1, await apps.AuditEventsAsync(AuditActions.ReadSensitive, clinician.Id, patient));
+    }
+
     // The banner shows the patient's allergies on the note and dictation pages too, within the read each already records.
     [Fact]
     public async Task The_banner_shows_allergies_on_the_note_and_dictation_pages()

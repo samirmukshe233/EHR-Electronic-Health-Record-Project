@@ -185,6 +185,31 @@ public class ChartListSecurityTests(MigratedDatabase database) : IClassFixture<M
         Assert.Equal(["F32.A true", "F41.1 true"], await FlagsAsync());
     }
 
+    // A diagnosis that was recorded before the rule, or by something that skipped the trigger, is marked the next time
+    // the policies are applied, as the migration job does on every start; and a code with spaces round it is still caught.
+    [Fact]
+    public async Task Applying_the_policies_again_marks_existing_diagnoses_in_a_sensitive_range()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+        var id = Guid.CreateVersion7();
+        await Accounts.ExecuteAsync(database.SuperuserConnectionString, null,
+            """
+            SET LOCAL session_replication_role = replica;
+            INSERT INTO ehr.conditions (id, patient_id, code, display, clinical_status, sensitive) VALUES (@id, @patient, ' f41.1 ', 'Synthetic', 'active', false)
+            """,
+            ("id", id), ("patient", patient));
+        Assert.Equal(["false"], await AsSuperuserAsync("SELECT sensitive::text FROM ehr.conditions WHERE id = @id", ("id", id)));
+
+        await database.ApplyAsync();
+
+        Assert.Equal(["true"], await AsSuperuserAsync("SELECT sensitive::text FROM ehr.conditions WHERE id = @id", ("id", id)));
+        Assert.Equal(["true true"], await AsSuperuserAsync(
+            "SELECT relrowsecurity || ' ' || relforcerowsecurity FROM pg_class WHERE oid = 'ehr.conditions'::regclass"));
+        // The change is in the history clinicians read, made by nobody signed in.
+        Assert.Equal(["1"], await Accounts.QueryAsync(App, clinician,
+            "SELECT count(*) FROM ehr.chart_history WHERE row_id = @id AND changed_by_id IS NULL AND (after ->> 'sensitive') = 'true'", ("id", id)));
+    }
+
     [Fact]
     public async Task Clinicians_read_the_history_and_nobody_else_does()
     {

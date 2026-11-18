@@ -10,7 +10,8 @@
 --   O04, Z33.2        termination of pregnancy
 --   T74, T76          abuse, neglect and other maltreatment, confirmed or suspected
 --   X71-X83, R45.851  intentional self-harm, and suicidal ideations
--- Codes are compared without regard to case, with or without the dot. Not a table: the rule changes by review here.
+-- Codes are compared without regard to case or surrounding spaces, with or without the dot. Not a table: the rule
+-- changes by review here.
 CREATE OR REPLACE FUNCTION ehr.icd10cm_is_sensitive(code text) RETURNS boolean
     LANGUAGE sql
     IMMUTABLE
@@ -23,7 +24,7 @@ AS $$
         OR c ~ '^(B20|Z21|O04|Z332|T74|T76|R45851)'
         OR (c ~ '^X[0-9]{2}' AND substr(c, 1, 3) BETWEEN 'X71' AND 'X83'),
         false)
-    FROM (SELECT upper(replace(code, '.', '')) AS c) AS normalized
+    FROM (SELECT upper(replace(btrim(code), '.', '')) AS c) AS normalized
 $$;
 REVOKE ALL ON FUNCTION ehr.icd10cm_is_sensitive(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION ehr.icd10cm_is_sensitive(text) TO ehr_app, ehr_read;
@@ -98,3 +99,14 @@ CREATE OR REPLACE TRIGGER medication_statements_history
 CREATE OR REPLACE TRIGGER conditions_history
     AFTER INSERT OR UPDATE ON ehr.conditions
     FOR EACH ROW EXECUTE FUNCTION ehr.record_chart_history();
+
+-- Diagnoses recorded before this rule, or before a range was added to it, are marked now: the trigger above only sees
+-- rows as they are written. Run on every pass, so widening the rule reaches the rows already there. Forced row-level
+-- security hides every row from this role, so it is lifted for the statement and put back in the same transaction, as
+-- the synthetic seed does; no other session sees the table without it. The update goes through the triggers like any
+-- other: the history and the write audit show the change, made by nobody signed in.
+BEGIN;
+ALTER TABLE ehr.conditions NO FORCE ROW LEVEL SECURITY;
+UPDATE ehr.conditions SET sensitive = true WHERE NOT sensitive AND ehr.icd10cm_is_sensitive(code);
+ALTER TABLE ehr.conditions FORCE ROW LEVEL SECURITY;
+COMMIT;

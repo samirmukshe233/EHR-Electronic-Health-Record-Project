@@ -137,31 +137,33 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             return null;
         }
 
+        // An entry that is sensitive now is sensitive throughout its history, whatever it was when a change was made:
+        // a medication added unmarked and marked later doesn't stay readable here. So the entries are asked about, not
+        // the old rows, and their changes are left out in the query itself, before the limit.
+        List<Guid> sensitiveEntries =
+        [
+            .. await db.Conditions.AsNoTracking().Where(c => c.PatientId == id && c.Sensitive).Select(c => c.Id).ToListAsync(cancellationToken),
+            .. await db.MedicationStatements.AsNoTracking().Where(m => m.PatientId == id && m.Sensitive).Select(m => m.Id).ToListAsync(cancellationToken),
+        ];
+        var history = db.ChartHistory.AsNoTracking().Where(change => change.PatientId == id);
+        var hidden = sensitive || sensitiveEntries.Count == 0
+            ? 0
+            : await history.CountAsync(change => sensitiveEntries.Contains(change.RowId), cancellationToken);
         var changes = await (
-            from change in db.ChartHistory.AsNoTracking()
+            from change in history
             join staff in db.StaffUsers on change.ChangedById equals staff.Id into changers
             from staff in changers.DefaultIfEmpty()
-            where change.PatientId == id
+            where sensitive || !sensitiveEntries.Contains(change.RowId)
             orderby change.ChangedAt descending, change.Id descending
             select new ChartChange(change.TableName, change.RowId, change.ChangedAt, staff == null ? null : staff.DisplayName, change.Before, change.After))
             .Take(limit + 1).ToListAsync(cancellationToken);
         var more = changes.Count > limit;
         changes = [.. changes.Take(limit)];
-        var hidden = 0;
-        if (!sensitive)
-        {
-            hidden = changes.RemoveAll(change => IsSensitive(change.After) || IsSensitive(change.Before));
-        }
 
         // One event for one view: a read, or a read that showed sensitive items.
         audit.Record(sensitive ? AuditActions.ReadSensitive : AuditActions.Read, patient.Id, PatientsTable, patient.Id);
-
         await db.SaveChangesAsync(cancellationToken);
         return new ChartHistory(patient, changes, more, hidden, sensitive);
-
-        static bool IsSensitive(string? row) =>
-            row is not null && System.Text.Json.JsonDocument.Parse(row).RootElement.TryGetProperty("sensitive", out var flag)
-            && flag.ValueKind == System.Text.Json.JsonValueKind.True;
     }
 
     // UC 1 (Tahseen Arnan): the order form's view of a patient (OrderForm). One view of one patient, so one recorded read
