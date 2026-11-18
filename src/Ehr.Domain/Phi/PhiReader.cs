@@ -340,7 +340,9 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
     // list of patients: for a clinician. An admin can't read patients, so gets none of their names and records none.
     public async Task<InboxPage> InboxAsync(bool done, int limit, CancellationToken cancellationToken)
     {
-        var mine = db.InboxItems.AsNoTracking().Where(i => i.RecipientId == user.UserId && (i.DoneAt != null) == done);
+        // Two plain conditions, not one compared with a parameter: each matches its own partial index whatever the plan.
+        var mine = db.InboxItems.AsNoTracking().Where(i => i.RecipientId == user.UserId);
+        mine = done ? mine.Where(i => i.DoneAt != null) : mine.Where(i => i.DoneAt == null);
         var ordered = done ? mine.OrderByDescending(i => i.DoneAt).ThenBy(i => i.Id) : mine.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id);
         var items = await (
             from item in ordered.Take(limit + 1)

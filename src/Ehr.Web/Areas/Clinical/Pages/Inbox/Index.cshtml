@@ -17,7 +17,7 @@
 </nav>
 @if (Model.AlreadyDone)
 {
-    <p class="sc-notice sc-notice--info" role="status"><span class="sc-notice__state">Already done:</span> that item was marked done before. Nothing changed.</p>
+    <p class="sc-notice sc-notice--info" role="status"><span class="sc-notice__state">Nothing to mark:</span> that item isn't waiting in your inbox. It may have been marked done before. Nothing changed.</p>
 }
 @if (!Model.Done && !OnPrem.IsReachable)
 {

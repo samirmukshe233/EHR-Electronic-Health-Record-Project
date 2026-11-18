@@ -19,7 +19,8 @@ public class IndexModel(PhiReader phi, StaffInbox inbox) : PageModel
 
     public InboxPage Items { get; private set; } = null!;
 
-    // Set when "Mark done" found nothing to mark: the item was done already, in another tab perhaps.
+    // Set when "Mark done" found nothing to mark: the item was done already, in another tab perhaps, or isn't in this
+    // person's inbox. The page says the same either way, so it gives nothing away about anyone else's items.
     public bool AlreadyDone { get; private set; }
 
     public async Task OnGetAsync()
@@ -38,6 +39,8 @@ public class IndexModel(PhiReader phi, StaffInbox inbox) : PageModel
 
         AlreadyDone = true;
         Items = await phi.InboxAsync(done: false, Limit, HttpContext.RequestAborted);
+        // The app bar's count, which the filter leaves to GET pages: this POST answers with the page itself.
+        HttpContext.Items[InboxCountFilter.Item] = await phi.InboxCountAsync(HttpContext.RequestAborted);
         return Page();
     }
 }
