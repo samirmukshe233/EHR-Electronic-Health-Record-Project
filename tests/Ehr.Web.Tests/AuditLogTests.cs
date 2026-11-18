@@ -27,12 +27,12 @@ public class AuditLogTests(WebApps apps) : IClassFixture<WebApps>
 
         Assert.Contains("Dr. Reviewed", html);
         Assert.Contains("Consult requested by the attending", html);
-        Assert.Contains("<tr class=\"flagged\">", html);
-        Assert.Contains(">break_glass <span class=\"tag\">Review</span>", html);
+        Assert.Contains("<tr class=\"sc-table__flagged\">", html);
+        Assert.Contains(">break_glass <span class=\"sc-tag sc-tag--danger\">Review</span>", html);
         Assert.Contains("<td>read</td>", html);
         // The patient by ID, not by name: an admin has no access to patient data, and the only patient values on this
         // page are the ones the write audit recorded as changed.
-        Assert.Contains($"<td class=\"id\">{patient}</td>", html);
+        Assert.Contains($"<td class=\"sc-table__id\">{patient}</td>", html);
 
         var flaggedOnly = await admin.Client.GetStringAsync($"/admin/audit?Patient={patient}&Flagged=true", Cancel);
         Assert.Contains("break_glass", flaggedOnly);

@@ -307,7 +307,7 @@ sealed class Setup(Options options)
 
         var invited = await admin.PostAsync(Clinical("/admin/staff"), staff, ("Input.Email", email),
             ("Input.DisplayName", options.ClinicianName), ("Input.Clinician", "true"), ("Input.Admin", "false"));
-        var link = Regex.Match(invited.Html, @"<p class=""code"">\s*(https?://[^<\s]+/sign-in/setup\?[^<\s]+)");
+        var link = Regex.Match(invited.Html, @"<p class=""sc-copy"">\s*(https?://[^<\s]+/sign-in/setup\?[^<\s]+)");
         if (!link.Success)
         {
             throw Unexpected(invited, "inviting the clinician at Staff");
@@ -489,7 +489,7 @@ sealed class Setup(Options options)
             throw Unexpected(done, "enrolling an authenticator");
         }
 
-        account.RecoveryCodes = [.. Regex.Matches(done.Html, @"<li class=""code"">\s*([^<]+?)\s*</li>").Select(m => WebUtility.HtmlDecode(m.Groups[1].Value))];
+        account.RecoveryCodes = [.. Regex.Matches(done.Html, @"<li class=""mono-code"">\s*([^<]+?)\s*</li>").Select(m => WebUtility.HtmlDecode(m.Groups[1].Value))];
         Save();
     }
 
