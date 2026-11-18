@@ -382,6 +382,10 @@ All of these use the portal's sizes, work for proxies (step 6) under the sensiti
 
 New FR IDs (FR-37 onward) and use cases (UC 15 onward), as each step defines them, so the course document can be updated later.
 
+| ID | Step | Proposed requirement |
+| --- | --- | --- |
+| FR-37 | 1 | The system shall let clinicians discontinue a signed order with a reason, and change one by signing a replacement, without ever editing or deleting the signed order; it shall keep who, when and why. (Extends UC 1; test cases TC-UC1-07 to TC-UC1-12.) |
+
 ## Phase merges
 
 For each phase:

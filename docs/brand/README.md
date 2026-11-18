@@ -25,6 +25,10 @@ Everything needed to brand SwiftChart: the guide below, the tokens, fonts, logos
 - Follow the system's light or dark setting by default; `[data-theme]` on `<html>` overrides it.
 - Where to apply it: the shared stylesheet both web apps load (`src/Ehr.Design/wwwroot/css/ehr.css`), the desktop app's (`src/Ehr.Desktop/frontend/app.css`), and the desktop icons (`src/Ehr.Desktop/src-tauri/icons/`, replaced by `assets/App-icons/desktop/`).
 
+Components added to the shared stylesheet since the kit, in its style:
+
+- `sc-list__actions`: a record line's own actions, as plain links after the line's text, such as an active order's "Change" and "Discontinue…". Links, not buttons, because each opens a page; a destructive one ends in "…" and its page's button is the danger button, which names the action ("Discontinue order").
+
 ---
 
 # Brand guide
