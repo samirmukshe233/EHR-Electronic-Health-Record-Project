@@ -56,7 +56,8 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
     public async Task The_code_search_offers_matching_names_and_is_for_clinicians_only()
     {
         var (clinician, patient, session) = await OnPanelAsync(apps);
-        var reads = await apps.AuditEventsAsync(AuditActions.Read, clinician.Id);
+        // On-site events only: an earlier test's off-site reads may still be arriving from the cloud app's queue.
+        var reads = await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, source: AuditSources.OnPrem);
 
         var hypertension = await session.Client.GetStringAsync("/codes?kind=condition&q=essential", Cancel);
         Assert.Contains("<option value=\"Essential (primary) hypertension\" label=\"I10\"></option>", hypertension);
@@ -82,7 +83,7 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
 
         Assert.True(System.Text.RegularExpressions.Regex.Matches(await session.Client.GetStringAsync("/codes?kind=condition&q=type", Cancel), "<option").Count
             <= Ehr.Domain.Patients.ChartLists.Suggestions);
-        Assert.Equal(reads, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id));
+        Assert.Equal(reads, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, source: AuditSources.OnPrem));
         _ = patient;
 
         var admin = await SignInAsync(apps.OnPrem, await apps.CreateStaffAsync("Code Search Admin", StaffRoles.Admin));
