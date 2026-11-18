@@ -1,10 +1,16 @@
-@* The one page frame: the head every page needs, and a header that says who is signed in and where they can go.
-   Staff see the clinic's links for their roles; a patient sees the portal's. Nobody signed in sees no header. *@
+@* The one page frame: the head every page needs, and an app bar that says who is signed in and where they can go.
+   Staff see the clinic's links for their roles; a patient sees the portal's. Nobody signed in sees no app bar. *@
 @{
     var isPatient = User.HasClaim(claim => claim.Type == EhrClaims.PatientId);
     var displayName = User.FindFirst(EhrClaims.DisplayName)?.Value ?? User.Identity?.Name;
     // The portal's pages, signed in or not: its account pages have no patient yet.
     var isPortal = isPatient || string.Equals(ViewContext.RouteData.Values["area"] as string, "Portal", StringComparison.Ordinal);
+    var signedIn = User.Identity?.IsAuthenticated == true;
+    // A page sets its own width: "content" for clinician pages, "reading" for long text, "form" for one narrow column.
+    var width = ViewData["Width"] as string ?? (isPortal ? "reading" : "content");
+    // The page being shown, to mark its place in the navigation.
+    var here = ViewContext.RouteData.Values["page"] as string ?? "";
+    Func<string, string?> current = start => here.StartsWith(start, StringComparison.Ordinal) ? "page" : null;
 }
 @inject Ehr.Web.Forwarding.OnPremStatus OnPrem
 <!doctype html>
@@ -48,43 +54,72 @@
     @* A page's own scripts, such as dictation's, so no other page loads them. *@
     @await RenderSectionAsync("Scripts", required: false)
 </head>
-<body>
-    @if (User.Identity?.IsAuthenticated == true)
+<body class="sc-app @(isPortal ? "sc-app--portal" : "sc-app--clinician")">
+    <a class="sc-skip" href="#main">Skip to main content</a>
+    @if (signedIn)
     {
-        <header class="site-header">
-            <nav aria-label="Main">
+        @* The app bar (docs/brand: AppBar). Staff get the dark bar with the reversed lockup, in both themes; patients
+           the light one with the color lockup, which the stylesheet swaps for the reversed one in the dark theme. *@
+        <header class="sc-appbar @(isPatient ? "sc-appbar--portal" : "sc-appbar--clinician")">
+            <div class="sc-appbar__brand">
                 @if (isPatient)
                 {
-                    <a asp-area="Portal" asp-page="/Index">My record</a>
-                    <a asp-area="Portal" asp-page="/Results">Results</a>
+                    <img class="sc-appbar__logo sc-art--color" src="~/_content/Ehr.Design/img/swiftchart-lockup.png" alt="SwiftChart" width="105" height="24">
+                    <img class="sc-appbar__logo sc-art--reversed" src="~/_content/Ehr.Design/img/swiftchart-lockup-reversed.png" alt="SwiftChart" width="105" height="24">
                 }
                 else
                 {
-                    <a asp-area="Clinical" asp-page="/QuickTexts/Index">Quick text</a>
+                    <img class="sc-appbar__logo" src="~/_content/Ehr.Design/img/swiftchart-lockup-reversed.png" alt="SwiftChart" width="105" height="24">
+                }
+                @if (!OnPrem.IsReachable)
+                {
+                    <span class="sc-appbar__site">Off-site</span>
+                }
+            </div>
+            <nav class="sc-appbar__nav" aria-label="Main">
+                @if (isPatient)
+                {
+                    <a asp-area="Portal" asp-page="/Index" class="sc-appbar__link" aria-current="@current("/Index")">My record</a>
+                    <a asp-area="Portal" asp-page="/Results" class="sc-appbar__link" aria-current="@current("/Results")">Results</a>
+                }
+                else
+                {
                     @if (User.IsInRole(StaffRoles.Clinician))
                     {
-                        <a asp-area="Clinical" asp-page="/Patients/Index" data-search-shortcut aria-keyshortcuts="/">Patients</a>
+                        <a asp-area="Clinical" asp-page="/Patients/Index" class="sc-appbar__link" data-search-shortcut aria-keyshortcuts="/" aria-current="@current("/Patients/")">Patients <kbd class="sc-kbd" aria-hidden="true">/</kbd></a>
                     }
+                    <a asp-area="Clinical" asp-page="/QuickTexts/Index" class="sc-appbar__link" aria-current="@current("/QuickTexts/")">Quick text</a>
                     @if (User.IsInRole(StaffRoles.Admin))
                     {
-                        <a asp-area="Clinical" asp-page="/Admin/Staff">Staff</a>
-                        <a asp-area="Clinical" asp-page="/Admin/Audit">Audit</a>
+                        <a asp-area="Clinical" asp-page="/Admin/Staff" class="sc-appbar__link" aria-current="@current("/Admin/Staff")">Staff</a>
+                        <a asp-area="Clinical" asp-page="/Admin/Audit" class="sc-appbar__link" aria-current="@current("/Admin/Audit")">Audit</a>
                     }
                 }
             </nav>
-            <form method="post" asp-area="@(isPatient ? "Portal" : "Clinical")" asp-page="/Account/SignOut" class="sign-out">
-                <span>@displayName</span>
-                <button>Sign out</button>
+            <form method="post" asp-area="@(isPatient ? "Portal" : "Clinical")" asp-page="/Account/SignOut" class="sc-appbar__end">
+                <span class="sc-appbar__user">@displayName</span>
+                <button class="sc-appbar__signout">Sign out</button>
             </form>
         </header>
     }
-    <main>
-        <p id="request-error" class="notice error" role="alert" hidden></p>
-        @if (!OnPrem.IsReachable)
+    @if (!OnPrem.IsReachable)
+    {
+        @* FR-34: off-site, with the clinic's server down, records can still be read but nothing can be saved. The band
+           runs the full width under the app bar on every page. *@
+        <p class="sc-notice sc-notice--warning sc-notice--band" role="status"><span class="sc-notice__state">Read-only:</span> the clinic's server can't be reached. You can look at records, but the newest changes may not appear yet, and nothing can be saved until it's back.</p>
+    }
+    @* The patient banner, on a page about a patient: directly under the app bar, and it stays put as the page scrolls. *@
+    @await RenderSectionAsync("Banner", required: false)
+    <main id="main" class="sc-page sc-page--@width">
+        @if (!signedIn && width == "form")
         {
-            @* FR-34: off-site, with the clinic's server down, records can still be read but nothing can be saved. *@
-            <p class="notice read-only" role="status">Read-only: the clinic's server can't be reached. You can look at records, but the newest changes may not appear yet, and nothing can be saved until it's back.</p>
+            @* Signed out, an account form: the mark alone, centered above it. *@
+            <p class="sc-brandmark">
+                <img class="sc-art--color" src="~/_content/Ehr.Design/img/swiftchart-mark.svg" alt="SwiftChart" width="56" height="48">
+                <img class="sc-art--reversed" src="~/_content/Ehr.Design/img/swiftchart-mark-reversed.svg" alt="SwiftChart" width="56" height="48">
+            </p>
         }
+        <p id="request-error" class="sc-notice sc-notice--danger" role="alert" hidden></p>
         @RenderBody()
     </main>
 </body>

@@ -370,6 +370,11 @@
     @media (max-width: 40rem) {
         .sc-appbar {
             padding: 0 var(--space-4);
+            column-gap: var(--space-3);
+        }
+
+        .sc-appbar__end {
+            gap: var(--space-2);
         }
 
         .sc-appbar__nav {
@@ -380,7 +385,7 @@
         }
 
         .sc-appbar__user {
-            max-width: 9rem;
+            max-width: 6.5rem;
         }
     }
 
@@ -398,10 +403,6 @@
     .sc-page--form {
         max-width: calc(var(--width-form) + 2 * var(--space-5));
         padding-top: var(--space-12);
-    }
-
-    .sc-page:focus {
-        outline: none;
     }
 
     @media (max-width: 40rem) {
@@ -1624,12 +1625,6 @@
 
 /* What pages not yet moved to the components above still use. Each pass removes what it replaces. */
 @layer legacy {
-    main:not([class]) {
-        max-width: 48rem;
-        margin: 0 auto;
-        padding: 0 var(--space-4);
-    }
-
     main label:not([class]) {
         display: block;
     }
@@ -1696,27 +1691,6 @@
         flex: 1;
         white-space: pre-wrap;
         overflow-wrap: anywhere;
-    }
-
-    .site-header {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--space-3) var(--space-6);
-        align-items: center;
-        justify-content: space-between;
-        padding: var(--space-3) var(--space-5);
-        border-bottom: 1px solid var(--line);
-    }
-
-    .site-header nav {
-        display: flex;
-        gap: var(--space-5);
-    }
-
-    .sign-out {
-        display: flex;
-        gap: var(--space-3);
-        align-items: center;
     }
 
     .account-form {

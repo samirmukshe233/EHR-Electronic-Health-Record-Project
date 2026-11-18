@@ -51,7 +51,7 @@ public class TC_UC2_02_AlternativeFlow(WebApps apps) : IClassFixture<WebApps>
             Assert.False(await shipper.ShipAsync(Cancel));
             Assert.Contains("Returning, Remi", await session.Client.GetStringAsync($"/patients/{patient}", Cancel));
             var readOnly = await session.Client.GetStringAsync(QuickTexts, Cancel);
-            Assert.Contains("Read-only: the clinic's server can't be reached", WebUtility.HtmlDecode(readOnly));
+            Assert.Contains("Read-only: the clinic's server can't be reached", Words(readOnly));
             Assert.DoesNotContain("add-quick-text", readOnly);
             Assert.Equal(0, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient));
 

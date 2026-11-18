@@ -58,7 +58,7 @@ public class TC_UC2_01_SuccessfulFlow(WebApps apps) : IClassFixture<WebApps>
             Assert.Contains("Outage, Hazel", html);
             Assert.Contains("Penicillin", html);
             Assert.Contains("blood pressure 118/76 mmHg, heart rate 64/min.", html);
-            Assert.Contains("Read-only: the clinic's server can't be reached. You can look at records, but the newest changes may not appear yet, and nothing can be saved until it's back.", System.Net.WebUtility.HtmlDecode(html));
+            Assert.Contains("Read-only: the clinic's server can't be reached. You can look at records, but the newest changes may not appear yet, and nothing can be saved until it's back.", Words(html));
             var (queued, _) = apps.CloudPrimaryDrill.Services.GetRequiredService<CloudAuditQueue>().ReadPending(int.MaxValue);
             var read = Assert.Single(queued, e => e.PatientId == patient);
             Assert.Equal(AuditActions.Read, read.Action);

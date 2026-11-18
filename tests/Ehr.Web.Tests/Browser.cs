@@ -87,6 +87,10 @@ static partial class Browser
         return await response.Content.ReadAsStringAsync(Cancel);
     }
 
+    // What a page says, as a person reads it: its tags taken out and its entities decoded. An assertion about a page's
+    // words then holds however they are marked up: a notice's leading state ("Read-only:") sits in a span of its own.
+    public static string Words(string html) => WebUtility.HtmlDecode(Tag().Replace(html, ""));
+
     // Where a followed request ended up.
     public static string PathOf(HttpResponseMessage response) => response.RequestMessage!.RequestUri!.AbsolutePath;
 
@@ -107,6 +111,9 @@ static partial class Browser
 
     [GeneratedRegex("name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"")]
     private static partial Regex FormToken();
+
+    [GeneratedRegex("<[^>]+>")]
+    private static partial Regex Tag();
 }
 
 // A signed-in browser: the jar with its cookies, and a client against one app that follows redirects.

@@ -542,7 +542,7 @@ public partial class PatientSearchTests(WebApps apps) : IClassFixture<WebApps>
         Assert.All([page, quickTexts], html =>
         {
             Assert.Contains("js/patient-search", html);
-            Assert.Matches("<a [^>]*data-search-shortcut aria-keyshortcuts=\"/\"[^>]*>Patients</a>", html);
+            Assert.Matches("<a [^>]*data-search-shortcut aria-keyshortcuts=\"/\"[^>]*>Patients <kbd[^>]*>/</kbd></a>", html);
         });
         // An admin has no patients to search.
         Assert.DoesNotContain("patient-search", staff);
@@ -570,7 +570,7 @@ public partial class PatientSearchTests(WebApps apps) : IClassFixture<WebApps>
             Assert.Equal(patients.Order(), Listed(html).Order());
             Assert.Equal(patients.Order(), Listed(typed).Order());
             Assert.Contains("Restricted", html);
-            Assert.Contains("Read-only: the clinic's server can't be reached", html);
+            Assert.Contains("Read-only: the clinic's server can't be reached", Words(html));
             // One read of each patient for each page.
             var (queued, _) = apps.CloudPrimaryDrill.Services.GetRequiredService<CloudAuditQueue>().ReadPending(int.MaxValue);
             var reads = queued.Where(e => e.ActorId == clinician.Id).ToList();

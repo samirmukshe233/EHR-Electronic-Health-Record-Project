@@ -190,7 +190,7 @@ public class OffSiteOutageTests(WebApps apps) : IClassFixture<WebApps>
         var panel = await Client(apps.CloudCutOff, session.Jar).GetStringAsync("/patients", Cancel);
 
         Assert.Contains("Panelread, Lior", panel);
-        Assert.Contains("Read-only: the clinic's server can't be reached.", panel);
+        Assert.Contains("Read-only: the clinic's server can't be reached.", Words(panel));
         Assert.Single(QueuedReads(apps.CloudCutOff), e => e.PatientId == patient && e.ActorId == clinician.Id);
     }
 
@@ -294,7 +294,7 @@ public class OffSiteOutageTests(WebApps apps) : IClassFixture<WebApps>
         using var signIn = await PlainPostAsync(anonymous, "/sign-in", Token(signInPage), ("Input.Email", clinician.Email), ("Input.Password", clinician.Password));
 
         Assert.Equal("/sign-in", PathOf(home));
-        Assert.Contains("Read-only: the clinic's server can't be reached.", signInPage);
+        Assert.Contains("Read-only: the clinic's server can't be reached.", Words(signInPage));
         var html = await NotSavedAsync(signIn);
         Assert.DoesNotContain(clinician.Password, html);
         Assert.DoesNotContain(clinician.Email, html);

@@ -54,7 +54,7 @@ public class TC_UC2_04_ExceptionalCondition(WebApps apps) : IClassFixture<WebApp
             using var request = new HttpRequestMessage(HttpMethod.Get, QuickTexts);
             request.Headers.Add("Cookie", signedIn);
             using var page = await client.SendAsync(request, Cancel);
-            Assert.Contains("Read-only: the clinic's server can't be reached", await ReadAsync(page));
+            Assert.Contains("Read-only: the clinic's server can't be reached", Words(await ReadAsync(page)));
         }
         finally
         {
