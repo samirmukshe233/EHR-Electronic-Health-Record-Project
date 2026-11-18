@@ -589,7 +589,7 @@ sealed class Setup(Options options)
     // The chart link of the search result whose MRN is exactly this one.
     static string? ChartLink(Page results, string mrn) => Regex
         .Matches(results.Html, @"<tr>(.*?)</tr>", RegexOptions.Singleline)
-        .Where(row => row.Groups[1].Value.Contains($"<td>{mrn}</td>", StringComparison.Ordinal))
+        .Where(row => Regex.IsMatch(row.Groups[1].Value, $@"<td[^>]*>{Regex.Escape(mrn)}</td>"))
         .Select(row => Regex.Match(row.Groups[1].Value, @"href=""(/patients/[0-9a-f-]{36}[^""]*)"""))
         .Where(link => link.Success)
         .Select(link => WebUtility.HtmlDecode(link.Groups[1].Value))
