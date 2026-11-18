@@ -42,6 +42,12 @@ public static class Seeder
                 await ExecuteAsync(connection, $"ALTER TABLE ehr.{table} DISABLE TRIGGER {table}_history", cancellationToken);
             }
 
+            // Nor is there a "No known allergies" to check or clear for each allergy loaded: the synthetic clinic's lists
+            // are one or the other already, and the checks lock each patient's row in turn.
+            await ExecuteAsync(connection,
+                "ALTER TABLE ehr.allergy_intolerances DISABLE TRIGGER allergy_intolerances_status; ALTER TABLE ehr.allergy_intolerances DISABLE TRIGGER allergy_intolerances_guard",
+                cancellationToken);
+
             // Only now does the owner see every row.
             await using (var any = new NpgsqlCommand("SELECT EXISTS (SELECT FROM ehr.patients)", connection))
             {
@@ -161,6 +167,10 @@ public static class Seeder
             {
                 await ExecuteAsync(connection, $"ALTER TABLE ehr.{table} ENABLE TRIGGER {table}_history", cancellationToken);
             }
+
+            await ExecuteAsync(connection,
+                "ALTER TABLE ehr.allergy_intolerances ENABLE TRIGGER allergy_intolerances_status; ALTER TABLE ehr.allergy_intolerances ENABLE TRIGGER allergy_intolerances_guard",
+                cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
         }

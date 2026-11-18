@@ -11,7 +11,7 @@ namespace Ehr.Web.Areas.Clinical.Pages.Patients;
 // which records it as one read of the patient, and a patient this clinician may not see is not found, which gives
 // nothing away. From here a clinician puts the patient on their panel or takes them off it, and issues the patient a
 // portal enrollment code. The search the clinician came from travels along (SearchQuery), for the way back to it.
-public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlass breakGlass, PatientEnrollments enrollments, Ehr.Domain.Notes.ClinicalNotes notes) : PageModel
+public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlass breakGlass, PatientEnrollments enrollments, Ehr.Domain.Notes.ClinicalNotes notes, ChartLists lists) : PageModel
 {
     // How many of the latest visits the chart lists.
     public const int RecentVisits = 5;
@@ -70,6 +70,19 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
     {
         var draft = await notes.CreateAsync(id, HttpContext.RequestAborted);
         return draft is null ? Forbid() : RedirectToPage("Notes/Edit", new { patientId = id, draftId = draft.Id });
+    }
+
+    // Records "No known allergies" for a patient on the clinician's panel with no allergy recorded. The database refuses
+    // it otherwise, and the chart then shows the list as it is.
+    public async Task<IActionResult> OnPostNoKnownAllergiesAsync(Guid id)
+    {
+        if (!await assignments.IsOnPanelAsync(id, HttpContext.RequestAborted))
+        {
+            return RedirectToPage(Search.ChartRouteValues(id));
+        }
+
+        await lists.RecordNoKnownAllergiesAsync(id, HttpContext.RequestAborted);
+        return Redirect(Url.Page("Chart", Search.ChartRouteValues(id)) + "#chart-allergies");
     }
 
     public async Task<IActionResult> OnPostAssignAsync(Guid id)

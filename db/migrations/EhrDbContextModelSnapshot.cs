@@ -464,6 +464,10 @@ namespace Ehr.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("row_id");
 
+                    b.Property<bool>("Sensitive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("sensitive");
+
                     b.Property<string>("Source")
                         .IsRequired()
                         .HasMaxLength(10)

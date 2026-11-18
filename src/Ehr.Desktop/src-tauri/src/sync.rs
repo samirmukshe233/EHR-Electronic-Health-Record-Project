@@ -1228,6 +1228,7 @@ mod tests {
                     conditions: vec![],
                     visits: vec![],
                     sensitive_not_kept: 0,
+                    allergy_status: None,
                 }],
             )
             .unwrap();

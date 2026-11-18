@@ -32,6 +32,10 @@ pub struct Chart {
     /// they are never kept offline. Absent from copies made before it was sent.
     #[serde(default)]
     pub sensitive_not_kept: u32,
+    /// What the allergy list is: "listed", "none-known" or "not-recorded".
+    /// Absent from copies made before it was sent.
+    #[serde(default)]
+    pub allergy_status: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]

@@ -262,7 +262,8 @@ CREATE POLICY observations_own_released_select ON ehr.observations FOR SELECT
 
 -- Audit events (restricted). Admins read. Anyone the grants let insert may insert: the app role for read and
 -- sign-in events, and the write-audit trigger (40-audit.sql), which runs as the table's owner and is bound by this
--- policy too because RLS is forced. Nothing updates or deletes (10-grants.sql).
+-- policy too because RLS is forced. Nothing deletes, and the one update is the trigger marking an event sensitive
+-- (below, and 40-audit.sql); the runtime roles have neither grant (10-grants.sql).
 ALTER TABLE ehr.audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ehr.audit_events FORCE ROW LEVEL SECURITY;
 
@@ -271,6 +272,14 @@ CREATE POLICY audit_events_admin_select ON ehr.audit_events FOR SELECT USING ((S
 
 DROP POLICY IF EXISTS audit_events_insert ON ehr.audit_events;
 CREATE POLICY audit_events_insert ON ehr.audit_events FOR INSERT WITH CHECK (true);
+-- The write-audit trigger, which runs as the table's owner, marks an item's earlier events sensitive when the item
+-- becomes sensitive (40-audit.sql). Forced row-level security binds the owner too, so these two let it find those
+-- events and mark them, and nothing else: the update can only set the mark, and a trigger refuses any other change.
+-- They are the owner's alone; the runtime roles have no UPDATE grant.
+DROP POLICY IF EXISTS audit_events_owner_select ON ehr.audit_events;
+CREATE POLICY audit_events_owner_select ON ehr.audit_events FOR SELECT TO ehr_owner USING (true);
+DROP POLICY IF EXISTS audit_events_owner_mark ON ehr.audit_events;
+CREATE POLICY audit_events_owner_mark ON ehr.audit_events FOR UPDATE TO ehr_owner USING (NOT sensitive) WITH CHECK (sensitive);
 
 -- Drafts are private to their author and require an active panel assignment.
 ALTER TABLE ehr.clinical_drafts ENABLE ROW LEVEL SECURITY;
