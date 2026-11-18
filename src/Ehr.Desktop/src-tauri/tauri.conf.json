@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "EHR",
+        "title": "SwiftChart",
         "width": 1200,
         "height": 800
       }

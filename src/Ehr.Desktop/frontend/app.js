@@ -14,8 +14,9 @@ function el(tag, properties = {}, ...children) {
   return element;
 }
 
-function button(label, onClick) {
-  const element = el('button', { type: 'button', textContent: label });
+// A button is secondary unless it says otherwise (docs/brand: Button).
+function button(label, onClick, className = 'sc-btn') {
+  const element = el('button', { type: 'button', textContent: label, className });
   element.addEventListener('click', onClick);
   return element;
 }
@@ -57,10 +58,14 @@ function renderStatus(status, waiting) {
   const signedIn = status.account != null;
   const checked = status.checkedAt != null;
   const online = status.server != null;
+  // A dot and the words (docs/brand: ConnectionStatus): the words always show, and the server is in mono.
   const connection = byId('connection');
-  connection.classList.toggle('online', signedIn && checked && online);
-  connection.classList.toggle('offline', signedIn && checked && !online);
-  connection.textContent = !signedIn ? 'Signed out' : !checked ? 'Connecting…' : online ? `Online: ${host(status.server)}` : 'Offline';
+  connection.classList.toggle('sc-conn--signedout', !signedIn);
+  connection.classList.toggle('sc-conn--online', signedIn && checked && online);
+  connection.classList.toggle('sc-conn--offline', signedIn && checked && !online);
+  const words = !signedIn ? ['Signed out'] : !checked ? ['Connecting…'] : !online ? ['Offline']
+    : ['Online: ', el('span', { className: 'sc-conn__server', textContent: host(status.server) })];
+  connection.replaceChildren(el('span', { className: 'sc-conn__dot' }), el('span', {}, ...words));
 
   byId('waiting').textContent =
     waiting === 0 ? 'No Quick text changes waiting.' : `${waiting} ${waiting === 1 ? 'change' : 'changes'} waiting to send.`;
@@ -87,21 +92,28 @@ function host(url) {
 
 function phraseText(phrase) {
   return [
-    el('span', { className: 'shortcut', textContent: phrase.shortcut }),
+    el('span', { className: 'sc-quicktext__shortcut', textContent: phrase.shortcut }),
     ' ',
-    el('span', { className: 'body', textContent: phrase.body }),
+    el('span', { className: 'sc-quicktext__body', textContent: phrase.body }),
   ];
 }
 
+// One version of a phrase or a draft, under its label.
+function version(label, ...content) {
+  return el('div', { className: 'sc-version' }, el('dt', { className: 'sc-version__label', textContent: label }), el('dd', {}, ...content));
+}
+
+// Both versions side by side; nothing is merged silently (docs/brand).
 function bothVersions(theirs, mine) {
-  return el(
-    'dl',
-    {},
-    el('dt', { textContent: 'Theirs (saved)' }),
-    el('dd', {}, ...phraseText(theirs)),
-    el('dt', { textContent: 'Mine (not saved)' }),
-    el('dd', {}, ...phraseText(mine)),
-  );
+  return el('dl', { className: 'sc-versions' }, version('Theirs (saved)', ...phraseText(theirs)), version('Mine (not saved)', ...phraseText(mine)));
+}
+
+function actions(...buttons) {
+  return el('div', { className: 'sc-actions' }, ...buttons);
+}
+
+function notice(text, tone = 'warning') {
+  return el('p', { className: `sc-notice sc-notice--${tone}`, textContent: text });
 }
 
 // Changes the server refused, for the person to choose. Redrawn only when they change.
@@ -124,22 +136,18 @@ function conflictItem(conflict) {
 
   const content = conflict.canKeepMine
     ? [
-        el('p', { textContent: 'Someone else saved this phrase before your change reached the server. Choose which version to keep.' }),
+        notice('Someone else saved this phrase before your change reached the server. Choose which version to keep.'),
         bothVersions(theirs, conflict),
-        button('Keep mine', resolve(true)),
-        ' ',
-        button('Keep theirs', resolve(false)),
+        actions(button('Keep mine', resolve(true)), button('Keep theirs', resolve(false))),
       ]
     : [
-        el('p', {
-          textContent: theirs
-            ? `${theirs.shortcut} is already in use by another phrase, so your change wasn't saved.`
-            : `The server didn't accept your change. ${conflict.message ?? ''}`,
-        }),
-        el('dl', {}, el('dt', { textContent: 'Mine (not saved)' }), el('dd', {}, ...phraseText(conflict))),
-        button('Discard mine', resolve(false)),
+        notice(theirs
+          ? `${theirs.shortcut} is already in use by another phrase, so your change wasn't saved.`
+          : `The server didn't accept your change. ${conflict.message ?? ''}`),
+        el('dl', { className: 'sc-versions' }, version('Mine (not saved)', ...phraseText(conflict))),
+        actions(button('Discard mine', resolve(false), 'sc-btn sc-btn--danger')),
       ];
-  return el('li', {}, el('div', { className: 'conflict' }, ...content));
+  return el('li', {}, el('div', { className: 'sc-conflict' }, ...content));
 }
 
 // The phrases. Redrawn only when they change; a phrase being edited keeps its form and what's typed in it. Signed
@@ -163,33 +171,40 @@ function renderPhrases(phrases, signedIn) {
 function phraseItem(phrase, signedIn) {
   const li = el('li', {}, ...phraseText(phrase));
   li.dataset.id = phrase.id;
-  if (phrase.pending) li.append(el('span', { className: 'pending', textContent: 'Not sent yet' }));
+  if (phrase.pending) li.append(el('span', { className: 'sc-tag sc-tag--warning sc-quicktext__pending', textContent: 'Not sent yet' }));
   if (signedIn) {
     li.append(
       button('Edit', () => {
         li.classList.add('editing');
         showEditForm(li, phrase.id, phrase.version, phrase);
-      }),
+      }, 'sc-btn sc-btn--compact'),
     );
   }
   return li;
 }
 
-function errorFor(name) {
-  const span = el('span', { className: 'error' });
-  span.dataset.for = name;
-  return span;
+// A labeled field with the place for its error, tied to it for assistive technology (docs/brand: TextField). Each
+// form's fields get ids of their own.
+let fieldCount = 0;
+
+function field(label, name, control) {
+  const id = `field-${++fieldCount}`;
+  control.id = id;
+  control.name = name;
+  control.setAttribute('aria-describedby', `${id}-error`);
+  const error = el('span', { className: 'sc-field__error', id: `${id}-error` });
+  error.dataset.for = name;
+  return el('div', { className: 'sc-field' }, el('label', { className: 'sc-field__label', htmlFor: id, textContent: label }), control, error);
 }
 
+// The form's buttons go in its last element, the row of actions.
 function phraseForm(values, submitLabel) {
   return el(
     'form',
-    { className: 'quick-text-form' },
-    el('label', {}, 'Shortcut ', el('input', { name: 'shortcut', autocomplete: 'off', value: values.shortcut })),
-    errorFor('shortcut'),
-    el('label', {}, 'Text ', el('textarea', { name: 'body', rows: 2, value: values.body })),
-    errorFor('body'),
-    el('button', { textContent: submitLabel }),
+    { className: 'sc-quicktext-form' },
+    field('Shortcut', 'shortcut', el('input', { className: 'sc-field__input sc-field__input--mono', autocomplete: 'off', value: values.shortcut })),
+    field('Text', 'body', el('textarea', { className: 'sc-field__input', rows: 2, value: values.body })),
+    actions(el('button', { className: 'sc-btn', textContent: submitLabel })),
   );
 }
 
@@ -198,15 +213,19 @@ function formValues(form) {
 }
 
 function showProblems(form, problems) {
-  for (const span of form.querySelectorAll('.error[data-for]')) {
-    span.textContent = problems[span.dataset.for] ?? '';
+  for (const span of form.querySelectorAll('[data-for]')) {
+    const problem = problems[span.dataset.for] ?? '';
+    span.textContent = problem;
+    const control = form.elements[span.dataset.for];
+    if (problem) control?.setAttribute('aria-invalid', 'true');
+    else control?.removeAttribute('aria-invalid');
   }
 }
 
 // `version` is the phrase as the person saw it when they began; the save is refused if it has changed since.
 function showEditForm(li, id, version, values) {
   const form = phraseForm(values, 'Save');
-  form.append(' ', button('Cancel', () => closeEdit(li)));
+  form.lastElementChild.append(button('Cancel', () => closeEdit(li), 'sc-btn sc-btn--quiet'));
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     saveEdit(li, id, version, formValues(form));
@@ -230,12 +249,10 @@ async function saveEdit(li, id, version, mine) {
       li.replaceChildren(
         el(
           'div',
-          { className: 'conflict' },
-          el('p', { textContent: 'Someone else saved this phrase while you were editing it. Choose which version to keep.' }),
+          { className: 'sc-conflict' },
+          notice('Someone else saved this phrase while you were editing it. Choose which version to keep.'),
           bothVersions(answer.current, mine),
-          button('Keep mine', () => saveEdit(li, id, answer.current.version, mine)),
-          ' ',
-          button('Keep theirs', () => closeEdit(li)),
+          actions(button('Keep mine', () => saveEdit(li, id, answer.current.version, mine)), button('Keep theirs', () => closeEdit(li))),
         ),
       );
       break;
@@ -359,18 +376,18 @@ async function loadPanel() {
   if (!offlineAvailable || request !== panelRequest || !panel) return;
   const list = byId('offline-panel');
   list.replaceChildren(...panel.map((patient) =>
-    el('li', {}, button(`${patient.name} · MRN ${patient.mrn}`, () => openChart(patient.id))),
+    el('li', {}, button(`${patient.name} · MRN ${patient.mrn}`, () => openChart(patient.id), 'sc-btn sc-btn--quiet')),
   ));
   if (panel.length === 0) {
-    list.append(el('li', { textContent: 'No charts downloaded. Add patients to your panel in the web app, then download here.' }));
+    list.append(el('li', { className: 'sc-muted', textContent: 'No charts downloaded. Add patients to your panel in the web app, then download here.' }));
   }
   if (selectedPatient && !panel.some((patient) => patient.id === selectedPatient)) clearChart();
 }
 
 function chartSection(title, rows) {
   return el('section', {}, el('h4', { textContent: title }),
-    rows.length ? el('ul', {}, ...rows.map((text) => el('li', { textContent: text })))
-      : el('p', { textContent: 'None recorded.' }));
+    rows.length ? el('ul', { className: 'sc-list' }, ...rows.map((text) => el('li', { textContent: text })))
+      : el('p', { className: 'sc-muted', textContent: 'None recorded.' }));
 }
 
 async function openChart(patient, reset = true) {
@@ -393,7 +410,7 @@ async function openChart(patient, reset = true) {
       v.heartRatePerMinute != null ? `${v.heartRatePerMinute} bpm` : ''))),
   );
   byId('saved-drafts').replaceChildren(...drafts.map((draft) => renderDraft(patient, draft)));
-  if (!drafts.length) byId('saved-drafts').append(el('li', { textContent: 'No saved drafts.' }));
+  if (!drafts.length) byId('saved-drafts').append(el('li', { className: 'sc-muted', textContent: 'No saved drafts.' }));
   byId('saved-recordings').replaceChildren(...recordings.map(({ problem }) =>
     el('li', { textContent: problem ?? 'Recording saved on this device · Pending transcription' }),
   ));
@@ -419,8 +436,8 @@ function renderDraft(patient, draft) {
     conflict: 'A newer version is on the server. Choose which to keep.',
     invalid: draft.problem ?? 'This draft needs review.',
   };
-  const row = el('li', {}, el('p', { textContent: labels[draft.state] }),
-    el('pre', { className: 'draft-body', textContent: draft.body }));
+  const row = el('li', {}, el('p', { className: 'desktop-draft__state', textContent: labels[draft.state] }),
+    el('pre', { className: 'desktop-draft__body', textContent: draft.body }));
   if (draft.state === 'synced' || draft.state === 'invalid') {
     row.append(button('Edit draft', () => {
       editingDraft = { id: draft.id, version: draft.version };
@@ -428,20 +445,20 @@ function renderDraft(patient, draft) {
       byId('draft-label').textContent = 'Edit draft';
       byId('cancel-draft-edit').hidden = false;
       draftForm.elements.body.focus();
-    }));
+    }, 'sc-btn sc-btn--compact'));
   }
   if (draft.state === 'conflict') {
-    const mine = el('div', {}, el('strong', { textContent: 'Mine' }), row.querySelector('pre'));
-    const theirs = el('div', {}, el('strong', { textContent: 'Theirs' }),
-      el('pre', { className: 'draft-body', textContent: draft.theirs }));
+    // Both versions side by side, in the words the phrases' conflicts use.
+    const theirs = version('Theirs (saved)', el('pre', { className: 'desktop-draft__body', textContent: draft.theirs }));
+    const mine = version('Mine (not saved)', row.querySelector('pre'));
     const choose = async (keepMine) => {
       const answer = await call('resolve_clinical', {
         patient, id: draft.id, version: draft.theirVersion, keepMine,
       });
       if (answer !== undefined && selectedPatient === patient) await openChart(patient, false);
     };
-    row.append(el('div', { className: 'draft-versions' }, mine, theirs),
-      button('Keep mine', () => choose(true)), ' ', button('Keep theirs', () => choose(false)));
+    row.append(el('dl', { className: 'sc-versions' }, theirs, mine),
+      actions(button('Keep mine', () => choose(true)), button('Keep theirs', () => choose(false))));
   }
   return row;
 }
