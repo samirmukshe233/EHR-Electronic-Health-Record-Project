@@ -81,21 +81,19 @@ public static class AccountRateLimits
     }
 
     const string TooManyAttemptsPage =
-        """
+        $"""
         <!doctype html>
         <html lang="en">
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Too many attempts</title>
-            <link rel="stylesheet" href="/_content/Ehr.Design/css/ehr.css">
+            {StandalonePage.Head}
         </head>
-        <body>
-            <main>
+        {StandalonePage.Open}
                 <h1>Too many attempts</h1>
-                <p role="alert">Too many attempts. Wait a few minutes and try again.</p>
-            </main>
-        </body>
+                <p class="sc-notice sc-notice--danger" role="alert">Too many attempts. Wait a few minutes and try again.</p>
+        {StandalonePage.Close}
         </html>
         """;
 }

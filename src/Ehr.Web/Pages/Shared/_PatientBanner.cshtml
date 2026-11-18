@@ -1,0 +1,56 @@
+@* The patient banner (docs/brand: PatientBanner): who the page is about, never in doubt. A page puts it in its Banner
+   section, which the layout renders directly under the app bar; it stays put while the page scrolls. *@
+@using Ehr.Data.Patients
+@model PatientBanner
+<section class="sc-banner" aria-label="Patient">
+    @if (Model.Title)
+    {
+        <h1 class="sc-banner__name">@Model.Patient.FamilyName, @Model.Patient.GivenName</h1>
+    }
+    else
+    {
+        <p class="sc-banner__name">@Model.Patient.FamilyName, @Model.Patient.GivenName</p>
+    }
+    @if (Model.OnPanel)
+    {
+        <span class="sc-tag">Yours</span>
+    }
+    <div class="sc-banner__meta">
+        <span>MRN <span class="sc-banner__mrn">@Model.Patient.Mrn</span></span>
+        <span>Born @Model.Patient.BirthDate.ToString("yyyy-MM-dd")</span>
+        <span class="sc-banner__gender">@Model.Patient.Gender</span>
+    </div>
+    @if (Model.EmergencyUntil is not null || Model.Allergies is not null)
+    {
+        <div class="sc-banner__end">
+            @if (Model.EmergencyUntil is { } until)
+            {
+                <span class="sc-tag sc-tag--danger">Emergency access until @until.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC</span>
+            }
+            @if (Model.Known.Count > 0)
+            {
+                <ul aria-label="Allergies">
+                    @foreach (var allergy in Model.Known)
+                    {
+                        @if (allergy.Criticality == AllergyCriticality.High)
+                        {
+                            <li class="sc-allergy sc-allergy--high">High risk: @allergy.Display@if (allergy.Reaction is { } reaction) { <text>: @reaction</text> }</li>
+                        }
+                        else
+                        {
+                            <li class="sc-allergy"><strong>@allergy.Display</strong>@if (allergy.Reaction is { } reaction) { <text>: @reaction</text> }</li>
+                        }
+                    }
+                </ul>
+            }
+            else if (Model.NoneKnown)
+            {
+                <span class="sc-allergy">No known allergies</span>
+            }
+            else if (Model.Allergies is not null)
+            {
+                <span class="sc-allergy sc-allergy--none">No allergy information recorded</span>
+            }
+        </div>
+    }
+</section>

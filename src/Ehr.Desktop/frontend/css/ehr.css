@@ -889,6 +889,11 @@
         color: var(--ink-muted);
     }
 
+    /* Stored as a code ("female"); shown as a word. */
+    .sc-banner__gender {
+        text-transform: capitalize;
+    }
+
     .sc-banner__mrn {
         font-family: var(--font-mono);
         font-size: 13px;
@@ -1472,6 +1477,30 @@
 }
 
 @layer pages {
+    /* The "Not saved" page: what was typed, kept to copy, each entry in a read-only box under its name. */
+    .sc-kept label {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+    }
+
+    .sc-kept textarea {
+        width: 100%;
+        min-height: 96px;
+        resize: vertical;
+        padding: var(--space-1) var(--space-3);
+        font-size: 16px;
+        line-height: 24px;
+        font-weight: 400;
+        color: var(--ink-muted);
+        background: var(--surface-subtle);
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-sm);
+    }
+
     /* Patient search: the three criteria in a row, then the results. */
     .sc-search {
         display: flex;

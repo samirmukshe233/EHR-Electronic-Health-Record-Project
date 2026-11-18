@@ -15,10 +15,22 @@
             : "Not saved. Reload the page and try again.";
     }
 
+    // A message about a state starts with it and a colon ("Not saved: ..."); the state is marked up as the notice's
+    // leading words (docs/brand: Notice). The text is the same either way.
     function show(event) {
         const area = document.getElementById("request-error");
         if (area) {
-            area.textContent = messageFor(event.detail);
+            const message = messageFor(event.detail);
+            const colon = message.indexOf(": ");
+            if (colon > 0) {
+                const state = document.createElement("span");
+                state.className = "sc-notice__state";
+                state.textContent = message.slice(0, colon + 1);
+                area.replaceChildren(state, message.slice(colon + 1));
+            } else {
+                area.textContent = message;
+            }
+
             area.hidden = false;
         }
     }
