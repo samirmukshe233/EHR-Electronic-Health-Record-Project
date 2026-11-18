@@ -18,7 +18,7 @@ A subset, chosen in the script: the diagnoses, medications and allergens a prima
 
 | Used for | Source and release | What is taken | Rows |
 | --- | --- | --- | --- |
-| Diagnoses | ICD-10-CM, fiscal year 2027 (CDC, National Center for Health Statistics) | The codes valid on a claim under 44 three-character categories, with their long descriptions | 821 |
+| Diagnoses | ICD-10-CM, fiscal year 2027 (CDC, National Center for Health Statistics) | The codes valid on a claim under 50 three-character categories, with their long descriptions | 1,912 |
 | Medications | RxNorm Current Prescribable Content, 2 November 2026 (U.S. National Library of Medicine) | Clinical drugs (term type SCD) of one ingredient, for 33 ingredients | 316 |
 | Drug allergens | The same RxNorm release | Ingredients (term type IN), 19 of them | 19 |
 | Other allergens (foods, latex, venom, pollen and the like) | FDA Unique Ingredient Identifiers (UNII), 4 August 2026 (U.S. Food and Drug Administration) | 21 substances, by their preferred names, each given a FHIR allergy category by this project | 21 |
@@ -41,13 +41,23 @@ Names are the sources' own. Two changes of form only: an ICD-10-CM code is writt
 
 A diagnosis is sensitive when its ICD-10-CM code is in one of these ranges, or when a clinician marks it:
 
-| Range | What it covers |
+| Codes | What they cover |
 | --- | --- |
 | F01–F99 | Mental, behavioral and neurodevelopmental disorders, including substance use (F10–F19) |
 | A50–A64 | Infections with a predominantly sexual mode of transmission |
 | B20, Z21 | HIV disease, and asymptomatic HIV infection status |
 | O04, Z33.2 | Termination of pregnancy |
 | T74, T76 | Abuse, neglect and other maltreatment, confirmed or suspected |
-| X71–X83, R45.851 | Intentional self-harm, and suicidal ideations |
+| X71–X83 | Intentional self-harm |
+| T14.91 | Suicide attempt |
+| R45.851 | Suicidal ideations |
+| Z91.51, Z91.52 | Personal history of suicidal behavior, and of nonsuicidal self-harm |
+| T36–T65 with intent 2 | Poisoning by drugs, and toxic effects of other substances, by intentional self-harm |
+
+A code matches by its start, so every code under a category listed is covered (T14.91XA under T14.91, F41.1 under F01–F99). Case, the dot and spaces round the code don't matter.
+
+In T36–T65 the intent is one character of the code, and "2" means intentional self-harm. In most of these codes it is the sixth character (T39.012A, T43.212D). In the codes of a four-character subcategory it is the fifth, with an X filling the sixth (T36.92XA). The rule takes both forms. Checked against the fiscal year 2027 code file, they are exactly its 954 "intentional self-harm" codes in T36–T65, and no other code in that range.
+
+When the rule widens, the migration job marks the diagnoses already recorded that it now covers, on its next run, and the audit page stops showing their values.
 
 The rule is `ehr.icd10cm_is_sensitive` in `db/policies/65-chart-lists.sql`; changing it is a reviewed change to that file. A medication is sensitive when a clinician marks it.

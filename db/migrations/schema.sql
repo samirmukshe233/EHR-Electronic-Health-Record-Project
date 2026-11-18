@@ -794,3 +794,11 @@ VALUES ('20261118081856_ChartLists', '10.0.13');
 
 COMMIT;
 
+START TRANSACTION;
+ALTER TABLE ehr.audit_events ADD sensitive boolean NOT NULL DEFAULT FALSE;
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261118095004_AuditSensitive', '10.0.13');
+
+COMMIT;
+

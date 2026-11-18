@@ -152,6 +152,24 @@ public class ChartListSecurityTests(MigratedDatabase database) : IClassFixture<M
     [InlineData("X70.XXXA", false)]
     [InlineData("R45.851", true)]
     [InlineData("R45.0", false)]
+    // Step 2b: suicide attempt, history of suicidal behavior and of self-harm, and poisoning or a toxic effect by
+    // intentional self-harm, where the 2 is the sixth character or, in a four-character subcategory, the fifth.
+    [InlineData("T14.91XA", true)]
+    [InlineData("T14.90XA", false)]
+    [InlineData("Z91.51", true)]
+    [InlineData("Z91.52", true)]
+    [InlineData("Z91.5", false)]
+    [InlineData("Z91.81", false)]
+    [InlineData("T39.012A", true)]
+    [InlineData("T39.011A", false)]
+    [InlineData("T39.013A", false)]
+    [InlineData("T36.92XA", true)]
+    [InlineData("T36.91XA", false)]
+    [InlineData("T50.902D", true)]
+    [InlineData("T65.92XS", true)]
+    [InlineData("T35.2", false)]
+    [InlineData("T66.XXXA", false)]
+    [InlineData(" t43.212a ", true)]
     [InlineData("I10", false)]
     [InlineData("E11.9", false)]
     [InlineData("", false)]
@@ -208,6 +226,70 @@ public class ChartListSecurityTests(MigratedDatabase database) : IClassFixture<M
         // The change is in the history clinicians read, made by nobody signed in.
         Assert.Equal(["1"], await Accounts.QueryAsync(App, clinician,
             "SELECT count(*) FROM ehr.chart_history WHERE row_id = @id AND changed_by_id IS NULL AND (after ->> 'sensitive') = 'true'", ("id", id)));
+    }
+
+    // A patient's allergy list is nothing recorded, "No known allergies", or allergies: never the last two at once.
+    [Fact]
+    public async Task No_known_allergies_is_refused_beside_an_allergy_and_cleared_when_one_is_added()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+        const string none = "INSERT INTO ehr.allergy_intolerances (id, patient_id, code, display, clinical_status, recorded_at) VALUES (@id, @patient, 'no-known-allergy', 'No known allergy', 'active', now())";
+        var noneKnown = Guid.CreateVersion7();
+        await Accounts.ExecuteAsync(App, clinician, none, ("id", noneKnown), ("patient", patient));
+        Task<List<string>> ListAsync() => AsSuperuserAsync(
+            "SELECT display || ' ' || clinical_status FROM ehr.allergy_intolerances WHERE patient_id = @patient ORDER BY recorded_at, display", ("patient", patient));
+        Assert.Equal(["No known allergy active"], await ListAsync());
+
+        // Adding an allergy makes it inactive, in the same transaction, by the same clinician, and the history says so.
+        var peanut = Guid.CreateVersion7();
+        await Accounts.ExecuteAsync(App, clinician, Statements["allergy_intolerances"].Insert, ("id", peanut), ("patient", patient));
+        Assert.Equal(["No known allergy inactive", "Peanut active"], await ListAsync());
+        Assert.Equal([$"{clinician} active inactive"], await AsSuperuserAsync(
+            "SELECT changed_by_id || ' ' || (before ->> 'clinical_status') || ' ' || (after ->> 'clinical_status') FROM ehr.chart_history WHERE row_id = @id AND before IS NOT NULL",
+            ("id", noneKnown)));
+
+        // And it can't be recorded, or made active again, while the allergy is active.
+        foreach (var (sql, id) in new[] { (none, Guid.CreateVersion7()), ("UPDATE ehr.allergy_intolerances SET clinical_status = 'active' WHERE id = @id AND @patient = patient_id", noneKnown) })
+        {
+            var error = await Assert.ThrowsAsync<PostgresException>(() => Accounts.ExecuteAsync(App, clinician, sql, ("id", id), ("patient", patient)));
+            Assert.Equal(PostgresErrorCodes.CheckViolation, error.SqlState);
+        }
+
+        // Once the allergy is inactive, it can be.
+        await Accounts.ExecuteAsync(App, clinician, Statements["allergy_intolerances"].Update, ("id", peanut));
+        await Accounts.ExecuteAsync(App, clinician, none, ("id", Guid.CreateVersion7()), ("patient", patient));
+        Assert.Equal(["No known allergy inactive", "Peanut inactive", "No known allergy active"], await ListAsync());
+    }
+
+    // Recorded at the same moment, "No known allergies" and an allergy can't both stay active: each patient's allergy
+    // entries are written one at a time, so whichever comes second sees the first.
+    [Fact]
+    public async Task No_known_allergies_and_an_allergy_recorded_at_once_never_both_stay_active()
+    {
+        const string none = "INSERT INTO ehr.allergy_intolerances (id, patient_id, code, display, clinical_status, recorded_at) VALUES (@id, @patient, 'no-known-allergy', 'No known allergy', 'active', now())";
+        for (var round = 0; round < 8; round++)
+        {
+            var (clinician, patient) = await OnPanelAsync();
+            await Task.WhenAll(Enumerable.Range(0, 6).Select(async i =>
+            {
+                try
+                {
+                    await Accounts.ExecuteAsync(App, clinician, i % 2 == 0 ? none : Statements["allergy_intolerances"].Insert,
+                        ("id", Guid.CreateVersion7()), ("patient", patient));
+                }
+                catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.CheckViolation)
+                {
+                    // "No known allergies" arrived after an allergy: refused.
+                }
+            }));
+
+            Assert.Equal(["false"], await AsSuperuserAsync(
+                """
+                SELECT (bool_or(code = 'no-known-allergy') AND bool_or(code <> 'no-known-allergy'))::text
+                FROM ehr.allergy_intolerances WHERE patient_id = @patient AND clinical_status = 'active'
+                """,
+                ("patient", patient)));
+        }
     }
 
     [Fact]

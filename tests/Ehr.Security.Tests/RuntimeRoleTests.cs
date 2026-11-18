@@ -78,8 +78,9 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
         [("ehr_read", "observations")] = ["SELECT"],
         [("ehr_app", "patient_enrollments")] = ["SELECT", "INSERT", "UPDATE"],
         [("ehr_read", "patient_enrollments")] = ["SELECT"],
-        [("ehr_app", "audit_events")] = ["SELECT", "INSERT"],
-        [("ehr_read", "audit_events")] = ["SELECT"],
+        // Read by column (ExpectedColumnPrivileges): every one but details, the values a write changed.
+        [("ehr_app", "audit_events")] = ["INSERT"],
+        [("ehr_read", "audit_events")] = [],
         [("ehr_app", "__ef_migrations_history")] = [],
         [("ehr_read", "__ef_migrations_history")] = [],
     };
@@ -184,6 +185,10 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.observations SET status = 'cancelled'")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.audit_events SET reason = 'changed'")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.audit_events")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "SELECT details FROM ehr.audit_events")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "SELECT * FROM ehr.audit_events")]
+    [InlineData("ehr_read", MigratedDatabase.ReadPassword, "SELECT details FROM ehr.audit_events")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.audit_events SET sensitive = true")]
     [InlineData("ehr_read", MigratedDatabase.ReadPassword, "INSERT INTO ehr.audit_events (id, occurred_at, action, source) VALUES (uuidv7(), now(), 'read', 'cloud')")]
     public async Task Runtime_roles_are_refused_outside_their_grants(string role, string password, string sql)
     {
@@ -229,6 +234,9 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
     {
         // UC 1: discontinuing an order.
         [("ehr_app", "orders", "UPDATE")] = ["discontinue_reason", "replaced_by_order_id", "status"],
+        // Audit events without details: admins get those from ehr.shown_audit_details, never a sensitive item's.
+        [("ehr_app", "audit_events", "SELECT")] = ["action", "actor_id", "id", "occurred_at", "patient_id", "reason", "row_id", "sensitive", "source", "table_name"],
+        [("ehr_read", "audit_events", "SELECT")] = ["action", "actor_id", "id", "occurred_at", "patient_id", "reason", "row_id", "sensitive", "source", "table_name"],
     };
 
     async Task AssertExactPrivilegesAsync()

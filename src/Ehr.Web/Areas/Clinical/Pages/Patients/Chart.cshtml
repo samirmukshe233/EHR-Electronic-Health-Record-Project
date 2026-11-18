@@ -212,6 +212,13 @@ else if (Model.Chart.SensitiveHidden > 0)
         else
         {
             <p class="sc-muted">No allergy information recorded.</p>
+            @if (Model.OnPanel && OnPrem.IsReachable)
+            {
+                @* Asked and none: recorded as an entry of its own, which adding an allergy later clears. *@
+                <form method="post" asp-page-handler="NoKnownAllergies" asp-all-route-data="Model.Search.RouteData()">
+                    <button class="sc-btn sc-btn--compact" data-no-known-allergies>Record no known allergies</button>
+                </form>
+            }
         }
     </section>
 

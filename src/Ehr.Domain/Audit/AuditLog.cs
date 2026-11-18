@@ -8,7 +8,8 @@ namespace Ehr.Domain.Audit;
 // a time. Row-level security hands an admin every event and anyone else none, so nothing here checks who asks. Actors
 // are named from the account tables, which admins may read. Patients appear by ID only: an admin has no access to
 // patient data (db/policies/30-rls.sql), and asks a clinician when a review needs the name; the values a write changed,
-// which the trigger recorded, are the one place an admin sees any.
+// which the trigger recorded, are the one place an admin sees any, and never those of a sensitive item: for such a write
+// the page says that a sensitive item changed and who changed it.
 public sealed class AuditLog(EhrDbContext db)
 {
     public const int PageSize = 100;
@@ -41,14 +42,39 @@ public sealed class AuditLog(EhrDbContext db)
             events = events.Where(e => e.OccurredAt < before);
         }
 
+        // Every column but the values a write changed, which the runtime roles can't read (db/policies/10-grants.sql).
         var page = await events
             .OrderByDescending(e => e.OccurredAt).ThenByDescending(e => e.Id)
             .Take(PageSize + 1)
+            .Select(e => new AuditEvent
+            {
+                Id = e.Id,
+                OccurredAt = e.OccurredAt,
+                ActorId = e.ActorId,
+                Action = e.Action,
+                TableName = e.TableName,
+                RowId = e.RowId,
+                PatientId = e.PatientId,
+                Source = e.Source,
+                Reason = e.Reason,
+                Sensitive = e.Sensitive,
+            })
             .ToListAsync(cancellationToken);
         var more = page.Count > PageSize;
         if (more)
         {
             page.RemoveAt(PageSize);
+        }
+
+        // The values, for the events an admin may see them of: never a sensitive item's, nor the lists' history rows,
+        // which copy those items (ehr.shown_audit_details, db/policies/40-audit.sql). The page says so in their place.
+        var ids = page.Select(e => e.Id).ToArray();
+        var details = await db.Database
+            .SqlQuery<ShownDetails>($"SELECT id AS \"Id\", details::text AS \"Details\" FROM ehr.shown_audit_details({ids})")
+            .ToDictionaryAsync(shown => shown.Id, shown => shown.Details, cancellationToken);
+        foreach (var e in page)
+        {
+            e.Details = details.GetValueOrDefault(e.Id);
         }
 
         var actorIds = page.Where(e => e.ActorId is not null).Select(e => e.ActorId!.Value).Distinct().ToList();
@@ -64,6 +90,8 @@ public sealed class AuditLog(EhrDbContext db)
         return new AuditPage(page, actors, more);
     }
 }
+
+sealed record ShownDetails(Guid Id, string? Details);
 
 // What to show: one action or any; one staff or patient account or anyone; one patient or any; from a moment on;
 // before a moment (also how the next, older page is asked for).

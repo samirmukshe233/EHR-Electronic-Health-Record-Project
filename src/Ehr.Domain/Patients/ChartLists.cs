@@ -69,6 +69,20 @@ public sealed class ChartLists(EhrDbContext db)
         SaveAsync(condition, isNew, cancellationToken, nameof(Condition.Code), nameof(Condition.Display), nameof(Condition.ClinicalStatus),
             nameof(Condition.OnsetDate), nameof(Condition.Sensitive));
 
+    // Records that the patient has no known allergies: an entry of its own, so a chart can tell it from no allergy
+    // information at all. The database refuses it for a patient with an active allergy recorded, and makes it inactive
+    // when one is added (db/policies/65-chart-lists.sql). False when it was refused.
+    public Task<bool> RecordNoKnownAllergiesAsync(Guid patient, CancellationToken cancellationToken) =>
+        SaveAsync(new AllergyIntolerance
+        {
+            Id = Guid.CreateVersion7(),
+            PatientId = patient,
+            Code = AllergyIntolerance.NoKnownAllergy,
+            Display = "No known allergy",
+            ClinicalStatus = AllergyClinicalStatus.Active,
+            RecordedAt = DateTimeOffset.UtcNow,
+        }, isNew: true, cancellationToken);
+
     // An insert, or an update of the named columns of the row with the entry's ID. Reads nothing: the page read the
     // entry as this patient's through PhiReader, and row-level security decides whether the write may happen.
     async Task<bool> SaveAsync(object entry, bool isNew, CancellationToken cancellationToken, params string[] changed)
@@ -97,7 +111,11 @@ public sealed class ChartLists(EhrDbContext db)
             await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
             return false;
         }
-        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.InsufficientPrivilege })
+        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: var state }
+            // Refused by row-level security; or, for "No known allergies" only, by the rule that a patient with an
+            // allergy recorded has none. Any other broken constraint is a fault, and is thrown.
+            && (state == PostgresErrorCodes.InsufficientPrivilege
+                || state == PostgresErrorCodes.CheckViolation && entry is AllergyIntolerance { Code: AllergyIntolerance.NoKnownAllergy }))
         {
             await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
             return false;
