@@ -5,7 +5,8 @@
 --
 -- The function runs as its owner, ehr_owner (SECURITY DEFINER), so it can write the log whatever the caller may do.
 -- Its search_path is pinned, so a caller can't put their own objects in front of the ones it uses, and nobody but
--- its owner may call it directly. Writes only ever happen on the primary, so the source is always onprem.
+-- its owner may call it directly. Writes only ever happen on the primary, so the source is always onprem. A write to a
+-- sensitive item is marked as one, so the audit page shows that it changed and never its values (below).
 
 CREATE OR REPLACE FUNCTION ehr.record_write() RETURNS trigger
     LANGUAGE plpgsql
@@ -17,6 +18,8 @@ DECLARE
     new_row jsonb := CASE WHEN TG_OP = 'DELETE' THEN NULL ELSE to_jsonb(NEW) END;
     kept jsonb := coalesce(new_row, old_row);
     changed jsonb;
+    -- A sensitive item, before or after the write: a diagnosis or medication marked sensitive.
+    is_sensitive boolean := coalesce((new_row ->> 'sensitive')::boolean, false) OR coalesce((old_row ->> 'sensitive')::boolean, false);
 BEGIN
     IF TG_OP = 'UPDATE' THEN
         -- Only the columns that changed, each with its old and new value.
@@ -28,7 +31,7 @@ BEGIN
         changed := jsonb_build_object(lower(TG_OP) || 'ed', kept);
     END IF;
 
-    INSERT INTO ehr.audit_events (id, occurred_at, actor_id, action, table_name, row_id, patient_id, source, details)
+    INSERT INTO ehr.audit_events (id, occurred_at, actor_id, action, table_name, row_id, patient_id, source, sensitive, details)
     VALUES (
         uuidv7(),
         now(),
@@ -39,12 +42,78 @@ BEGIN
         -- The patient a row belongs to: the row itself in ehr.patients, the patient_id column in every other PHI table.
         CASE WHEN TG_TABLE_NAME = 'patients' THEN (kept ->> 'id')::uuid ELSE (kept ->> 'patient_id')::uuid END,
         'onprem',
+        is_sensitive,
         changed);
+
+    -- An item that is sensitive now is sensitive throughout its record: its earlier events, written before it was
+    -- marked, are marked too, so the audit page stops showing their values. The one change an audit event ever takes
+    -- (ehr.guard_audit_event below). By patient first, which is indexed.
+    IF is_sensitive AND TG_TABLE_NAME <> 'patients' THEN
+        UPDATE ehr.audit_events e SET sensitive = true
+        WHERE e.patient_id = (kept ->> 'patient_id')::uuid AND e.table_name = TG_TABLE_NAME AND e.row_id = (kept ->> 'id')::uuid
+          AND NOT e.sensitive;
+    END IF;
+
     RETURN NULL;
 END
 $$;
 
 REVOKE ALL ON FUNCTION ehr.record_write() FROM PUBLIC;
+
+-- An audit event is never edited. The one change it takes is being marked sensitive, by the trigger above, when the
+-- item it is about becomes sensitive; nothing unmarks it, and no other column moves. The runtime roles have no UPDATE
+-- at all (10-grants.sql); this holds for the owner too.
+CREATE OR REPLACE FUNCTION ehr.guard_audit_event() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog, pg_temp
+AS $$
+BEGIN
+    IF OLD.sensitive OR NOT NEW.sensitive OR (to_jsonb(NEW) - 'sensitive') IS DISTINCT FROM (to_jsonb(OLD) - 'sensitive') THEN
+        RAISE EXCEPTION 'An audit event is never edited' USING ERRCODE = '42501';
+    END IF;
+
+    RETURN NEW;
+END
+$$;
+REVOKE ALL ON FUNCTION ehr.guard_audit_event() FROM PUBLIC;
+CREATE OR REPLACE TRIGGER audit_events_guard
+    BEFORE UPDATE ON ehr.audit_events
+    FOR EACH ROW EXECUTE FUNCTION ehr.guard_audit_event();
+
+-- What an admin may see of what a write changed. The runtime roles can't read audit_events.details (10-grants.sql):
+-- the audit page asks here, for the events it lists. It answers only an admin, and never with the values of a
+-- sensitive item, or of the lists' history rows, which copy those items: for those the page says that a sensitive
+-- item changed, and who changed it, from the event's other columns. The full record stays in the table. Runs as its
+-- owner, to read the column; its search_path is pinned, and only the runtime roles may call it.
+CREATE OR REPLACE FUNCTION ehr.shown_audit_details(event_ids uuid[]) RETURNS TABLE (id uuid, details jsonb)
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = pg_catalog, pg_temp
+AS $$
+    SELECT e.id, e.details
+    FROM ehr.audit_events e
+    WHERE e.id = ANY(event_ids) AND (SELECT ehr.is_admin()) AND NOT e.sensitive AND e.table_name IS DISTINCT FROM 'chart_history'
+      AND e.details IS NOT NULL
+$$;
+REVOKE ALL ON FUNCTION ehr.shown_audit_details(uuid[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION ehr.shown_audit_details(uuid[]) TO ehr_app, ehr_read;
+
+-- Events written before an item was marked, or before this rule: marked now, on every pass, as 65-chart-lists.sql
+-- marks the diagnoses themselves. Forced row-level security hides the rows from this role, so it is lifted for the
+-- statement, inside a transaction; no other session sees the tables without it.
+BEGIN;
+ALTER TABLE ehr.audit_events NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE ehr.conditions NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE ehr.medication_statements NO FORCE ROW LEVEL SECURITY;
+UPDATE ehr.audit_events e SET sensitive = true
+WHERE NOT e.sensitive
+  AND (e.table_name = 'conditions' AND EXISTS (SELECT 1 FROM ehr.conditions c WHERE c.id = e.row_id AND c.sensitive)
+       OR e.table_name = 'medication_statements' AND EXISTS (SELECT 1 FROM ehr.medication_statements m WHERE m.id = e.row_id AND m.sensitive));
+ALTER TABLE ehr.medication_statements FORCE ROW LEVEL SECURITY;
+ALTER TABLE ehr.conditions FORCE ROW LEVEL SECURITY;
+ALTER TABLE ehr.audit_events FORCE ROW LEVEL SECURITY;
+COMMIT;
 
 -- Every PHI table gets this trigger; Ehr.Security.Tests fails for one that doesn't.
 CREATE OR REPLACE TRIGGER patients_audit
