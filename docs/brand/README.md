@@ -27,6 +27,7 @@ Everything needed to brand SwiftChart: the guide below, the tokens, fonts, logos
 
 Components added to the shared stylesheet since the kit, in its style:
 
+- `sc-btn--compact` as a link above a chart list ("Add allergy"), and the "Change" link after an entry (`sc-list__actions`): entries are changed or given another status, never deleted, so no list has a delete action.
 - `sc-list__actions`: a record line's own actions, as plain links after the line's text, such as an active order's "Change" and "Discontinue…". Links, not buttons, because each opens a page; a destructive one ends in "…" and its page's button is the danger button, which names the action ("Discontinue order").
 
 ---
@@ -134,6 +135,18 @@ Same tokens and components as the web app, inside a native window. Use the dark 
 ### Dictation
 
 Controls: "Dictate" (Alt+Shift+D) as the primary button, then "Stop" and "Cancel". The status line under them is a live region in `body-sm` ("Recording. Speak your note, then select Stop."), with a `danger` dot while recording. The transcript is a bordered panel: final text in `ink`, words still being recognized in `ink-muted` italic, and unsure passages under `highlight-unclear`, explained once by a notice ("Highlighted passages may be wrong…"). Proposed fields (History, Assessment, Plan) sit one per row, each with its status as a tag ("Awaiting review" warning, "Left empty" and "Not dictated yet" neutral, "Proposing…" info) and any check under it in `warning` text. Selecting or focusing a field paints its source words with `highlight-source`. Orders and allergy changes heard in the dictation are listed under "Not carried over from dictation", never filled in.
+
+### Sensitive items
+
+Some of a chart is more private than the rest: mental-health and substance-use diagnoses, some others by their code, and anything a clinician marks. These are never on screen by accident.
+
+- **Left out, not blurred.** A page doesn't receive sensitive items until someone asks. In their place an info notice says how many are hidden and offers the way to see them: "Sensitive items hidden: 2 diagnoses or medications are not shown. Show sensitive items". The link is a plain link at the end of the notice.
+- **Asking is recorded, and the page says so.** Once shown, the notice reads "Sensitive items shown: your view of them is recorded." with "Hide sensitive items". Never show them without that sentence.
+- **Tagged where they appear.** Each sensitive entry carries a "Sensitive" tag in the warning tone (`sc-tag sc-tag--warning`), after its text and before its actions.
+- **Never in the patient banner, a notification, an email or a page title.** The banner shows allergies only.
+- **In a form,** "Sensitive" is a checkbox with a hint under it that says what marking does. Where the system marks an item by rule, the hint says so; the clinician can't clear it.
+- **Offline,** the desktop app doesn't keep sensitive items. Where they would be, a muted line says how many aren't kept and where to see them.
+- **For a patient's proxy,** sensitive items don't exist unless the patient has allowed them: no count and no notice.
 
 ### Emergency access
 
