@@ -11,7 +11,7 @@ Under each step, "In the repo" says what the step touches as the code stood when
 | Step | What | Status | Branch | Tag | CI run | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 0 | This plan | done | expansion/step-00-plan | expansion-step-00 | [44257188518](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44257188518) | |
-| 1 | Change and discontinue orders | not started | | | | |
+| 1 | Change and discontinue orders | done | expansion/step-01-order-changes | expansion-step-01 | [44263160924](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44263160924) | UC 1 (Tahseen). Touches `db/policies` |
 | 2 | Editable allergies, medications, diagnoses | not started | | | | |
 | 2a | Reference data and a coherent synthetic seed | not started | | | | |
 | 3 | Clinician inbox | not started | | | | |
@@ -382,6 +382,10 @@ All of these use the portal's sizes, work for proxies (step 6) under the sensiti
 
 New FR IDs (FR-37 onward) and use cases (UC 15 onward), as each step defines them, so the course document can be updated later.
 
+| ID | Step | Proposed requirement |
+| --- | --- | --- |
+| FR-37 | 1 | The system shall let clinicians discontinue a signed order with a reason, and change one by signing a replacement, without ever editing or deleting the signed order; it shall keep who, when and why. (Extends UC 1; test cases TC-UC1-07 to TC-UC1-12.) |
+
 ## Phase merges
 
 For each phase:
@@ -405,8 +409,23 @@ One entry per decision: date, step, the decision, and why.
 - **2026-11-18, step 0. Which CI run a step records.** The status table's record is itself a commit, so its own run can't be in it. A step records the run of its last commit before the record; the record commit changes only this file. After the merge, the run on `expansion/integration` is checked too, and a failure there is fixed before the next step starts.
 - **2026-11-18, step 0, note (README). The README's "Not built yet" paragraph is out of date** (it still lists dictation's screens). Step 1 corrects it while updating the orders paragraph.
 
+- **2026-11-18, step 1. Discontinuing is a column-level UPDATE grant with a trigger, not a `SECURITY DEFINER` function.** `ehr_app` may update `status`, `discontinue_reason` and `replaced_by_order_id` only; `orders_panel_update` limits rows to patients on the clinician's active panel; `ehr.discontinue_order()` runs as the caller and holds the update to active → revoked, once, with a reason, setting who and when. Nothing runs with more privilege than the caller, which is the narrowest that works. `RuntimeRoleTests` now lists every column grant (`ExpectedColumnPrivileges`) and fails on any other, because `has_table_privilege` doesn't see them.
+- **2026-11-18, step 1. A change is enforced as a whole at commit.** A deferred constraint trigger refuses a replacement whose old order isn't discontinued and naming it; the discontinue trigger accepts "replaced by" only from the order that names this one, signed by the same clinician. A change keeps the order's type.
+- **2026-11-18, step 1. Any clinician with the patient on their panel may discontinue or change a colleague's order,** and is the one recorded. That is the existing rule for who may order for a patient; limiting it to the signer would leave orders nobody on duty can stop.
+- **2026-11-18, step 1. The reason for a change is optional;** without one the old order's reason reads "Replaced by a changed order". The reason for discontinuing is required, in the page and in the database.
+- **2026-11-18, step 1. The chart links to discontinued orders and doesn't load or count them,** so the chart's render time is unchanged. The off-site sentence for the two actions is its own ("Changing or discontinuing an order needs the clinic's server."), beside the existing one that TC-UC1-04 and the brand guide quote.
+- **2026-11-18, step 1. Orders aren't in the desktop app's offline copy** (they weren't before), so the desktop app didn't change. Whether offline charts should list orders is open for UC 7's owner.
+- **2026-11-18, step 1. An independent review agent reads each step's protected-path changes before the merge.** It isn't the human line-by-line review AGENTS.md requires, which still happens on the phase pull request.
+
 ## Log
 
 One entry per session or step: date, step, what was done, measurements (p99, page JavaScript size, first contentful paint), follow-ups, and where to resume.
 
 - **2026-11-18, step 0.** Created `expansion/integration` from main (`b4ad35b`) and `expansion/step-00-plan` from it. Saved this plan and checked it against the repo: added "In the repo" to each step and the corrections above. No code changed, so there are no measurements. CI green on the plan commit; merged into `expansion/integration` and tagged `expansion-step-00`. Resume at step 1.
+- **2026-11-18, step 1. Change and discontinue orders (UC 1, proposed FR-37).** Migration `OrderChanges` (five columns on `ehr.orders`, three check constraints); `db/policies` 10, 30 and 60; `ClinicalOrders.DiscontinueAsync` and a change through `SignAsync`; pages `Orders/Discontinue` and `Orders/Discontinued`, the order form's change mode, the chart's "Change" and "Discontinue…" links; new component `sc-list__actions` (noted in `docs/brand/README.md`). Tests: 14 in `OrderChangeSecurityTests`, TC-UC1-07 to TC-UC1-12 (the last a keyboard-only browser test), four more in `OrderTests`; 621 tests, 607 passed, 14 skipped (the performance cases, which need a benchmark run). `docs/UC1.md` and the README updated. Looked at every new and changed screen in light and dark, and at 640px; compared with the kit's notices, fields, table and buttons.
+  - *Review.* The review agent could not break the database rules. Its fixes are in: the deferred trigger is replaced inside one transaction; column grants are now checked; the chart's confirmation is verified; three more tests.
+  - *Measurements* (this Mac, 50,000 patients, durability on; p99 of the whole request / excluding the commit, ms). On-site: discontinued orders 8.0 / 7.1, change form 5.0 / 4.1, discontinue form 3.6 / 3.1; chart 7.8 / 7.1 and order form 3.0 / 2.7, as before. Off-site: 14.4 / 8.6, 17.3 / 12.5, 13.1 / 8.6. `--assert` passed. Page JavaScript as served, compressed: chart, change form and discontinue form 1,980 bytes, discontinued orders 1,058 (no script added or changed). First contentful paint, cold cache, median of 7 on the local stack: 16 ms on loopback, about 120 ms with 40 ms latency and 10 Mbit/s.
+  - *Heads-up:* none beyond UC 1 (Tahseen).
+  - *Follow-ups:* the chart's confirmation after discontinuing doesn't name the order; the race paths in `ClinicalOrders` (insert succeeds, update refused) are proven by the review's probes and the security tests but have no committed web test, because a stale page is refused earlier; the benchmark's table now has room for the longer row names.
+  - *For step 2 and 2a,* license research is done (not committed): RxNorm's prescribable content, ICD-10-CM, UNII, UCUM and CVX need no account. **LOINC needs a free loinc.org account to download, MED-RT's terms are unclear, and no interaction list with a clearly free license was found: ask Tahseen before step 2a loads any of the three.** Step 2 needs none of them.
+  - *Resume at step 2.*

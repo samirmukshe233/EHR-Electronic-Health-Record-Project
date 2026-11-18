@@ -12,8 +12,18 @@ public sealed record PatientChart(
     IReadOnlyList<MedicationStatement> Medications,
     IReadOnlyList<Condition> Conditions,
     IReadOnlyList<Encounter> Visits,
-    IReadOnlyList<ActiveOrder> Orders);
+    IReadOnlyList<ActiveOrder> Orders)
+{
+    // UC 1: set when the chart was asked to confirm a discontinuation and that order is this patient's and
+    // discontinued. Part of the same recorded read.
+    public bool ConfirmsDiscontinued { get; init; }
+}
 
 // UC 1 (Tahseen Arnan): a patient as the order form shows them, already recorded as one read of the patient: the
 // banner's name and allergies, and, once an item is picked, the patient's active orders for it, for the duplicate warning.
-public sealed record OrderForm(Patient Patient, IReadOnlyList<AllergyIntolerance> Allergies, IReadOnlyList<ActiveOrder> Duplicates);
+// Replaced is the active order a change replaces, or the one being discontinued; it is never among the duplicates.
+public sealed record OrderForm(Patient Patient, IReadOnlyList<AllergyIntolerance> Allergies, IReadOnlyList<ActiveOrder> Duplicates, ActiveOrder? Replaced);
+
+// UC 1: a patient's discontinued orders as their page lists them, already recorded as one read of the patient. More is
+// set when there are more than the page asked for.
+public sealed record DiscontinuedOrders(Patient Patient, IReadOnlyList<DiscontinuedOrder> Orders, bool More);

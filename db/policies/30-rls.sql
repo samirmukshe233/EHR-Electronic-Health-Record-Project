@@ -196,8 +196,9 @@ CREATE POLICY clinical_notes_own_insert ON ehr.clinical_notes FOR INSERT
 
 -- UC 1 (Tahseen Arnan). Orders (PHI) are read as signed notes are: by every clinician, on the chart's access model. A
 -- clinician signs an order only as themselves and only for a patient on their active panel, the rule for writing notes;
--- the signing trigger also locks, checks for a duplicate and sets the time (60-orders.sql). Nothing updates or deletes
--- an order (10-grants.sql), so there are no policies for either.
+-- the signing trigger also locks, checks for a duplicate and sets the time (60-orders.sql). The one update is
+-- discontinuing an order, by the same rule: a clinician, for a patient on their active panel, recorded as themselves
+-- (the trigger sets that before this check). Nothing deletes an order (10-grants.sql), so there is no policy for it.
 ALTER TABLE ehr.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ehr.orders FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS orders_clinician_select ON ehr.orders;
@@ -208,6 +209,25 @@ CREATE POLICY orders_own_insert ON ehr.orders FOR INSERT
     WITH CHECK (
         (SELECT ehr.is_clinician())
         AND signer_id = (SELECT ehr.current_user_id())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = orders.patient_id AND a.ended_at IS NULL
+        )
+    );
+DROP POLICY IF EXISTS orders_panel_update ON ehr.orders;
+CREATE POLICY orders_panel_update ON ehr.orders FOR UPDATE
+    USING (
+        (SELECT ehr.is_clinician())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = orders.patient_id AND a.ended_at IS NULL
+        )
+    )
+    WITH CHECK (
+        (SELECT ehr.is_clinician())
+        AND discontinuer_id = (SELECT ehr.current_user_id())
         AND EXISTS (
             SELECT 1 FROM ehr.patient_assignments a
             WHERE a.clinician_id = (SELECT ehr.current_user_id())

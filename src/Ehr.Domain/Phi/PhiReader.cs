@@ -33,7 +33,7 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
     // visits, up to `visits`, newest first. It is one view of one patient, so it is one recorded read of the patient,
     // however many rows the sections hold: the same event a list of patients records for each. Draft and signed-note
     // reads have their own table/row events, also accepted by the cloud audit queue (CloudAuditEvents).
-    public async Task<PatientChart?> ChartAsync(Guid id, int visits, CancellationToken cancellationToken)
+    public async Task<PatientChart?> ChartAsync(Guid id, int visits, CancellationToken cancellationToken, Guid? discontinued = null)
     {
         var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (patient is null)
@@ -56,15 +56,19 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             .Take(visits)
             .ToListAsync(cancellationToken);
         var orders = await ActiveOrders(id, catalogCode: null).ToListAsync(cancellationToken);
+        // Only when the discontinue page sent the clinician here: whether that order is this patient's, and discontinued.
+        var confirmed = discontinued is not null && await db.Orders.AsNoTracking()
+            .AnyAsync(order => order.Id == discontinued && order.PatientId == id && order.Status == OrderStatus.Revoked, cancellationToken);
 
         audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
         await db.SaveChangesAsync(cancellationToken);
-        return new PatientChart(patient, allergies, medications, conditions, encounters, orders);
+        return new PatientChart(patient, allergies, medications, conditions, encounters, orders) { ConfirmsDiscontinued = confirmed };
     }
 
     // UC 1 (Tahseen Arnan): the order form's view of a patient (OrderForm). One view of one patient, so one recorded read
-    // of the patient, as the chart's is, whatever orders the duplicate check finds.
-    public async Task<OrderForm?> OrderFormAsync(Guid id, string? catalogCode, CancellationToken cancellationToken)
+    // of the patient, as the chart's is, whatever orders the duplicate check finds. For a change, `replaces` is the
+    // order being replaced: it comes back when it is an active order of this patient, and isn't counted as a duplicate.
+    public async Task<OrderForm?> OrderFormAsync(Guid id, string? catalogCode, Guid? replaces, CancellationToken cancellationToken)
     {
         var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (patient is null)
@@ -73,11 +77,39 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         }
 
         var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
-        List<ActiveOrder> duplicates = catalogCode is null ? [] : await ActiveOrders(id, catalogCode).ToListAsync(cancellationToken);
+        var replaced = replaces is null ? null : await ActiveOrders(id, catalogCode: null, only: replaces).SingleOrDefaultAsync(cancellationToken);
+        List<ActiveOrder> duplicates = catalogCode is null
+            ? []
+            : await ActiveOrders(id, catalogCode, except: replaces).ToListAsync(cancellationToken);
 
         audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
         await db.SaveChangesAsync(cancellationToken);
-        return new OrderForm(patient, allergies, duplicates);
+        return new OrderForm(patient, allergies, duplicates, replaced);
+    }
+
+    // UC 1: a patient's discontinued orders, newest first, each with who discontinued it, when and why, and the order
+    // that replaced it when it was changed. One view of one patient: one recorded read of the patient.
+    public async Task<DiscontinuedOrders?> DiscontinuedOrdersAsync(Guid id, int limit, CancellationToken cancellationToken)
+    {
+        var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient is null)
+        {
+            return null;
+        }
+
+        var orders = await (
+            from order in db.Orders.AsNoTracking()
+            join item in db.OrderCatalogItems on order.CatalogCode equals item.Code
+            join staff in db.StaffUsers on order.DiscontinuerId equals staff.Id
+            where order.PatientId == id && order.Status == OrderStatus.Revoked
+            orderby order.DiscontinuedAt descending, order.Id
+            select new DiscontinuedOrder(order.Id, order.Type, item.Display, order.Details, order.SignedAt, order.DiscontinuedAt!.Value,
+                staff.DisplayName, order.DiscontinueReason!, order.ReplacedByOrderId != null))
+            .Take(limit + 1).ToListAsync(cancellationToken);
+
+        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+        await db.SaveChangesAsync(cancellationToken);
+        return new DiscontinuedOrders(patient, [.. orders.Take(limit)], orders.Count > limit);
     }
 
     // The allergies a patient has now, the high-risk ones first.
@@ -86,11 +118,13 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             .Where(a => a.PatientId == id && a.ClinicalStatus == AllergyClinicalStatus.Active)
             .OrderBy(a => a.Criticality == AllergyCriticality.High ? 0 : 1).ThenBy(a => a.Display).ThenBy(a => a.Id);
 
-    // A patient's active orders, of one catalog item or of all, newest first, with only the fields that are shown.
-    IQueryable<ActiveOrder> ActiveOrders(Guid id, string? catalogCode) =>
+    // A patient's active orders, of one catalog item or of all, newest first, with only the fields that are shown:
+    // just the one order, or all but one, when asked.
+    IQueryable<ActiveOrder> ActiveOrders(Guid id, string? catalogCode, Guid? only = null, Guid? except = null) =>
         from order in db.Orders.AsNoTracking()
         join item in db.OrderCatalogItems on order.CatalogCode equals item.Code
         where order.PatientId == id && order.Status == OrderStatus.Active && (catalogCode == null || order.CatalogCode == catalogCode)
+            && (only == null || order.Id == only) && (except == null || order.Id != except)
         orderby order.SignedAt descending, order.Id
         select new ActiveOrder(order.Id, order.Type, item.Display, order.Details, order.SignedAt);
 

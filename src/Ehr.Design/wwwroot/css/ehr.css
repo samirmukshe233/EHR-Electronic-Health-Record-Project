@@ -1096,6 +1096,17 @@
         border-bottom: 0;
     }
 
+    /* A record line's own actions, such as an order's "Change" and "Discontinue…": plain links after the line's text. */
+    .sc-list__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+        margin-top: var(--space-1);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+    }
+
     /* Table container: a border round the table, a header that stays in view, and room to scroll when narrow. */
     .sc-table-wrap {
         border: 1px solid var(--line);

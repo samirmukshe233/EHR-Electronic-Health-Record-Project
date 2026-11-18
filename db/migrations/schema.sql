@@ -700,3 +700,37 @@ VALUES ('20261116052725_AiFieldReviews', '10.0.13');
 
 COMMIT;
 
+START TRANSACTION;
+ALTER TABLE ehr.orders ADD discontinue_reason character varying(500);
+
+ALTER TABLE ehr.orders ADD discontinued_at timestamp with time zone;
+
+ALTER TABLE ehr.orders ADD discontinuer_id uuid;
+
+ALTER TABLE ehr.orders ADD replaced_by_order_id uuid;
+
+ALTER TABLE ehr.orders ADD replaces_order_id uuid;
+
+CREATE INDEX ix_orders_discontinuer_id ON ehr.orders (discontinuer_id);
+
+CREATE UNIQUE INDEX ix_orders_replaced_by_order_id ON ehr.orders (replaced_by_order_id);
+
+CREATE UNIQUE INDEX ix_orders_replaces_order_id ON ehr.orders (replaces_order_id);
+
+ALTER TABLE ehr.orders ADD CONSTRAINT ck_orders_discontinued CHECK ((status = 'revoked') = (discontinued_at IS NOT NULL) AND (discontinued_at IS NULL) = (discontinuer_id IS NULL) AND (discontinued_at IS NULL) = (discontinue_reason IS NULL));
+
+ALTER TABLE ehr.orders ADD CONSTRAINT ck_orders_replaced CHECK (replaced_by_order_id IS NULL OR status = 'revoked');
+
+ALTER TABLE ehr.orders ADD CONSTRAINT ck_orders_replaces_another CHECK (replaces_order_id <> id AND replaced_by_order_id <> id);
+
+ALTER TABLE ehr.orders ADD CONSTRAINT fk_orders_orders_replaced_by_order_id FOREIGN KEY (replaced_by_order_id) REFERENCES ehr.orders (id) ON DELETE RESTRICT;
+
+ALTER TABLE ehr.orders ADD CONSTRAINT fk_orders_orders_replaces_order_id FOREIGN KEY (replaces_order_id) REFERENCES ehr.orders (id) ON DELETE RESTRICT;
+
+ALTER TABLE ehr.orders ADD CONSTRAINT fk_orders_staff_users_discontinuer_id FOREIGN KEY (discontinuer_id) REFERENCES ehr.staff_users (id) ON DELETE RESTRICT;
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261118072929_OrderChanges', '10.0.13');
+
+COMMIT;
+

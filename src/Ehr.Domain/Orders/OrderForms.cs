@@ -37,6 +37,10 @@ public static class OrderForms
             .Where(field => !string.IsNullOrWhiteSpace(values.GetValueOrDefault(field.Name)))
             .ToDictionary(field => field.Name, field => values[field.Name]!.Trim()));
 
+    // The details as they were kept, by field, to fill the form again when an order is changed.
+    public static Dictionary<string, string?> Values(string details) =>
+        (JsonSerializer.Deserialize<Dictionary<string, string>>(details) ?? []).ToDictionary(pair => pair.Key, pair => (string?)pair.Value);
+
     // The details as the chart lists them, in the form's order: "Dose: 500 mg; Route: by mouth".
     public static string Summary(string type, string details)
     {
@@ -49,3 +53,9 @@ public sealed record OrderField(string Name, string Label, bool Required);
 
 // An active order as the chart and the order form's duplicate warning show it: only the fields they show.
 public sealed record ActiveOrder(Guid Id, string Type, string Display, string Details, DateTimeOffset SignedAt);
+
+// A discontinued order as its list shows it: what it was, who discontinued it, when and why, and whether a changed
+// order took its place.
+public sealed record DiscontinuedOrder(
+    Guid Id, string Type, string Display, string Details, DateTimeOffset SignedAt, DateTimeOffset DiscontinuedAt, string DiscontinuedBy, string Reason,
+    bool Replaced);

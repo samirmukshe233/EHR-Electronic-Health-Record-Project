@@ -1,0 +1,51 @@
+@page "/patients/{id:guid}/orders/{orderId:guid}/discontinue"
+@using Ehr.Domain.Orders
+@model Ehr.Web.Areas.Clinical.Pages.Patients.Orders.DiscontinueModel
+@{
+    // The address carries the patient. Without htmx, nothing keeps it in the browser's sessionStorage history.
+    ViewData["UseHtmx"] = false;
+    var patient = Model.Form.Patient;
+    ViewData["Title"] = $"Discontinue order: {patient.FamilyName}, {patient.GivenName}";
+}
+@* UC 1 (Tahseen Arnan). js/orders.js posts the form with fetch, and keeps it filled when the clinic's server can't be
+   reached; without JavaScript it posts as a normal form. *@
+@section Scripts {
+    <script src="~/_content/Ehr.Design/js/orders.js" defer></script>
+}
+@section Banner {
+    <partial name="_PatientBanner" model="new PatientBanner(patient, Model.Form.Allergies)" />
+}
+<div class="sc-pagehead">
+    <p><a asp-page="/Patients/Chart" asp-all-route-data="Model.ChartLink">Back to the chart</a></p>
+</div>
+<h1>Discontinue order: @patient.FamilyName, @patient.GivenName</h1>
+
+<form method="post" class="sc-form" data-order-form>
+    @if (Model.Gone)
+    {
+        <p class="sc-notice sc-notice--danger" role="alert" data-order-message><span class="sc-notice__state">Not saved:</span> this order is no longer active. Someone discontinued or changed it first. Go back to the chart to see its orders.</p>
+    }
+    else
+    {
+        <p class="sc-notice sc-notice--danger" role="alert" data-order-message hidden="@(Model.Error is null)">Not saved. Fix the highlighted field and discontinue again.</p>
+    }
+    @if (Model.Order is { } order)
+    {
+        <h2>@OrderForms.TypeNames[order.Type] order</h2>
+        <p data-order-discontinues><strong>@order.Display</strong> @OrderForms.Summary(order.Type, order.Details) · signed @order.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC</p>
+        <p class="sc-muted">The order stays in the record, marked discontinued, with your name, the time and this reason.</p>
+    }
+    <div class="sc-field">
+        <label for="discontinue-reason">Reason for discontinuing <span>(required)</span></label>
+        <textarea id="discontinue-reason" class="sc-field__input" name="Reason" rows="3" maxlength="@OrderForms.MaximumReasonLength" required autofocus
+                  aria-invalid="@(Model.Error is null ? null : "true")" aria-describedby="@(Model.Error is null ? null : "discontinue-reason-error")">@Model.Reason</textarea>
+        @if (Model.Error is not null)
+        {
+            <p class="sc-field__error" id="discontinue-reason-error">@Model.Error</p>
+        }
+    </div>
+    <div class="sc-actions">
+        <button type="submit" class="sc-btn sc-btn--danger">Discontinue order</button>
+        <a asp-page="/Patients/Chart" asp-all-route-data="Model.ChartLink">Cancel</a>
+    </div>
+</form>

@@ -38,7 +38,7 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
         return (patient, await SignInAsync(apps.OnPrem, clinician));
     }
 
-    static async Task<IBrowserContext> ContextAsync(IBrowser browser, Session session)
+    internal static async Task<IBrowserContext> ContextAsync(IBrowser browser, Session session)
     {
         var context = await browser.NewContextAsync(new() { IgnoreHTTPSErrors = true });
         await context.AddCookiesAsync(session.Jar.GetCookies(Base).Cast<System.Net.Cookie>().Select(c => new Microsoft.Playwright.Cookie
@@ -50,7 +50,7 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
     // On a machine without Playwright's Chromium, these tests are skipped and say how to install it, so `dotnet test`
     // still passes for everyone. In CI, which installs it (ci.yml), a missing browser fails them: they must not be
     // skipped there unnoticed.
-    static async Task<IBrowser> LaunchAsync(IPlaywright playwright)
+    internal static async Task<IBrowser> LaunchAsync(IPlaywright playwright)
     {
         try
         {
@@ -90,7 +90,7 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
         await page.WaitForFunctionAsync("document.querySelector('[data-review-progress]').textContent.includes('0 of 3')");
     }
 
-    static async Task TabToAsync(IPage page, string selector)
+    internal static async Task TabToAsync(IPage page, string selector)
     {
         for (var i = 0; i < 40; i++)
         {

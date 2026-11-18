@@ -7,8 +7,8 @@ namespace Ehr.Security.Tests;
 
 // UC 1 Place an order (Tahseen Arnan): what the database lets each account do with orders, as the runtime roles, in SQL
 // of its own, so these hold whatever the app checks (db/policies/30-rls.sql and 60-orders.sql). Only a clinician signs,
-// only as themselves, only for a patient on their panel; nothing changes or deletes an order; the database sets the
-// time; a second active order for the same item needs a reason, even when two arrive at once; and the write audit names
+// only as themselves, only for a patient on their panel; nothing edits or deletes an order (discontinuing and changing
+// one are OrderChangeSecurityTests'); the database sets the time; a second active order for the same item needs a reason, even when two arrive at once; and the write audit names
 // the clinician and the time.
 public class OrderSecurityTests(MigratedDatabase database) : IClassFixture<MigratedDatabase>
 {
@@ -124,17 +124,24 @@ public class OrderSecurityTests(MigratedDatabase database) : IClassFixture<Migra
         }
     }
 
+    // Nothing deletes an order, and the cloud app's role updates nothing. The one update ehr_app has is discontinuing,
+    // which OrderChangeSecurityTests covers; here, the columns outside its grant can't be written at all.
     [Fact]
-    public async Task Orders_cannot_be_updated_or_deleted()
+    public async Task Orders_cannot_be_deleted_or_edited()
     {
         var (clinician, patient) = await OnPanelAsync();
         var order = await OrderAsync(App, clinician, patient);
 
         foreach (var (connection, sql) in new[]
         {
-            (App, "UPDATE ehr.orders SET status = 'revoked' WHERE id = @id"),
             (App, "DELETE FROM ehr.orders WHERE id = @id"),
-            (Read, "UPDATE ehr.orders SET status = 'revoked' WHERE id = @id"),
+            (App, "UPDATE ehr.orders SET details = '{}' WHERE id = @id"),
+            (App, "UPDATE ehr.orders SET catalog_code = 'SYN-LAB-002' WHERE id = @id"),
+            (App, "UPDATE ehr.orders SET signer_id = signer_id, signed_at = now() WHERE id = @id"),
+            (App, "UPDATE ehr.orders SET status = 'revoked', discontinue_reason = 'Synthetic', discontinued_at = '2000-01-01' WHERE id = @id"),
+            (App, "UPDATE ehr.orders SET status = 'revoked', discontinue_reason = 'Synthetic', discontinuer_id = signer_id WHERE id = @id"),
+            (App, "UPDATE ehr.orders SET replaces_order_id = NULL WHERE id = @id"),
+            (Read, "UPDATE ehr.orders SET status = 'revoked', discontinue_reason = 'Synthetic' WHERE id = @id"),
             (Read, "DELETE FROM ehr.orders WHERE id = @id"),
         })
         {
@@ -249,7 +256,7 @@ public class OrderSecurityTests(MigratedDatabase database) : IClassFixture<Migra
         Assert.Equal(["0"], await CountAsync(patient));
     }
 
-    // Nothing can change a status afterwards, so an order inserted as anything but active would be stuck that way.
+    // An order is signed active: only discontinuing changes its status afterwards.
     [Fact]
     public async Task An_order_that_is_not_active_is_refused()
     {

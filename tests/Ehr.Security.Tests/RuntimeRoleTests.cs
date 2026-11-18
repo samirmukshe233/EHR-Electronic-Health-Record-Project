@@ -61,7 +61,8 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
         [("ehr_app", "clinical_drafts")] = ["SELECT", "INSERT", "UPDATE"],
         // UC 14 adds replica draft reads under the same private-author/active-panel RLS as the primary.
         [("ehr_read", "clinical_drafts")] = ["SELECT"],
-        // UC 1: orders are append-only; the catalog is read only.
+        // UC 1: an order is never edited or deleted. Discontinuing one updates three of its columns, which is a column
+        // grant (ExpectedColumnPrivileges), not a table one. The catalog is read only.
         [("ehr_app", "orders")] = ["SELECT", "INSERT"],
         [("ehr_read", "orders")] = ["SELECT"],
         [("ehr_app", "order_catalog_items")] = ["SELECT"],
@@ -207,8 +208,33 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
         await database.ApplyAsync();
     }
 
+    // Grants on single columns, which has_table_privilege doesn't see: each one a runtime role holds beyond its table
+    // grants. This repeats db/policies/10-grants.sql on purpose, as ExpectedPrivileges does. A column grant made
+    // anywhere else, or not listed here, fails.
+    static readonly Dictionary<(string Role, string Table, string Privilege), string[]> ExpectedColumnPrivileges = new()
+    {
+        // UC 1: discontinuing an order.
+        [("ehr_app", "orders", "UPDATE")] = ["discontinue_reason", "replaced_by_order_id", "status"],
+    };
+
     async Task AssertExactPrivilegesAsync()
     {
+        var columns = await QueryAsync(
+            """
+            SELECT r.role, c.relname, p.privilege, string_agg(a.attname, ' ' ORDER BY a.attname)
+            FROM unnest(@roles) AS r(role)
+            CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'REFERENCES']) AS p(privilege)
+            JOIN pg_class c ON c.relnamespace = 'ehr'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm')
+            JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+            WHERE has_column_privilege(r.role, c.oid, a.attnum, p.privilege) AND NOT has_table_privilege(r.role, c.oid, p.privilege)
+            GROUP BY r.role, c.relname, p.privilege
+            """,
+            reader => (Key: (reader.GetString(0), reader.GetString(1), reader.GetString(2)), Columns: reader.GetString(3)),
+            ("roles", RuntimeRoles));
+        Assert.Equal(
+            ExpectedColumnPrivileges.Select(expected => $"{expected.Key}: {string.Join(' ', expected.Value.Order(StringComparer.Ordinal))}").Order(),
+            columns.Select(actual => $"{actual.Key}: {actual.Columns}").Order());
+
         foreach (var ((role, table), expected) in ExpectedPrivileges)
         {
             var actual = await QueryAsync(
