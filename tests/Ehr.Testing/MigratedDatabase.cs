@@ -87,8 +87,9 @@ public sealed class MigratedDatabase : IAsyncLifetime
             await ExecuteAsync(owner, await File.ReadAllTextAsync(file));
         }
 
-        // The reference data (db/reference): the codes chart entries are picked from.
-        foreach (var file in Directory.GetFiles(RepositoryRoot.Combine("db/reference"), "*.sql").Order(StringComparer.Ordinal))
+        // The reference data (db/reference), then DDInter's, in its own folder with its own license: as infra/migrate does.
+        foreach (var file in Directory.GetFiles(RepositoryRoot.Combine("db/reference"), "*.sql").Order(StringComparer.Ordinal)
+            .Concat(Directory.GetFiles(RepositoryRoot.Combine("db/reference/ddinter"), "*.sql").Order(StringComparer.Ordinal)))
         {
             await ReferenceData.ApplyAsync(owner, file);
         }

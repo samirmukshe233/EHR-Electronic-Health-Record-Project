@@ -49,6 +49,9 @@ public static class ClinicalCodeSystem
 
     public const string Unii = "unii";
 
+    // Not a system of the clinical codes table: lab tests and results, in the order catalog and the observation codes.
+    public const string Loinc = "loinc";
+
     public static readonly string[] All = [Icd10Cm, RxNorm, Unii];
 }
 
