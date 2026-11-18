@@ -66,7 +66,12 @@ sealed class ClinicalBrowserHost : IAsyncDisposable
         context.Response.StatusCode = (int)response.StatusCode;
         foreach (var header in response.Headers.Concat(response.Content.Headers)) context.Response.Headers[header.Key] = header.Value.ToArray();
         context.Response.Headers.Remove("transfer-encoding");
-        await response.Content.CopyToAsync(context.Response.Body);
+        // "Not modified" and "no content" have no body, and Kestrel refuses a write to one: the request would fail, and
+        // an image the browser was only checking again (the app bar's logo, on the second page it's on) would break.
+        if (response.StatusCode is not (System.Net.HttpStatusCode.NotModified or System.Net.HttpStatusCode.NoContent))
+        {
+            await response.Content.CopyToAsync(context.Response.Body);
+        }
     }
 
     public async ValueTask DisposeAsync()

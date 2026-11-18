@@ -114,6 +114,8 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
         await StartAndReviewAsync(page, $"{server.Url}/patients/{patient}/dictate");
         Assert.True(await page.EvaluateAsync<bool>("document.activeElement.matches('[data-dictation-field=history] [value=accepted]')"));
         Assert.Contains("Cough", await page.Locator("mark.sc-transcript__source").First.TextContentAsync());
+        // The app bar's logo is drawn here too, on the second page that shows it, where the browser only checks it again.
+        Assert.True(await page.EvaluateAsync<bool>("document.querySelector('.sc-appbar__logo').naturalWidth > 0"));
         await page.Keyboard.PressAsync("Enter");
         await page.WaitForFunctionAsync("document.querySelector('[data-review-progress]').textContent.includes('1 of 3')");
         await TabToAsync(page, "[data-dictation-field=assessment] summary");
