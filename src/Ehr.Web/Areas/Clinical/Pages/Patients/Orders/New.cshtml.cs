@@ -15,12 +15,17 @@ namespace Ehr.Web.Areas.Clinical.Pages.Patients.Orders;
 // signer and the time, and records the write. Then the chart confirms the order and lists it. Cancel is a link back to
 // the chart, which saves nothing.
 //
+// Changing an order is this form too (?replaces=<order>): a signed order is never edited, so the form opens filled with
+// the active order's item and details, and "Sign changed order" signs a new order and discontinues the old one as
+// replaced, in one transaction. The order being replaced isn't a duplicate of its replacement. If someone discontinued
+// or changed it first, nothing is saved and the form says so.
+//
 // The same rule as the chart's "New note": only for a patient on the clinician's panel. Anyone else, a clinician under
 // emergency access included, is sent back to the chart before anything about the patient is read. Off-site, the cloud
 // app forwards the post to the on-prem app; js/orders.js posts it with fetch, so when that fails the form stays filled.
 // Without JavaScript, the cloud app's "Not saved" page shows the order's fields again to copy (UC 2, ShownIfNotSaved).
 [ShownIfNotSaved(nameof(Item), "Details[indication]", "Details[dose]", "Details[route]", "Details[frequency]", "Details[duration]",
-    "Details[reason]", "Details[notes]", nameof(DuplicateReason))]
+    "Details[reason]", "Details[notes]", nameof(DuplicateReason), nameof(ChangeReason))]
 public class NewModel(PhiReader phi, PatientAssignments assignments, ClinicalOrders orders) : PageModel
 {
     [BindProperty(SupportsGet = true)]
@@ -38,6 +43,16 @@ public class NewModel(PhiReader phi, PatientAssignments assignments, ClinicalOrd
 
     [BindProperty]
     public string? DuplicateReason { get; set; }
+
+    // A change: the active order this one replaces, from the query string, and why, which is optional.
+    [BindProperty(SupportsGet = true)]
+    public Guid? Replaces { get; set; }
+
+    [BindProperty]
+    public string? ChangeReason { get; set; }
+
+    // Set when the order to replace was discontinued or changed by someone else first.
+    public bool Gone { get; private set; }
 
     public OrderForm Form { get; private set; } = null!;
 
@@ -59,7 +74,21 @@ public class NewModel(PhiReader phi, PatientAssignments assignments, ClinicalOrd
         }
     }
 
-    public async Task<IActionResult> OnGetAsync(Guid id) => await LoadAsync(id, catalogCode: null) ?? Page();
+    public async Task<IActionResult> OnGetAsync(Guid id)
+    {
+        if (await LoadAsync(id, catalogCode: null) is { } refused)
+        {
+            return refused;
+        }
+
+        if (Form.Replaced is { } replaced)
+        {
+            Item = replaced.Display;
+            Details = OrderForms.Values(replaced.Details);
+        }
+
+        return Page();
+    }
 
     public async Task<IActionResult> OnPostAsync(Guid id)
     {
@@ -85,17 +114,32 @@ public class NewModel(PhiReader phi, PatientAssignments assignments, ClinicalOrd
             errors["DuplicateReason"] = $"Shorten the reason to {OrderForms.MaximumReasonLength} characters or fewer.";
         }
 
+        var changeReason = string.IsNullOrWhiteSpace(ChangeReason) ? null : ChangeReason.Trim();
+        if (changeReason?.Length > OrderForms.MaximumReasonLength)
+        {
+            errors["ChangeReason"] = $"Shorten the reason to {OrderForms.MaximumReasonLength} characters or fewer.";
+        }
+
         if (errors.Count > 0)
         {
             return Refused(errors);
         }
 
-        var order = await orders.SignAsync(id, item!, OrderForms.Details(type, Details), Form.Duplicates.Count > 0 ? reason : null,
-            HttpContext.RequestAborted);
+        var (order, refusal) = await orders.SignAsync(id, item!, OrderForms.Details(type, Details), Form.Duplicates.Count > 0 ? reason : null,
+            HttpContext.RequestAborted, Replaces, changeReason);
+        if (refusal == SignRefusal.Gone)
+        {
+            return NoLongerActive();
+        }
+
         if (order is null)
         {
             // Another order for the same item was signed at the same moment: warn as for any duplicate.
-            await LoadAsync(id, item!.Code);
+            if (await LoadAsync(id, item!.Code) is { } gone)
+            {
+                return gone;
+            }
+
             return Refused(new Dictionary<string, string> { ["DuplicateReason"] = "Give a reason to order this again, or cancel." });
         }
 
@@ -113,6 +157,14 @@ public class NewModel(PhiReader phi, PatientAssignments assignments, ClinicalOrd
         return Page();
     }
 
+    // Nothing saved: the order to change was discontinued or changed first. What was entered stays, to copy.
+    PageResult NoLongerActive()
+    {
+        Gone = true;
+        Response.StatusCode = StatusCodes.Status409Conflict;
+        return Page();
+    }
+
     // The gate, then the one recorded read. Null when the form may be shown.
     async Task<IActionResult?> LoadAsync(Guid id, string? catalogCode)
     {
@@ -121,12 +173,29 @@ public class NewModel(PhiReader phi, PatientAssignments assignments, ClinicalOrd
             return RedirectToPage("/Patients/Chart", Search.ChartRouteValues(id));
         }
 
-        if (await phi.OrderFormAsync(id, catalogCode, HttpContext.RequestAborted) is not { } form)
+        if (await phi.OrderFormAsync(id, catalogCode, Replaces, HttpContext.RequestAborted) is not { } form)
         {
             return NotFound();
         }
 
         Form = form;
+        if (Replaces is not null && form.Replaced is null)
+        {
+            // Not an active order of this patient: nothing to change. A post says so; a link goes back to the chart.
+            return HttpMethods.IsPost(Request.Method) ? NoLongerActive() : RedirectToPage("/Patients/Chart", Search.ChartRouteValues(id));
+        }
+
+        if (form.Replaced is { } replaced && replaced.Type != Type)
+        {
+            // A change keeps the order's type. A link with another type opens the right form; a post is refused.
+            if (HttpMethods.IsPost(Request.Method))
+            {
+                return BadRequest();
+            }
+
+            Type = replaced.Type;
+        }
+
         Catalog = KnownType is { } type ? await orders.CatalogAsync(type, HttpContext.RequestAborted) : [];
         return null;
     }

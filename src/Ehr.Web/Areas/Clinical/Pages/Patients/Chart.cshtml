@@ -42,6 +42,10 @@
 {
     <p class="sc-notice sc-notice--danger"><span class="sc-notice__state">Emergency access:</span> this patient is not on your panel. Your access and the reason you gave are recorded for review. It lasts until @until.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
 }
+@if (Model.Discontinued is not null)
+{
+    <p class="sc-notice sc-notice--success" role="status"><span class="sc-notice__state">Order discontinued:</span> it is listed under this chart's discontinued orders.</p>
+}
 @if (Model.SignedOrder is { } signed)
 {
     <p class="sc-notice sc-notice--success" role="status"><span class="sc-notice__state">Order signed:</span> <strong>@signed.Display</strong>, @signed.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
@@ -128,14 +132,39 @@
                     <li>
                         <strong>@order.Display</strong> (@Ehr.Domain.Orders.OrderForms.TypeNames[order.Type])
                         @Ehr.Domain.Orders.OrderForms.Summary(order.Type, order.Details) · signed @order.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC
+                        @if (Model.OnPanel && OnPrem.IsReachable)
+                        {
+                            @* A signed order is never edited: "Change" signs a new order in its place, and "Discontinue…"
+                               asks for the reason first. Plain links, so Tab reaches them and Enter follows them. *@
+                            var changeRoute = Model.Search.RouteData();
+                            changeRoute["id"] = Model.Patient.Id.ToString();
+                            changeRoute["type"] = order.Type;
+                            changeRoute["replaces"] = order.Id.ToString();
+                            var discontinueRoute = Model.Search.RouteData();
+                            discontinueRoute["id"] = Model.Patient.Id.ToString();
+                            discontinueRoute["orderId"] = order.Id.ToString();
+                            <span class="sc-list__actions">
+                                <a asp-page="Orders/New" asp-all-route-data="changeRoute" aria-label="Change: @order.Display" data-change-order>Change</a>
+                                <a asp-page="Orders/Discontinue" asp-all-route-data="discontinueRoute" aria-label="Discontinue…: @order.Display" data-discontinue-order>Discontinue…</a>
+                            </span>
+                        }
                     </li>
                 }
             </ul>
+            @if (Model.OnPanel && !OnPrem.IsReachable)
+            {
+                <p class="sc-muted">Changing or discontinuing an order needs the clinic's server.</p>
+            }
         }
         else
         {
             <p class="sc-muted">No active orders.</p>
         }
+        @{
+            var discontinuedRoute = Model.Search.RouteData();
+            discontinuedRoute["id"] = Model.Patient.Id.ToString();
+        }
+        <p><a asp-page="Orders/Discontinued" asp-all-route-data="discontinuedRoute">Discontinued orders</a></p>
     </section>
 
     @* Read only for now: nothing here is edited yet. *@

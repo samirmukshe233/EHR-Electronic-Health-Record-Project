@@ -37,6 +37,10 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
 
     public Ehr.Domain.Orders.ActiveOrder? SignedOrder => Chart.Orders.FirstOrDefault(order => order.Id == Ordered);
 
+    // UC 1: set by the discontinue page's redirect, for the chart's confirmation.
+    [BindProperty(SupportsGet = true)]
+    public Guid? Discontinued { get; set; }
+
     public IReadOnlyList<ClinicalDraft> Drafts { get; private set; } = [];
     public IReadOnlyList<ClinicalNote> Notes { get; private set; } = [];
 

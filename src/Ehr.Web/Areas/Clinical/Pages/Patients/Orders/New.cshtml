@@ -6,7 +6,9 @@
     // The address carries the patient. Without htmx, nothing keeps it in the browser's sessionStorage history.
     ViewData["UseHtmx"] = false;
     var patient = Model.Form.Patient;
-    ViewData["Title"] = $"New order: {patient.FamilyName}, {patient.GivenName}";
+    var replaced = Model.Form.Replaced;
+    var heading = replaced is null ? "New order" : "Change order";
+    ViewData["Title"] = $"{heading}: {patient.FamilyName}, {patient.GivenName}";
 }
 @* UC 1 Place an order (Tahseen Arnan). js/orders.js posts the form with fetch, and keeps it filled when the clinic's
    server can't be reached; without JavaScript it posts as a normal form. *@
@@ -19,8 +21,10 @@
 <div class="sc-pagehead">
     <p><a asp-page="/Patients/Chart" asp-all-route-data="Model.ChartLink">Back to the chart</a></p>
 </div>
-<h1>New order: @patient.FamilyName, @patient.GivenName</h1>
+<h1>@heading: @patient.FamilyName, @patient.GivenName</h1>
 
+@if (replaced is null)
+{
 <nav aria-label="Type of order">
     <ul class="sc-tabs">
         @foreach (var (type, name) in OrderForms.TypeNames)
@@ -32,6 +36,7 @@
         }
     </ul>
 </nav>
+}
 
 @if (Model.KnownType is not { } selected)
 {
@@ -40,8 +45,23 @@
 else
 {
     <form method="post" class="sc-form" data-order-form>
-        <p class="sc-notice sc-notice--danger" role="alert" data-order-message hidden="@(Model.Errors.Count == 0)">Not saved. Fix the highlighted fields and sign again.</p>
+        @if (Model.Gone)
+        {
+            <p class="sc-notice sc-notice--danger" role="alert" data-order-message><span class="sc-notice__state">Not saved:</span> this order is no longer active. Someone discontinued or changed it first. Go back to the chart to see its orders.</p>
+        }
+        else
+        {
+            <p class="sc-notice sc-notice--danger" role="alert" data-order-message hidden="@(Model.Errors.Count == 0)">Not saved. Fix the highlighted fields and sign again.</p>
+        }
         <h2>@OrderForms.TypeNames[selected] order</h2>
+        @if (replaced is not null)
+        {
+            @* A signed order is never edited: the change is a new order, and signing it discontinues this one. *@
+            <div class="sc-notice sc-notice--info" data-order-replaces>
+                <p><span class="sc-notice__state">Replaces:</span> <strong>@replaced.Display</strong> @OrderForms.Summary(replaced.Type, replaced.Details) · signed @replaced.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC</p>
+                <p>Signing the change discontinues that order and keeps it in the chart's discontinued orders.</p>
+            </div>
+        }
         @{ Field("Item", "order-item", "Item", required: true, Model.Item, "order-items"); }
         <datalist id="order-items">
             @foreach (var item in Model.Catalog)
@@ -69,8 +89,21 @@ else
                 </div>
             </section>
         }
+        @if (replaced is not null)
+        {
+            var changeError = Model.Errors.GetValueOrDefault("ChangeReason");
+            <div class="sc-field">
+                <label for="order-change-reason">Reason for the change</label>
+                <textarea id="order-change-reason" class="sc-field__input" name="ChangeReason" rows="2" maxlength="@OrderForms.MaximumReasonLength"
+                          aria-invalid="@(changeError is null ? null : "true")" aria-describedby="@(changeError is null ? null : "order-change-reason-error")">@Model.ChangeReason</textarea>
+                @if (changeError is not null)
+                {
+                    <p class="sc-field__error" id="order-change-reason-error">@changeError</p>
+                }
+            </div>
+        }
         <div class="sc-actions">
-            <button type="submit" class="sc-btn sc-btn--primary">Sign order</button>
+            <button type="submit" class="sc-btn sc-btn--primary">@(replaced is null ? "Sign order" : "Sign changed order")</button>
             <a asp-page="/Patients/Chart" asp-all-route-data="Model.ChartLink">Cancel</a>
         </div>
     </form>
