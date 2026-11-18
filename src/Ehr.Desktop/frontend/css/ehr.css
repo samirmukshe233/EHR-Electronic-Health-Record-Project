@@ -599,6 +599,14 @@
         margin: 0;
     }
 
+    /* A plain link beside the buttons, such as "Cancel": the quiet button's weight. */
+    .sc-actions > a:not(.sc-btn) {
+        padding: 0 var(--space-2);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+    }
+
     /* Form: one column of fields at width-form. */
     .sc-form {
         display: flex;
@@ -610,6 +618,11 @@
 
     .sc-form > * {
         margin: 0;
+    }
+
+    .sc-form > h2 {
+        font-size: 18px;
+        line-height: 24px;
     }
 
     .sc-form--wide {
@@ -639,6 +652,8 @@
         max-width: var(--width-reading);
     }
 
+    /* A label needs no class of its own inside a field. */
+    .sc-field > label,
     .sc-field__label {
         font-size: 14px;
         line-height: 20px;
@@ -646,6 +661,8 @@
         color: var(--ink);
     }
 
+    /* What a label adds about its field: "(required)", "(optional)". */
+    .sc-field > label > span,
     .sc-field__optional {
         font-weight: 400;
         color: var(--ink-muted);
@@ -667,6 +684,11 @@
     textarea.sc-field__input {
         min-height: 96px;
         resize: vertical;
+    }
+
+    .sc-field__input--mono {
+        font-family: var(--font-mono);
+        font-weight: 500;
     }
 
     .sc-field__input::placeholder {
@@ -710,8 +732,8 @@
         font-size: 18px;
     }
 
-    .sc-field--portal .sc-field__label,
-    .sc-app--portal .sc-field__label {
+    .sc-field--portal > label,
+    .sc-app--portal .sc-field > label {
         font-size: 16px;
         line-height: 24px;
     }
@@ -1013,6 +1035,7 @@
         line-height: 24px;
     }
 
+    .sc-panel > h3,
     .sc-panel__subtitle {
         margin: var(--space-4) 0 var(--space-2);
         font-family: var(--font-sans);

@@ -37,7 +37,7 @@ public class TC_UC1_03_InvalidInput(WebApps apps) : IClassFixture<WebApps>
         var html = await response.Content.ReadAsStringAsync(Cancel);
         Assert.Contains("id=\"order-indication\"", html);
         Assert.Matches("id=\"order-indication\"[^>]* aria-invalid=\"true\"", html);
-        Assert.Contains("<p class=\"error\" id=\"order-indication-error\">Enter the reason for the test.</p>", html);
+        Assert.Contains("<p class=\"sc-field__error\" id=\"order-indication-error\">Enter the reason for the test.</p>", html);
         Assert.Contains("value=\"Complete blood count (CBC)\"", html);
         Assert.Contains("value=\"Fasting\"", html);
         Assert.Equal(0, await OrdersAsync(apps, patient));

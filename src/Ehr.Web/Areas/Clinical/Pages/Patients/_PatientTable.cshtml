@@ -1,27 +1,31 @@
 @model PatientTable
-<table>
-    <thead>
-        <tr><th>Name</th><th>MRN</th><th>Born</th></tr>
-    </thead>
-    <tbody>
-        @foreach (var patient in Model.Patients)
-        {
-            <tr>
-                <td>
-                    @* The criteria first: asp-all-route-data replaces the route values, and asp-route-id then adds to them. *@
-                    <a asp-page="Chart" asp-all-route-data="Model.Search.RouteData()" asp-route-id="@patient.Id">@patient.FamilyName, @patient.GivenName</a>
-                    @if (Model.MarkPanel && Model.Panel.Contains(patient.Id))
-                    {
-                        <span class="tag">Yours</span>
-                    }
-                    else if (Model.MarkPanel)
-                    {
-                        <span class="tag restricted">Restricted</span>
-                    }
-                </td>
-                <td>@patient.Mrn</td>
-                <td>@patient.BirthDate.ToString("yyyy-MM-dd")</td>
-            </tr>
-        }
-    </tbody>
-</table>
+@* The arrow keys move through these links (patient-search.js); the row the keyboard is on is tinted, beside its focus
+   ring. *@
+<div class="sc-table-wrap">
+    <table class="sc-table sc-table--pick">
+        <thead>
+            <tr><th>Name</th><th>MRN</th><th>Born</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var patient in Model.Patients)
+            {
+                <tr>
+                    <td>
+                        @* The criteria first: asp-all-route-data replaces the route values, and asp-route-id then adds to them. *@
+                        <a asp-page="Chart" asp-all-route-data="Model.Search.RouteData()" asp-route-id="@patient.Id">@patient.FamilyName, @patient.GivenName</a>
+                        @if (Model.MarkPanel && Model.Panel.Contains(patient.Id))
+                        {
+                            <span class="sc-tag">Yours</span>
+                        }
+                        else if (Model.MarkPanel)
+                        {
+                            <span class="sc-tag sc-tag--warning">Restricted</span>
+                        }
+                    </td>
+                    <td class="sc-table__mono">@patient.Mrn</td>
+                    <td class="sc-table__mono">@patient.BirthDate.ToString("yyyy-MM-dd")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

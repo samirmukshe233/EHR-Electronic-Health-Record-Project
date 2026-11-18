@@ -13,226 +13,249 @@
         <script src="~/_content/Ehr.Design/js/orders.js" defer></script>
     }
 }
-<p><partial name="_BackToSearch" model="Model.Search" /></p>
-<h1>@Model.Patient.FamilyName, @Model.Patient.GivenName @if (Model.OnPanel) { <span class="tag">Yours</span> }</h1>
+@section Banner {
+    <partial name="_PatientBanner" model="new PatientBanner(Model.Patient, Model.Chart.Allergies, Model.OnPanel, Model.EmergencyUntil, Title: true)" />
+}
+<div class="sc-pagehead">
+    <p><partial name="_BackToSearch" model="Model.Search" /></p>
+    @* Off-site with the clinic's server down nothing can be saved, so no change is offered (UC 2). *@
+    <div class="sc-actions">
+        @if (!OnPrem.IsReachable)
+        {
+            <p class="sc-muted">Your panel can't be changed while the clinic's server can't be reached.</p>
+        }
+        else if (Model.OnPanel)
+        {
+            <form method="post" asp-page-handler="Unassign" asp-all-route-data="Model.Search.RouteData()">
+                <button class="sc-btn">Remove from my patients</button>
+            </form>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Assign" asp-all-route-data="Model.Search.RouteData()">
+                <button class="sc-btn">Add to my patients</button>
+            </form>
+        }
+    </div>
+</div>
 @if (Model.EmergencyUntil is { } until)
 {
-    <p class="notice">Emergency access: this patient is not on your panel. Your access and the reason you gave are recorded for review. It lasts until @until.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
+    <p class="sc-notice sc-notice--danger"><span class="sc-notice__state">Emergency access:</span> this patient is not on your panel. Your access and the reason you gave are recorded for review. It lasts until @until.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
 }
-<dl class="record">
-    <dt>MRN</dt><dd>@Model.Patient.Mrn</dd>
-    <dt>Born</dt><dd>@Model.Patient.BirthDate.ToString("yyyy-MM-dd")</dd>
-    <dt>Gender</dt><dd>@Model.Patient.Gender</dd>
-</dl>
-@* Off-site with the clinic's server down nothing can be saved, so no change is offered (UC 2). *@
-<div class="actions">
-    @if (!OnPrem.IsReachable)
-    {
-        <p>Your panel can't be changed while the clinic's server can't be reached.</p>
-    }
-    else if (Model.OnPanel)
-    {
-        <form method="post" asp-page-handler="Unassign" asp-all-route-data="Model.Search.RouteData()">
-            <button>Remove from my patients</button>
-        </form>
-    }
-    else
-    {
-        <form method="post" asp-page-handler="Assign" asp-all-route-data="Model.Search.RouteData()">
-            <button>Add to my patients</button>
-        </form>
-    }
-</div>
-
-<h2>Clinical notes</h2>
-@* UC 9 and UC 10: dictate a note for this patient, offered as "New note" is: for a patient on the clinician's panel,
-   while the clinic's server can be reached. Nothing is saved there yet. The patient and the search travel in one
-   dictionary, since asp-all-route-data replaces asp-route-*. *@
-@{
-    var dictateRoute = Model.Search.RouteData();
-    dictateRoute["id"] = Model.Patient.Id.ToString();
-}
-@if (Model.OnPanel && OnPrem.IsReachable)
-{
-    <p><a asp-page="Dictate" asp-all-route-data="dictateRoute" data-dictate-link>Dictate a note</a></p>
-    <form method="post" asp-page-handler="NewNote"><button>New note</button></form>
-}
-else if (!Model.OnPanel)
-{
-    <p>Add this patient to your panel to write a note.</p>
-}
-else
-{
-    <p>New notes and signing require the clinic server. Saved notes remain readable.</p>
-}
-@if (Model.Drafts.Count > 0)
-{
-    <h3>Your drafts</h3>
-    <ul>
-        @foreach (var draft in Model.Drafts)
-        {
-            <li><a asp-page="Notes/Edit" asp-route-patientId="@Model.Patient.Id" asp-route-draftId="@draft.Id">Open draft</a> · version @draft.Version · unsigned</li>
-        }
-    </ul>
-}
-@if (Model.Notes.Count > 0)
-{
-    <ul>
-        @foreach (var note in Model.Notes)
-        {
-            <li><a asp-page="Notes/View" asp-route-patientId="@Model.Patient.Id" asp-route-noteId="@note.Id">Signed note · @note.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC</a></li>
-        }
-    </ul>
-}
-else
-{
-    <p>No signed notes recorded.</p>
-}
-
-@* UC 1 Place an order (Tahseen Arnan): offered as "New note" is, for a patient on the clinician's panel while the clinic's
-   server can be reached. Alt+Shift+O follows the link (js/orders.js). The list is part of the chart's one recorded read. *@
-<h2>Orders</h2>
 @if (Model.SignedOrder is { } signed)
 {
-    <p class="notice" role="status">Order signed: <strong>@signed.Display</strong>, @signed.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
-}
-@if (Model.OnPanel && OnPrem.IsReachable)
-{
-    var orderRoute = Model.Search.RouteData();
-    orderRoute["id"] = Model.Patient.Id.ToString();
-    <p><a asp-page="Orders/New" asp-all-route-data="orderRoute" data-new-order aria-keyshortcuts="Alt+Shift+O">New order</a></p>
-}
-else if (!Model.OnPanel)
-{
-    <p>Add this patient to your panel to place an order.</p>
-}
-else
-{
-    <p>New orders need the clinic's server. Active orders remain readable.</p>
-}
-<h3>Active orders</h3>
-@if (Model.Chart.Orders.Count > 0)
-{
-    <ul>
-        @foreach (var order in Model.Chart.Orders)
-        {
-            <li>
-                <strong>@order.Display</strong> (@Ehr.Domain.Orders.OrderForms.TypeNames[order.Type])
-                @Ehr.Domain.Orders.OrderForms.Summary(order.Type, order.Details) · signed @order.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC
-            </li>
-        }
-    </ul>
-}
-else
-{
-    <p>No active orders.</p>
+    <p class="sc-notice sc-notice--success" role="status"><span class="sc-notice__state">Order signed:</span> <strong>@signed.Display</strong>, @signed.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
 }
 
-@* Read only for now: nothing here is edited yet. *@
-<h2>Allergies</h2>
-@if (Model.KnownAllergies.Count > 0)
-{
-    <ul>
-        @foreach (var allergy in Model.KnownAllergies)
+<div class="sc-chart">
+    <section class="sc-panel" aria-labelledby="chart-notes">
+        <h2 class="sc-panel__title" id="chart-notes">Clinical notes</h2>
+        @* UC 9 and UC 10: dictate a note for this patient, offered as "New note" is: for a patient on the clinician's panel,
+           while the clinic's server can be reached. Nothing is saved there yet. The patient and the search travel in one
+           dictionary, since asp-all-route-data replaces asp-route-*. *@
+        @{
+            var dictateRoute = Model.Search.RouteData();
+            dictateRoute["id"] = Model.Patient.Id.ToString();
+        }
+        @if (Model.OnPanel && OnPrem.IsReachable)
         {
-            <li>
-                <strong>@allergy.Display</strong>@if (allergy.Reaction is { } reaction) { <text>: @reaction</text> }
-                @if (allergy.Criticality == AllergyCriticality.High)
+            <div class="sc-actions">
+                <a asp-page="Dictate" asp-all-route-data="dictateRoute" class="sc-btn" data-dictate-link>Dictate a note</a>
+                <form method="post" asp-page-handler="NewNote"><button class="sc-btn">New note</button></form>
+            </div>
+        }
+        else if (!Model.OnPanel)
+        {
+            <p class="sc-muted">Add this patient to your panel to write a note.</p>
+        }
+        else
+        {
+            <p class="sc-muted">New notes and signing require the clinic server. Saved notes remain readable.</p>
+        }
+        @if (Model.Drafts.Count > 0)
+        {
+            <h3>Your drafts</h3>
+            <ul class="sc-list">
+                @foreach (var draft in Model.Drafts)
                 {
-                    <span class="tag">High risk</span>
+                    <li><a asp-page="Notes/Edit" asp-route-patientId="@Model.Patient.Id" asp-route-draftId="@draft.Id">Open draft</a> · version @draft.Version · unsigned</li>
                 }
-            </li>
+            </ul>
         }
-    </ul>
-}
-else if (Model.NoKnownAllergies is { } none)
-{
-    <p>No known allergies (recorded @none.RecordedAt.UtcDateTime.ToString("yyyy-MM-dd")).</p>
-}
-else
-{
-    <p>No allergy information recorded.</p>
-}
-
-<h2>Medications</h2>
-@if (Model.Chart.Medications.Count > 0)
-{
-    <ul>
-        @foreach (var medication in Model.Chart.Medications)
+        @if (Model.Notes.Count > 0)
         {
-            <li><strong>@medication.Display</strong>@if (medication.Dosage is { } dosage) { <text>: @dosage</text> }</li>
+            <h3>Signed notes</h3>
+            <ul class="sc-list">
+                @foreach (var note in Model.Notes)
+                {
+                    <li><a asp-page="Notes/View" asp-route-patientId="@Model.Patient.Id" asp-route-noteId="@note.Id">Signed note · @note.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC</a></li>
+                }
+            </ul>
         }
-    </ul>
-}
-else
-{
-    <p>No active medications recorded.</p>
-}
-
-<h2>Diagnoses</h2>
-@if (Model.Chart.Conditions.Count > 0)
-{
-    <ul>
-        @foreach (var condition in Model.Chart.Conditions)
+        else
         {
-            <li>
-                <strong>@condition.Display</strong>
-                @if (condition.Code is { } diagnosisCode) { <text>(@diagnosisCode)</text> }
-                @if (condition.OnsetDate is { } onset) { <text>since @onset.ToString("yyyy-MM-dd")</text> }
-            </li>
+            <p class="sc-muted">No signed notes recorded.</p>
         }
-    </ul>
-}
-else
-{
-    <p>No active diagnoses recorded.</p>
-}
-
-<h2>Recent visits</h2>
-@if (Model.Chart.Visits.Count > 0)
-{
-    var latest = Model.Chart.Visits[0];
-    <p class="latest-visit">
-        Latest visit, @latest.PeriodStart.UtcDateTime.ToString("yyyy-MM-dd"):
-        blood pressure @(ChartModel.BloodPressure(latest) ?? "not taken"), heart rate @(ChartModel.HeartRate(latest) ?? "not taken").
-    </p>
-    <table>
-        <thead>
-            <tr><th>Date</th><th>Reason</th><th>Blood pressure</th><th>Heart rate</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var visit in Model.Chart.Visits)
-            {
-                <tr>
-                    <td>@visit.PeriodStart.UtcDateTime.ToString("yyyy-MM-dd")</td>
-                    <td>@visit.Reason</td>
-                    <td>@ChartModel.BloodPressure(visit)</td>
-                    <td>@ChartModel.HeartRate(visit)</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
-else
-{
-    <p>No visits recorded.</p>
-}
-
-<h2>Patient portal</h2>
-@if (Model.EnrollmentCode is { } code)
-{
-    <section class="notice">
-        <p>Give the patient this code. It lets them register for the portal once, within 14 days, and isn't shown again.</p>
-        <p class="code">@code</p>
     </section>
-}
-else if (!OnPrem.IsReachable)
-{
-    <p>Enrollment codes can be issued once the clinic's server is back.</p>
-}
-else
-{
-    <form method="post" asp-page-handler="Enroll" asp-all-route-data="Model.Search.RouteData()">
-        <button>Issue an enrollment code</button>
-    </form>
-}
+
+    @* UC 1 Place an order (Tahseen Arnan): offered as "New note" is, for a patient on the clinician's panel while the clinic's
+       server can be reached. Alt+Shift+O follows the link (js/orders.js). The list is part of the chart's one recorded read. *@
+    <section class="sc-panel" aria-labelledby="chart-orders">
+        <h2 class="sc-panel__title" id="chart-orders">Orders</h2>
+        @if (Model.OnPanel && OnPrem.IsReachable)
+        {
+            var orderRoute = Model.Search.RouteData();
+            orderRoute["id"] = Model.Patient.Id.ToString();
+            <p class="sc-actions">
+                <a asp-page="Orders/New" asp-all-route-data="orderRoute" class="sc-btn" data-new-order aria-keyshortcuts="Alt+Shift+O">New order</a>
+                <kbd class="sc-kbd sc-muted">Alt+Shift+O</kbd>
+            </p>
+        }
+        else if (!Model.OnPanel)
+        {
+            <p class="sc-muted">Add this patient to your panel to place an order.</p>
+        }
+        else
+        {
+            <p class="sc-muted">New orders need the clinic's server. Active orders remain readable.</p>
+        }
+        <h3>Active orders</h3>
+        @if (Model.Chart.Orders.Count > 0)
+        {
+            <ul class="sc-list">
+                @foreach (var order in Model.Chart.Orders)
+                {
+                    <li>
+                        <strong>@order.Display</strong> (@Ehr.Domain.Orders.OrderForms.TypeNames[order.Type])
+                        @Ehr.Domain.Orders.OrderForms.Summary(order.Type, order.Details) · signed @order.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p class="sc-muted">No active orders.</p>
+        }
+    </section>
+
+    @* Read only for now: nothing here is edited yet. *@
+    <section class="sc-panel" aria-labelledby="chart-allergies">
+        <h2 class="sc-panel__title" id="chart-allergies">Allergies</h2>
+        @if (Model.KnownAllergies.Count > 0)
+        {
+            <ul class="sc-list">
+                @foreach (var allergy in Model.KnownAllergies)
+                {
+                    <li>
+                        <strong>@allergy.Display</strong>@if (allergy.Reaction is { } reaction) { <text>: @reaction</text> }
+                        @if (allergy.Criticality == AllergyCriticality.High)
+                        {
+                            <span class="sc-tag sc-tag--danger">High risk</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        else if (Model.NoKnownAllergies is { } none)
+        {
+            <p>No known allergies (recorded @none.RecordedAt.UtcDateTime.ToString("yyyy-MM-dd")).</p>
+        }
+        else
+        {
+            <p class="sc-muted">No allergy information recorded.</p>
+        }
+    </section>
+
+    <section class="sc-panel" aria-labelledby="chart-medications">
+        <h2 class="sc-panel__title" id="chart-medications">Medications</h2>
+        @if (Model.Chart.Medications.Count > 0)
+        {
+            <ul class="sc-list">
+                @foreach (var medication in Model.Chart.Medications)
+                {
+                    <li><strong>@medication.Display</strong>@if (medication.Dosage is { } dosage) { <text>: @dosage</text> }</li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p class="sc-muted">No active medications recorded.</p>
+        }
+    </section>
+
+    <section class="sc-panel" aria-labelledby="chart-diagnoses">
+        <h2 class="sc-panel__title" id="chart-diagnoses">Diagnoses</h2>
+        @if (Model.Chart.Conditions.Count > 0)
+        {
+            <ul class="sc-list">
+                @foreach (var condition in Model.Chart.Conditions)
+                {
+                    <li>
+                        <strong>@condition.Display</strong>
+                        @if (condition.Code is { } diagnosisCode) { <text>(@diagnosisCode)</text> }
+                        @if (condition.OnsetDate is { } onset) { <text>since @onset.ToString("yyyy-MM-dd")</text> }
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p class="sc-muted">No active diagnoses recorded.</p>
+        }
+    </section>
+
+    <section class="sc-panel" aria-labelledby="chart-portal">
+        <h2 class="sc-panel__title" id="chart-portal">Patient portal</h2>
+        @if (Model.EnrollmentCode is { } code)
+        {
+            <section class="sc-notice sc-notice--info">
+                <p>Give the patient this code. It lets them register for the portal once, within 14 days, and isn't shown again.</p>
+                <p class="mono-code">@code</p>
+            </section>
+        }
+        else if (!OnPrem.IsReachable)
+        {
+            <p class="sc-muted">Enrollment codes can be issued once the clinic's server is back.</p>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Enroll" asp-all-route-data="Model.Search.RouteData()">
+                <button class="sc-btn">Issue an enrollment code</button>
+            </form>
+        }
+    </section>
+
+    <section class="sc-panel sc-panel--wide" aria-labelledby="chart-visits">
+        <h2 class="sc-panel__title" id="chart-visits">Recent visits</h2>
+        @if (Model.Chart.Visits.Count > 0)
+        {
+            var latest = Model.Chart.Visits[0];
+            <p class="latest-visit">
+                Latest visit, @latest.PeriodStart.UtcDateTime.ToString("yyyy-MM-dd"):
+                blood pressure @(ChartModel.BloodPressure(latest) ?? "not taken"), heart rate @(ChartModel.HeartRate(latest) ?? "not taken").
+            </p>
+            <div class="sc-table-wrap">
+                <table class="sc-table">
+                    <thead>
+                        <tr><th>Date</th><th>Reason</th><th>Blood pressure</th><th>Heart rate</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var visit in Model.Chart.Visits)
+                        {
+                            <tr>
+                                <td class="sc-table__mono">@visit.PeriodStart.UtcDateTime.ToString("yyyy-MM-dd")</td>
+                                <td>@visit.Reason</td>
+                                <td>@ChartModel.BloodPressure(visit)</td>
+                                <td>@ChartModel.HeartRate(visit)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="sc-muted">No visits recorded.</p>
+        }
+    </section>
+</div>

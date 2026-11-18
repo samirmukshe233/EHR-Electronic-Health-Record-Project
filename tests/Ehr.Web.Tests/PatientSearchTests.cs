@@ -392,7 +392,7 @@ public partial class PatientSearchTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal($"/patients/{patient}/reason?name={family}", reasonPage.RequestMessage!.RequestUri!.PathAndQuery);
         var reasonHtml = await ReadAsync(reasonPage);
         Assert.Matches(backToSearch, reasonHtml);
-        Assert.Contains("<form method=\"post\" class=\"account-form\">", reasonHtml);
+        Assert.Contains("<form method=\"post\" class=\"sc-form\">", reasonHtml);
 
         using var chart = await PostFormAsync(session.Client, $"/patients/{patient}/reason?name={family}", reasonPage, ("Reason", "Covering the night shift"));
         Assert.Equal(chartLink, chart.RequestMessage!.RequestUri!.PathAndQuery);
@@ -496,7 +496,7 @@ public partial class PatientSearchTests(WebApps apps) : IClassFixture<WebApps>
 
         var html = await session.Client.GetStringAsync("/patients?name=%20%20&birthdate=&mrn=", Cancel);
 
-        Assert.Matches("<ul class=\"notice error\" role=\"alert\">\\s*<li>Enter a name, date of birth, or MRN to search.</li>", html);
+        Assert.Matches("<ul class=\"sc-notice sc-notice--danger\" role=\"alert\">\\s*<li>Enter a name, date of birth, or MRN to search.</li>", html);
         Assert.DoesNotContain("Search results", html);
         Assert.DoesNotContain("My patients", html);
         Assert.DoesNotContain($"/patients/{patient}", html);

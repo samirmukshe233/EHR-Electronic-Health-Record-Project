@@ -372,7 +372,7 @@ sealed class Setup(Options options)
 
         var enroll = FormAction(chart, "Enroll") ?? throw Unexpected(chart, "opening the patient's chart");
         var issued = await clinician.PostAsync(Clinical(enroll), chart);
-        var code = Regex.Match(issued.Html, @"<p class=""code"">\s*([^<]+?)\s*</p>");
+        var code = Regex.Match(issued.Html, @"<p class=""mono-code"">\s*([^<]+?)\s*</p>");
         if (!code.Success)
         {
             throw Unexpected(issued, "issuing an enrollment code");
@@ -732,7 +732,7 @@ sealed record Page(Uri Url, HttpStatusCode Status, string Html)
 
     // The errors the page shows: the validation summary's, each field's, and an error notice.
     public IReadOnlyList<string> Problems =>
-        [.. Regex.Matches(Html, @"validation-summary-errors[^>]*>(.*?)</div>|field-validation-error[^>]*>(.*?)</span>|class=""notice error""[^>]*>(.*?)</(?:p|ul)>", RegexOptions.Singleline)
+        [.. Regex.Matches(Html, @"validation-summary-errors[^>]*>(.*?)</div>|field-validation-error[^>]*>(.*?)</span>|class=""(?:notice error|sc-notice sc-notice--danger)""[^>]*>(.*?)</(?:p|ul)>", RegexOptions.Singleline)
             .Select(m => Text(m.Groups[1].Value + m.Groups[2].Value + m.Groups[3].Value))
             .Where(text => text.Length > 0)];
 

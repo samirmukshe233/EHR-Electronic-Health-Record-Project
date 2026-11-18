@@ -315,7 +315,7 @@ public partial class PortalTests(WebApps apps) : IClassFixture<WebApps>
         return match.Groups[1].Value;
     }
 
-    [GeneratedRegex("<p class=\"code\">([A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4})</p>")]
+    [GeneratedRegex("<p class=\"mono-code\">([A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4})</p>")]
     private static partial Regex EnrollmentCode();
 
     [GeneratedRegex("name=\"__RequestVerificationToken\"[^>]*>")]

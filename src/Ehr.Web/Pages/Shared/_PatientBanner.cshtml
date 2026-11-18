@@ -34,7 +34,7 @@
                     {
                         @if (allergy.Criticality == AllergyCriticality.High)
                         {
-                            <li class="sc-allergy sc-allergy--high">High risk: @allergy.Display@if (allergy.Reaction is { } reaction) { <text>: @reaction</text> }</li>
+                            <li class="sc-allergy sc-allergy--high">High risk: <strong>@allergy.Display</strong>@if (allergy.Reaction is { } reaction) { <text>: @reaction</text> }</li>
                         }
                         else
                         {
