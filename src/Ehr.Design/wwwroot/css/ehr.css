@@ -1,369 +1,1894 @@
-/* Minimal styles until the design system (tokens and components) is built. */
-
-:root {
-    color-scheme: light dark;
-    font-family: system-ui, sans-serif;
-    line-height: 1.5;
-}
-
-main {
-    max-width: 48rem;
-    margin: 0 auto;
-    padding: 0 1rem;
-}
-
-label {
-    display: block;
-}
-
-input,
-textarea {
-    font: inherit;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.error {
-    color: #c5221f;
-}
-
-.notice {
-    padding: 0.5rem 0.75rem;
-    border-left: 4px solid currentColor;
-}
-
-.results {
-    list-style: none;
-    padding: 0;
-}
-
-.results > li {
-    padding: 0.5rem 0;
-    border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-}
-
-.results summary {
-    cursor: pointer;
-}
-
-.results .result-line {
-    display: inline-flex;
-    gap: 0.75rem;
-    align-items: baseline;
-}
-
-.notice.read-only {
-    color: #8a5300;
-}
-
-.quick-texts {
-    list-style: none;
-    padding: 0;
-}
-
-.quick-texts > li {
-    display: flex;
-    gap: 0.75rem;
-    align-items: baseline;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-}
-
-.quick-texts form {
-    flex: 1;
-}
-
-.shortcut {
-    font-family: ui-monospace, monospace;
-    font-weight: 600;
-}
-
-.body {
-    flex: 1;
-    white-space: pre-wrap;
-}
-
-/* The page frame: who is signed in, and where they can go. */
-.site-header {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem 1.5rem;
-    align-items: center;
-    justify-content: space-between;
-    max-width: 48rem;
-    margin: 0 auto;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-}
-
-.site-header nav {
-    display: flex;
-    gap: 1.25rem;
-}
-
-.sign-out {
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
-}
-
-/* Sign-in, registration and account forms: one column, narrow. */
-.account-form {
-    max-width: 24rem;
-}
-
-.account-form label {
-    margin-top: 0.75rem;
-}
-
-.account-form button {
-    margin-top: 1rem;
-}
-
-/* An authenticator key, an enrollment code, a recovery code: read aloud or typed, so spaced and monospaced. */
-.code {
-    font-family: ui-monospace, monospace;
-    font-size: 1.25rem;
-    letter-spacing: 0.1em;
-    word-break: break-all;
-}
-
-.recovery-codes {
-    columns: 2;
-    list-style: none;
-    padding: 0;
-}
-
-.recovery-codes li {
-    padding: 0.25rem 0;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-th,
-td {
-    text-align: left;
-    padding: 0.4rem 0.5rem;
-    border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-}
-
-.search-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: end;
-}
-
-.search-form label {
-    flex: 1 1 10rem;
-}
-
-/* A link that does what a button would, such as clearing a search. */
-a.button {
-    padding: 0.1rem 0.5rem;
-    border: 1px solid currentColor;
-    border-radius: 0.25rem;
-    color: inherit;
-    text-decoration: none;
-}
-
-/* A small label beside a name: "Yours" on a patient on the clinician's panel, "Restricted" on one off it. */
-.tag {
-    font-size: 0.8rem;
-    padding: 0 0.4rem;
-    border: 1px solid currentColor;
-    border-radius: 0.25rem;
-    white-space: nowrap;
-}
-
-.tag.restricted {
-    color: #8a5300;
-}
-
-/* The audit page: the filter, and the rows that need a look. */
-.filter-form {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-    gap: 0.5rem 1rem;
-    align-items: end;
-    margin-bottom: 1rem;
-}
-
-.filter-form select {
-    font: inherit;
-    width: 100%;
-}
-
-tr.flagged {
-    background: color-mix(in srgb, #c5221f 12%, transparent);
-}
-
-td.id {
-    font-family: ui-monospace, monospace;
-    font-size: 0.85rem;
-    word-break: break-all;
-}
-
-td pre {
-    margin: 0.25rem 0 0;
-    font-size: 0.85rem;
-    white-space: pre-wrap;
-}
-
-/* A row of forms with one button each. */
-.actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-dl.record {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 0.25rem 1rem;
-}
-
-dl.record dt {
-    font-weight: 600;
-}
-
-dl.record dd {
-    margin: 0;
-}
-
-/* Dictating a note (UC 9, UC 10): the live transcript, its marked passages, and the proposed fields awaiting review. */
-.transcript {
-    min-height: 4rem;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-    border-radius: 0.25rem;
-    white-space: pre-wrap;
-}
-
-.placeholder,
-.transcript .tentative {
-    opacity: 0.65;
-}
-
-mark.unclear {
-    background: color-mix(in srgb, #e37400 30%, transparent);
-    color: inherit;
-    text-decoration: underline wavy;
-}
-
-mark.source-highlight {
-    background: color-mix(in srgb, #1a73e8 35%, transparent);
-    color: inherit;
-}
-
-.proposed-field {
-    padding: 0.5rem 0;
-    border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-}
-
-.proposed-field dt {
-    font-weight: 600;
-}
-
-.proposed-field dd {
-    margin: 0;
-}
-
-.field-status {
-    margin-left: 0.5rem;
-    font-size: 0.8rem;
-    font-weight: normal;
-    padding: 0 0.4rem;
-    border: 1px solid currentColor;
-    border-radius: 0.25rem;
-}
-
-.proposed-field.pending .field-status {
-    color: #8a5300;
-}
-
-.proposed-field.empty dd {
-    opacity: 0.75;
-}
-
-.field-warning {
-    color: #8a5300;
-    font-size: 0.9rem;
-}
-
-[tabindex="0"]:focus-visible {
-    outline: 2px solid #1a73e8;
-}
-
-/* Clinical notes use the chart's single-column, keyboard-first form and read-only record styles. */
-.note-editor label {
-    font-weight: 600;
-    margin-top: 1rem;
-}
-
-.note-editor textarea {
-    resize: vertical;
-    min-height: 6rem;
-    padding: 0.6rem;
-    border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
-    border-radius: 0.25rem;
-}
-
-.note-editor .actions {
-    margin: 1rem 0 2rem;
-}
-
-.note-patient {
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-}
-
-.note-confirm {
-    margin: 1rem 0;
-}
-
-.note-confirm input {
-    width: auto;
-}
-
-.signed-note .body {
-    overflow-wrap: anywhere;
-}
-
-/* UC 13 keeps the transcript beside the same proposed-field cards, with text labels for every state. */
-.review-columns {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-    gap: 1.5rem;
-}
-
-[data-note-review] textarea {
-    min-height: 6rem;
-    resize: vertical;
-}
-
-[data-note-review] details {
-    margin: 1rem 0;
-}
-
-[data-note-review] summary {
-    cursor: pointer;
-}
-
-[data-note-review] :focus-visible {
-    outline: 3px solid currentColor;
-    outline-offset: 3px;
-}
-
-[data-review-state="rejected"] {
-    border-left: 3px solid currentColor;
-    padding-left: 0.75rem;
-}
-
-/* UC 1: the order form highlights a field to fix. */
-.order-form [aria-invalid="true"] {
-    outline: 2px solid #c5221f;
+/* SwiftChart's shared stylesheet, for both web apps and (as a copy, see tools/brand/sync.cs) the desktop app.
+   Load tokens.css first: every color, size and space here is one of its variables, so light and dark both work and
+   no rule holds a raw color. The guide is docs/brand/README.md; the classes (prefix sc-) are its components.
+
+   Layers, lowest first: base (elements), layout (the page frame), components, pages (one page's own rules). The type
+   classes in tokens.css (.title-1, .mono-id, ...) are outside the layers, so they always win. */
+@layer base, layout, components, pages, legacy;
+
+@layer base {
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+
+    /* A component's display must never bring back something the page has hidden. */
+    [hidden] {
+        display: none !important;
+    }
+
+    html {
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+
+    body {
+        margin: 0;
+        background: var(--surface);
+        color: var(--ink);
+        font-family: var(--font-sans);
+        font-size: 16px;
+        line-height: 24px;
+    }
+
+    /* Headings follow the page outline; Sora is for headings only. */
+    h1,
+    h2,
+    h3 {
+        font-family: var(--font-display);
+        font-weight: 600;
+        overflow-wrap: anywhere;
+    }
+
+    h1 {
+        margin: 0 0 var(--space-4);
+        font-size: 28px;
+        line-height: 34px;
+        letter-spacing: -0.01em;
+    }
+
+    h2 {
+        margin: var(--space-8) 0 var(--space-3);
+        font-size: 22px;
+        line-height: 28px;
+    }
+
+    h3 {
+        margin: var(--space-6) 0 var(--space-2);
+        font-size: 18px;
+        line-height: 24px;
+    }
+
+    h4 {
+        margin: var(--space-4) 0 var(--space-2);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+    }
+
+    p,
+    ul,
+    ol,
+    dl,
+    pre,
+    fieldset {
+        margin: 0 0 var(--space-4);
+    }
+
+    ul,
+    ol {
+        padding-left: var(--space-6);
+    }
+
+    li + li {
+        margin-top: var(--space-1);
+    }
+
+    a {
+        color: var(--accent-ink);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
+    }
+
+    a:hover {
+        text-decoration-thickness: 2px;
+    }
+
+    strong,
+    b {
+        font-weight: 600;
+    }
+
+    small {
+        font-size: 14px;
+        line-height: 20px;
+        color: var(--ink-muted);
+    }
+
+    code,
+    kbd,
+    pre,
+    samp {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        line-height: 20px;
+    }
+
+    pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+        font: inherit;
+        color: inherit;
+        margin: 0;
+    }
+
+    fieldset {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        padding: var(--space-3) var(--space-4);
+        min-width: 0;
+    }
+
+    legend {
+        padding: 0 var(--space-1);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+    }
+
+    summary {
+        cursor: pointer;
+    }
+
+    time {
+        white-space: nowrap;
+    }
+
+    /* The keyboard focus ring, the same on everything that takes focus. Never removed. */
+    :focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: 2px;
+    }
+
+    /* A record's facts: the term, then its value. */
+    dl.record {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: var(--space-1) var(--space-4);
+    }
+
+    dl.record dt {
+        color: var(--ink-muted);
+    }
+
+    dl.record dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+    }
+
+    /* Tables are dense: body-sm, hairlines, a recessed header. */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        line-height: 20px;
+    }
+
+    th {
+        text-align: left;
+        font-weight: 600;
+        background: var(--surface-subtle);
+        color: var(--ink);
+        padding: var(--space-2) var(--space-3);
+        border-bottom: 1px solid var(--line);
+    }
+
+    td {
+        padding: var(--space-2) var(--space-3);
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+    }
+
+    /* Motion is short and functional, and off for anyone who asks. */
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+    }
+}
+
+@layer layout {
+    .sc-visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+
+    /* The first stop for the keyboard on every page: out of sight until it has focus. */
+    .sc-skip {
+        position: absolute;
+        left: var(--space-2);
+        top: var(--space-2);
+        z-index: 30;
+        padding: var(--space-2) var(--space-4);
+        border-radius: var(--radius-sm);
+        background: var(--surface-raised);
+        color: var(--ink);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+        box-shadow: var(--shadow-float);
+        transform: translateY(-200%);
+    }
+
+    .sc-skip:focus {
+        transform: none;
+    }
+
+    /* App bar. The clinician bar stays dark in both themes; the portal's is light, or dark in the dark theme. */
+    .sc-appbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0 var(--space-6);
+        min-height: var(--appbar-height);
+        padding: 0 var(--space-5);
+    }
+
+    .sc-appbar--clinician {
+        background: var(--appbar);
+        color: var(--on-appbar);
+    }
+
+    .sc-appbar--portal {
+        background: var(--surface-raised);
+        color: var(--ink);
+        border-bottom: 1px solid var(--line);
+    }
+
+    .sc-appbar__brand {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        flex: none;
+        height: var(--appbar-height);
+    }
+
+    .sc-appbar__logo {
+        height: 24px;
+        width: auto;
+        display: block;
+    }
+
+    .sc-appbar__nav {
+        display: flex;
+        gap: var(--space-5);
+        align-self: stretch;
+        min-height: var(--appbar-height);
+    }
+
+    .sc-appbar__link {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        color: inherit;
+        text-decoration: none;
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+        white-space: nowrap;
+        border-bottom: 2px solid transparent;
+        border-top: 2px solid transparent;
+    }
+
+    .sc-appbar__link:hover {
+        border-bottom-color: currentColor;
+    }
+
+    .sc-appbar__link[aria-current="page"] {
+        border-bottom-color: var(--accent);
+    }
+
+    .sc-appbar--clinician :focus-visible {
+        outline-color: var(--brand-mint);
+    }
+
+    .sc-appbar__end {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+        min-height: var(--appbar-height);
+        font-size: 14px;
+        line-height: 20px;
+    }
+
+    .sc-appbar__user {
+        color: inherit;
+        max-width: 16rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .sc-appbar__site {
+        font-size: 13px;
+        line-height: 18px;
+        font-weight: 500;
+        color: var(--appbar-muted);
+        border: 1px solid var(--appbar-muted);
+        border-radius: var(--radius-sm);
+        padding: 0 var(--space-2);
+        white-space: nowrap;
+    }
+
+    .sc-appbar--portal .sc-appbar__site {
+        color: var(--ink-muted);
+        border-color: var(--line-strong);
+    }
+
+    .sc-appbar__signout {
+        font: inherit;
+        font-weight: 600;
+        color: inherit;
+        background: none;
+        border: 1px solid currentColor;
+        border-radius: var(--radius-sm);
+        height: 28px;
+        padding: 0 var(--space-3);
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .sc-appbar .sc-conn {
+        background: var(--surface-raised);
+        color: var(--ink);
+        border-radius: var(--radius-sm);
+        padding: 2px var(--space-2);
+    }
+
+    .sc-appbar--portal .sc-conn {
+        border: 1px solid var(--line);
+    }
+
+    /* Narrow windows: the navigation takes a row of its own under the lockup. */
+    @media (max-width: 40rem) {
+        .sc-appbar {
+            padding: 0 var(--space-4);
+        }
+
+        .sc-appbar__nav {
+            order: 3;
+            flex-basis: 100%;
+            min-height: 40px;
+            overflow-x: auto;
+        }
+
+        .sc-appbar__user {
+            max-width: 9rem;
+        }
+    }
+
+    /* The page: clinician pages at width-content, reading at width-reading, account forms at width-form. */
+    .sc-page {
+        max-width: calc(var(--width-content) + 2 * var(--space-5));
+        margin: 0 auto;
+        padding: var(--space-6) var(--space-5) var(--space-16);
+    }
+
+    .sc-page--reading {
+        max-width: calc(var(--width-reading) + 2 * var(--space-5));
+    }
+
+    .sc-page--form {
+        max-width: calc(var(--width-form) + 2 * var(--space-5));
+        padding-top: var(--space-12);
+    }
+
+    .sc-page:focus {
+        outline: none;
+    }
+
+    @media (max-width: 40rem) {
+        .sc-page {
+            padding-left: var(--space-4);
+            padding-right: var(--space-4);
+        }
+    }
+
+    /* The mark alone, above a signed-out account form: one of the brand's few moments. */
+    .sc-brandmark {
+        display: flex;
+        justify-content: center;
+        margin: 0 0 var(--space-8);
+    }
+
+    .sc-brandmark img {
+        height: 48px;
+        width: auto;
+    }
+
+    /* Artwork drawn for one ground: the color version on light, the reversed one on dark. */
+    .sc-art--reversed {
+        display: none;
+    }
+
+    [data-theme="dark"] .sc-art--color {
+        display: none;
+    }
+
+    [data-theme="dark"] .sc-art--reversed {
+        display: block;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        :root:not([data-theme]) .sc-art--color {
+            display: none;
+        }
+
+        :root:not([data-theme]) .sc-art--reversed {
+            display: block;
+        }
+    }
+
+    /* The line above a page's title: the way back, and the page's own actions on the right. */
+    .sc-pagehead {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2) var(--space-4);
+        margin: 0 0 var(--space-4);
+        font-size: 14px;
+        line-height: 20px;
+    }
+
+    .sc-pagehead > * {
+        margin: 0;
+    }
+
+    /* A title with its status beside it. */
+    .sc-title {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-2) var(--space-3);
+    }
+
+    .sc-lede {
+        max-width: var(--width-reading);
+        color: var(--ink-muted);
+    }
+
+    .sc-muted {
+        color: var(--ink-muted);
+    }
+
+    .sc-prose {
+        max-width: var(--width-reading);
+    }
+}
+
+@layer components {
+    .sc-stack {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .sc-stack > * {
+        margin: 0;
+    }
+
+    .sc-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+        align-items: center;
+    }
+
+    /* Button. One primary per view; a link that does a button's job takes the same classes. */
+    .sc-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        height: var(--control-height);
+        padding: 0 var(--space-4);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--line-strong);
+        background: var(--surface-raised);
+        color: var(--ink);
+        font: inherit;
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: filter 120ms ease-out;
+    }
+
+    .sc-btn--primary {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: var(--on-primary);
+    }
+
+    .sc-btn--quiet {
+        background: transparent;
+        border-color: transparent;
+        color: var(--accent-ink);
+    }
+
+    .sc-btn--danger {
+        background: var(--surface-raised);
+        border-color: var(--danger);
+        color: var(--danger);
+    }
+
+    /* For a row of actions inside a table or a list. */
+    .sc-btn--compact {
+        height: 28px;
+        padding: 0 var(--space-3);
+    }
+
+    .sc-btn--portal,
+    .sc-app--portal .sc-btn {
+        height: var(--control-height-portal);
+        padding: 0 var(--space-6);
+        font-size: 16px;
+    }
+
+    .sc-btn:hover:not(:disabled) {
+        filter: brightness(0.96);
+    }
+
+    .sc-btn--quiet:hover:not(:disabled) {
+        filter: none;
+        text-decoration: underline;
+    }
+
+    .sc-btn:disabled {
+        cursor: not-allowed;
+        background: var(--surface-subtle);
+        border-color: var(--line);
+        color: var(--ink-muted);
+    }
+
+    .sc-kbd {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        line-height: 16px;
+        font-weight: 600;
+        padding: 0 var(--space-1);
+        border-radius: var(--radius-xs);
+        border: 1px solid currentColor;
+        opacity: 0.85;
+        white-space: nowrap;
+    }
+
+    /* A row of buttons, or of forms with one button each. */
+    .sc-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        align-items: center;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .sc-actions > li {
+        margin: 0;
+    }
+
+    /* Form: one column of fields at width-form. */
+    .sc-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+        max-width: var(--width-form);
+        margin: 0 0 var(--space-6);
+    }
+
+    .sc-form > * {
+        margin: 0;
+    }
+
+    .sc-form--wide {
+        max-width: var(--width-reading);
+    }
+
+    .sc-form > .sc-btn,
+    .sc-form > .sc-actions {
+        align-self: flex-start;
+        margin-top: var(--space-2);
+    }
+
+    .sc-app--portal .sc-form > .sc-btn {
+        align-self: stretch;
+    }
+
+    /* Text field: the label above, then the input, its hint and its error. */
+    .sc-field {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        max-width: var(--width-form);
+        min-width: 0;
+    }
+
+    .sc-field--wide {
+        max-width: var(--width-reading);
+    }
+
+    .sc-field__label {
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+        color: var(--ink);
+    }
+
+    .sc-field__optional {
+        font-weight: 400;
+        color: var(--ink-muted);
+    }
+
+    .sc-field__input {
+        font: inherit;
+        font-size: 16px;
+        line-height: 24px;
+        color: var(--ink);
+        background: var(--surface-raised);
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-sm);
+        min-height: var(--control-height);
+        width: 100%;
+        padding: var(--space-1) var(--space-3);
+    }
+
+    textarea.sc-field__input {
+        min-height: 96px;
+        resize: vertical;
+    }
+
+    .sc-field__input::placeholder {
+        color: var(--ink-muted);
+        opacity: 1;
+    }
+
+    .sc-field__input[aria-invalid="true"] {
+        border-color: var(--danger);
+        box-shadow: inset 0 0 0 1px var(--danger);
+    }
+
+    .sc-field__input:disabled,
+    .sc-field__input[readonly] {
+        background: var(--surface-subtle);
+        color: var(--ink-muted);
+    }
+
+    .sc-field__hint {
+        font-size: 14px;
+        line-height: 20px;
+        color: var(--ink-muted);
+    }
+
+    .sc-field__error {
+        font-size: 14px;
+        line-height: 20px;
+        color: var(--danger);
+        font-weight: 600;
+    }
+
+    /* The framework renders an empty message for a field with nothing wrong. */
+    .sc-field__error:empty,
+    .field-validation-valid {
+        display: none;
+    }
+
+    .sc-field--portal .sc-field__input,
+    .sc-app--portal .sc-field__input {
+        min-height: var(--control-height-portal);
+        font-size: 18px;
+    }
+
+    .sc-field--portal .sc-field__label,
+    .sc-app--portal .sc-field__label {
+        font-size: 16px;
+        line-height: 24px;
+    }
+
+    /* A checkbox with its label beside it. */
+    .sc-check {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-2);
+        max-width: var(--width-reading);
+    }
+
+    .sc-check input {
+        flex: none;
+        width: 18px;
+        height: 18px;
+        margin: 3px 0 0;
+        accent-color: var(--primary);
+    }
+
+    /* Notice. It starts with its state, so the color only supports the words. */
+    .sc-notice {
+        border-radius: var(--radius-md);
+        padding: var(--space-3) var(--space-4);
+        margin: 0 0 var(--space-4);
+        color: var(--ink);
+        background: var(--surface-subtle);
+        border: 1px solid var(--line-strong);
+        max-width: var(--width-content);
+    }
+
+    .sc-notice > :first-child {
+        margin-top: 0;
+    }
+
+    .sc-notice > :last-child {
+        margin-bottom: 0;
+    }
+
+    .sc-notice ul {
+        padding-left: var(--space-5);
+    }
+
+    .sc-notice__state {
+        font-weight: 600;
+    }
+
+    .sc-notice--info {
+        background: var(--info-soft);
+        border-color: var(--info);
+    }
+
+    .sc-notice--info .sc-notice__state {
+        color: var(--info);
+    }
+
+    .sc-notice--warning {
+        background: var(--warning-soft);
+        border-color: var(--warning);
+    }
+
+    .sc-notice--warning .sc-notice__state {
+        color: var(--warning);
+    }
+
+    .sc-notice--danger {
+        background: var(--danger-soft);
+        border-color: var(--danger);
+    }
+
+    .sc-notice--danger .sc-notice__state {
+        color: var(--danger);
+    }
+
+    .sc-notice--success {
+        background: var(--success-soft);
+        border-color: var(--success);
+    }
+
+    .sc-notice--success .sc-notice__state {
+        color: var(--success);
+    }
+
+    .sc-notice--band {
+        border-radius: 0;
+        border-width: 0 0 1px;
+        padding: var(--space-2) var(--space-5);
+        margin: 0;
+        max-width: none;
+    }
+
+    .sc-notice a {
+        color: inherit;
+        font-weight: 600;
+    }
+
+    /* Tag: one to three words of status. Never a button. */
+    .sc-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-1);
+        font-family: var(--font-sans);
+        font-size: 13px;
+        line-height: 18px;
+        font-weight: 500;
+        letter-spacing: normal;
+        padding: 1px var(--space-2);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--line-strong);
+        color: var(--ink);
+        background: var(--surface-subtle);
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    .sc-tag--brand {
+        background: var(--accent-soft);
+        border-color: var(--accent-ink);
+        color: var(--accent-ink);
+    }
+
+    .sc-tag--info {
+        background: var(--info-soft);
+        border-color: var(--info);
+        color: var(--info);
+    }
+
+    .sc-tag--warning {
+        background: var(--warning-soft);
+        border-color: var(--warning);
+        color: var(--warning);
+    }
+
+    .sc-tag--danger {
+        background: var(--danger-soft);
+        border-color: var(--danger);
+        color: var(--danger);
+    }
+
+    .sc-tag--success {
+        background: var(--success-soft);
+        border-color: var(--success);
+        color: var(--success);
+    }
+
+    /* Patient banner: under the app bar on every page about a patient, and it stays put while the page scrolls. */
+    .sc-banner {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-2) var(--space-6);
+        padding: var(--space-3) var(--space-5);
+        background: var(--surface-subtle);
+        border-bottom: 1px solid var(--line);
+    }
+
+    .sc-banner__name {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: 18px;
+        line-height: 24px;
+        font-weight: 600;
+        letter-spacing: normal;
+    }
+
+    .sc-banner__meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2) var(--space-4);
+        font-size: 14px;
+        line-height: 20px;
+        color: var(--ink-muted);
+    }
+
+    .sc-banner__mrn {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        line-height: 20px;
+        font-weight: 500;
+        color: var(--ink);
+    }
+
+    .sc-banner__end {
+        margin-left: auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        align-items: center;
+    }
+
+    .sc-banner__end ul {
+        display: contents;
+    }
+
+    .sc-banner__end li {
+        margin: 0;
+        list-style: none;
+    }
+
+    .sc-allergy {
+        font-size: 14px;
+        line-height: 20px;
+        color: var(--ink);
+        background: var(--surface-raised);
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-sm);
+        padding: 1px var(--space-2);
+    }
+
+    .sc-allergy--high {
+        color: var(--danger);
+        background: var(--danger-soft);
+        border-color: var(--danger);
+        font-weight: 600;
+    }
+
+    .sc-allergy--none {
+        font-weight: 400;
+        color: var(--ink-muted);
+        background: transparent;
+        border-color: var(--line);
+    }
+
+    @media (max-width: 40rem) {
+        .sc-banner {
+            padding: var(--space-2) var(--space-4);
+        }
+
+        .sc-banner__end {
+            margin-left: 0;
+        }
+    }
+
+    /* Connection status: a dot and the word, which always shows. */
+    .sc-conn {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        font-size: 14px;
+        line-height: 20px;
+        color: var(--ink);
+    }
+
+    .sc-conn__dot {
+        width: 10px;
+        height: 10px;
+        border-radius: var(--radius-full);
+        background: var(--status-unknown);
+        flex: none;
+    }
+
+    .sc-conn--online .sc-conn__dot {
+        background: var(--success);
+    }
+
+    .sc-conn--offline .sc-conn__dot {
+        background: var(--danger);
+    }
+
+    .sc-conn--signedout .sc-conn__dot {
+        background: transparent;
+        border: 2px solid var(--status-unknown);
+    }
+
+    .sc-conn--offline {
+        font-weight: 600;
+    }
+
+    .sc-conn__server {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    /* Panel: a titled area on a clinician page, set apart by a hairline, not a shadow. */
+    .sc-panel {
+        min-width: 0;
+        padding: var(--space-4);
+        background: var(--surface-raised);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+    }
+
+    .sc-panel > :last-child {
+        margin-bottom: 0;
+    }
+
+    .sc-panel__title {
+        margin: 0 0 var(--space-3);
+        font-size: 18px;
+        line-height: 24px;
+    }
+
+    .sc-panel__subtitle {
+        margin: var(--space-4) 0 var(--space-2);
+        font-family: var(--font-sans);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+        color: var(--ink-muted);
+    }
+
+    .sc-app--portal .sc-panel {
+        padding: var(--space-6);
+        border-radius: var(--radius-lg);
+    }
+
+    /* A plain list of record lines, one per row. */
+    .sc-list {
+        list-style: none;
+        padding: 0;
+    }
+
+    .sc-list > li {
+        margin: 0;
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .sc-list > li:last-child {
+        border-bottom: 0;
+    }
+
+    /* Table container: a border round the table, a header that stays in view, and room to scroll when narrow. */
+    .sc-table-wrap {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        overflow: clip;
+        margin: 0 0 var(--space-4);
+        background: var(--surface-raised);
+    }
+
+    .sc-table th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        white-space: nowrap;
+    }
+
+    .sc-table tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .sc-table__mono {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .sc-table__id {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        font-weight: 500;
+        overflow-wrap: anywhere;
+        min-width: 9rem;
+    }
+
+    .sc-table__muted {
+        color: var(--ink-muted);
+    }
+
+    .sc-table__flag {
+        margin-top: var(--space-1);
+    }
+
+    .sc-table__nowrap {
+        white-space: nowrap;
+    }
+
+    .sc-table tr.sc-table__flagged td {
+        background: var(--row-flagged);
+    }
+
+    .sc-table td pre {
+        margin: var(--space-1) 0 0;
+    }
+
+    /* A row the keyboard is on, such as a search result: the accent bar and a soft tint beside the focus ring. */
+    .sc-table--pick tbody tr:focus-within td {
+        background: var(--accent-soft);
+    }
+
+    .sc-table--pick tbody tr:focus-within td:first-child {
+        box-shadow: inset 2px 0 0 var(--accent);
+    }
+
+    @media (max-width: 48rem) {
+        .sc-table-wrap {
+            overflow-x: auto;
+        }
+
+        .sc-table th {
+            position: static;
+        }
+    }
+
+    /* A value someone copies: a link to send on, an ID. Mono, and it wraps anywhere. */
+    .sc-copy {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        line-height: 20px;
+        font-weight: 500;
+        overflow-wrap: anywhere;
+    }
+
+    /* Codes read aloud or typed: mono-code, in groups of four. */
+    .sc-codes {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+        gap: var(--space-2) var(--space-6);
+        list-style: none;
+        padding: var(--space-4);
+        max-width: var(--width-form);
+        background: var(--surface-subtle);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+    }
+
+    .sc-codes > li {
+        margin: 0;
+    }
+
+    .sc-code {
+        padding: var(--space-3) var(--space-4);
+        max-width: var(--width-form);
+        background: var(--surface-subtle);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        overflow-wrap: anywhere;
+    }
+
+    /* Tabs: a short row of links that switch what the page shows. */
+    .sc-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-5);
+        list-style: none;
+        margin: 0 0 var(--space-6);
+        padding: 0;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .sc-tabs > li {
+        margin: 0;
+    }
+
+    .sc-tabs a {
+        display: block;
+        padding: var(--space-2) 0;
+        color: var(--ink);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+        text-decoration: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+    }
+
+    .sc-tabs a:hover {
+        border-bottom-color: var(--line-strong);
+    }
+
+    .sc-tabs a[aria-current="page"] {
+        border-bottom-color: var(--accent);
+    }
+
+    /* Status line: a live region in body-sm. The dot shows only while its state has one, beside the words. */
+    .sc-status {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        min-height: 20px;
+        margin: var(--space-3) 0;
+        font-size: 14px;
+        line-height: 20px;
+        color: var(--ink-muted);
+    }
+
+    .sc-status:empty {
+        display: none;
+    }
+
+    .sc-status--error {
+        color: var(--danger);
+        font-weight: 600;
+    }
+
+    .sc-status[data-state="recording"] {
+        color: var(--ink);
+    }
+
+    .sc-status[data-state="recording"]::before {
+        content: "";
+        flex: none;
+        width: 8px;
+        height: 8px;
+        border-radius: var(--radius-full);
+        background: var(--danger);
+    }
+
+    /* Transcript: the panel a dictation's words appear in. */
+    .sc-transcript {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: var(--surface-raised);
+        max-width: var(--width-reading);
+        margin: 0 0 var(--space-4);
+    }
+
+    .sc-transcript__head {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-2) var(--space-4);
+        border-bottom: 1px solid var(--line);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+    }
+
+    .sc-transcript__title {
+        margin: 0;
+        font-family: var(--font-sans);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+        letter-spacing: normal;
+    }
+
+    .sc-transcript__rec {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-left: auto;
+        color: var(--danger);
+    }
+
+    .sc-transcript__rec::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: var(--radius-full);
+        background: var(--danger);
+    }
+
+    .sc-transcript__time {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .sc-transcript__body {
+        min-height: 72px;
+        margin: 0;
+        padding: var(--space-3) var(--space-4);
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    .sc-transcript__body > p {
+        margin: 0;
+    }
+
+    .sc-transcript__tentative {
+        color: var(--ink-muted);
+        font-style: italic;
+    }
+
+    .sc-transcript__unclear {
+        background: var(--highlight-unclear);
+        border-radius: var(--radius-xs);
+        color: inherit;
+        padding: 0 1px;
+        text-decoration: underline wavy;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+    }
+
+    .sc-transcript__source {
+        background: var(--highlight-source);
+        border-radius: var(--radius-xs);
+        color: inherit;
+        padding: 0 1px;
+    }
+
+    .sc-transcript__placeholder {
+        color: var(--ink-muted);
+    }
+
+    .sc-transcript__note {
+        margin: 0;
+        padding: var(--space-2) var(--space-4);
+        border-top: 1px solid var(--line);
+        font-size: 14px;
+        line-height: 20px;
+        color: var(--ink-muted);
+    }
+
+    /* Proposed field: one note field as dictation proposed it, awaiting review. */
+    .sc-proposals {
+        margin: 0 0 var(--space-4);
+        max-width: var(--width-reading);
+        border-top: 1px solid var(--line);
+    }
+
+    .sc-proposal {
+        padding: var(--space-3) var(--space-4);
+        border-bottom: 1px solid var(--line);
+        max-width: var(--width-reading);
+    }
+
+    .sc-proposal dd {
+        margin: 0;
+    }
+
+    .sc-proposal__head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-2);
+        margin: 0 0 var(--space-1);
+    }
+
+    .sc-proposal__field {
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+    }
+
+    .sc-proposal__value {
+        margin: 0;
+        border-radius: var(--radius-xs);
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    .sc-proposal--selected .sc-proposal__value {
+        background: var(--highlight-source);
+    }
+
+    .sc-proposal__message {
+        margin: 0;
+        font-size: 14px;
+        line-height: 20px;
+        color: var(--ink-muted);
+    }
+
+    .sc-proposal__warning {
+        margin: var(--space-1) 0 0;
+        border-radius: var(--radius-xs);
+        font-size: 14px;
+        line-height: 20px;
+        color: var(--warning);
+        font-weight: 600;
+    }
+
+    .sc-proposal__controls {
+        margin-top: var(--space-3);
+    }
+
+    .sc-proposal__approved {
+        margin-top: var(--space-2);
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    .sc-proposal__approved:empty {
+        display: none;
+    }
+
+    .sc-proposal[data-review-state="rejected"] {
+        box-shadow: inset 2px 0 0 var(--line-strong);
+    }
+
+    /* Two versions side by side, such as "Theirs (saved)" and "Mine (not saved)". Never merged silently. */
+    .sc-versions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+        gap: var(--space-4);
+        margin: 0 0 var(--space-3);
+    }
+
+    .sc-version {
+        min-width: 0;
+        padding: var(--space-3) var(--space-4);
+        background: var(--surface-subtle);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+    }
+
+    .sc-version__label {
+        display: block;
+        margin: 0 0 var(--space-1);
+        font-size: 13px;
+        line-height: 18px;
+        font-weight: 500;
+        color: var(--ink-muted);
+    }
+
+    .sc-version dd,
+    dd.sc-version {
+        margin: 0;
+    }
+
+    /* Quick text: the shortcut someone types, in mono, and the phrase it stands for. */
+    .sc-quicktexts {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 var(--space-6);
+        max-width: var(--width-content);
+        border-top: 1px solid var(--line);
+    }
+
+    .sc-quicktexts > li {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2) var(--space-4);
+        align-items: baseline;
+        margin: 0;
+        padding: var(--space-3) 0;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .sc-quicktexts > li > form,
+    .sc-quicktexts > li > .sc-conflict {
+        flex: 1;
+        max-width: none;
+        margin: 0;
+    }
+
+    .sc-quicktext__shortcut {
+        flex: none;
+        min-width: 6rem;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        line-height: 16px;
+        font-weight: 600;
+    }
+
+    .sc-quicktext__body {
+        flex: 1;
+        min-width: 12rem;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    .sc-quicktext__pending {
+        flex: none;
+    }
+
+    .sc-conflict > :first-child {
+        margin-top: 0;
+    }
+}
+
+@layer pages {
+    /* Patient search: the three criteria in a row, then the results. */
+    .sc-search {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+        align-items: flex-end;
+        margin: 0 0 var(--space-6);
+    }
+
+    .sc-search .sc-field {
+        flex: 1 1 12rem;
+    }
+
+    /* Chart: panels side by side where there is room. */
+    .sc-chart {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+        gap: var(--space-6);
+        align-items: start;
+    }
+
+    .sc-chart > .sc-panel--wide {
+        grid-column: 1 / -1;
+    }
+
+    /* A clinical note: the three fields at reading width, their text kept as it was typed. */
+    .sc-note {
+        max-width: var(--width-reading);
+        margin: 0 0 var(--space-6);
+    }
+
+    .sc-note h2 {
+        margin: var(--space-4) 0 var(--space-1);
+        font-size: 18px;
+        line-height: 24px;
+    }
+
+    .sc-note__text {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    /* Reviewing dictation: the transcript beside the proposed fields. */
+    .sc-review {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+        gap: var(--space-6);
+        align-items: start;
+        margin: 0 0 var(--space-6);
+    }
+
+    .sc-review h2 {
+        margin-top: 0;
+    }
+
+    /* Audit: the filters in a row above the table. */
+    .sc-filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+        gap: var(--space-3) var(--space-4);
+        align-items: end;
+        margin: 0 0 var(--space-6);
+    }
+
+    .sc-filters .sc-btn {
+        justify-self: start;
+    }
+
+    .sc-filters .sc-check {
+        align-self: center;
+    }
+
+    /* Portal: larger, calmer text and one column. */
+    .sc-app--portal {
+        font-size: 18px;
+        line-height: 28px;
+    }
+
+    .sc-app--portal .sc-field__hint,
+    .sc-app--portal .sc-field__error {
+        font-size: 16px;
+        line-height: 24px;
+    }
+
+    .sc-results {
+        list-style: none;
+        padding: 0;
+    }
+
+    .sc-results > li {
+        margin: 0 0 var(--space-4);
+    }
+
+    .sc-result {
+        background: var(--surface-raised);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+    }
+
+    .sc-result > summary {
+        padding: var(--space-4) var(--space-6);
+        border-radius: var(--radius-lg);
+    }
+
+    .sc-result__line {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: var(--space-1) var(--space-3);
+        align-items: baseline;
+        vertical-align: top;
+        max-width: calc(100% - var(--space-6));
+    }
+
+    .sc-result__date {
+        color: var(--ink-muted);
+        font-size: 16px;
+        line-height: 24px;
+    }
+
+    .sc-result__body {
+        padding: 0 var(--space-6) var(--space-4);
+    }
+
+    .sc-result__body > :last-child {
+        margin-bottom: 0;
+    }
+
+    @media (max-width: 40rem) {
+        .sc-app--portal dl.record {
+            grid-template-columns: 1fr;
+            gap: 0;
+        }
+
+        .sc-app--portal dl.record dd {
+            margin-bottom: var(--space-3);
+        }
+
+        .sc-result > summary {
+            padding: var(--space-4);
+        }
+
+        .sc-result__body {
+            padding: 0 var(--space-4) var(--space-4);
+        }
+
+        .sc-app--portal .sc-panel {
+            padding: var(--space-4);
+        }
+    }
+}
+
+/* What pages not yet moved to the components above still use. Each pass removes what it replaces. */
+@layer legacy {
+    main:not([class]) {
+        max-width: 48rem;
+        margin: 0 auto;
+        padding: 0 var(--space-4);
+    }
+
+    main label:not([class]) {
+        display: block;
+    }
+
+    main label:not([class]) > input:not([type="checkbox"]),
+    main label:not([class]) > textarea,
+    main label:not([class]) > select {
+        width: 100%;
+    }
+
+    .error {
+        color: var(--danger);
+    }
+
+    .notice {
+        padding: var(--space-2) var(--space-3);
+        border-left: 4px solid currentColor;
+    }
+
+    .notice.read-only {
+        color: var(--warning);
+    }
+
+    .results {
+        list-style: none;
+        padding: 0;
+    }
+
+    .results > li {
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .results .result-line {
+        display: inline-flex;
+        gap: var(--space-3);
+        align-items: baseline;
+    }
+
+    .quick-texts {
+        list-style: none;
+        padding: 0;
+    }
+
+    .quick-texts > li {
+        display: flex;
+        gap: var(--space-3);
+        align-items: baseline;
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .quick-texts form {
+        flex: 1;
+    }
+
+    .shortcut {
+        font-family: var(--font-mono);
+        font-weight: 600;
+    }
+
+    .quick-texts .body,
+    .signed-note .body {
+        flex: 1;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    .site-header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3) var(--space-6);
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--space-3) var(--space-5);
+        border-bottom: 1px solid var(--line);
+    }
+
+    .site-header nav {
+        display: flex;
+        gap: var(--space-5);
+    }
+
+    .sign-out {
+        display: flex;
+        gap: var(--space-3);
+        align-items: center;
+    }
+
+    .account-form {
+        max-width: var(--width-form);
+    }
+
+    .account-form label {
+        margin-top: var(--space-3);
+    }
+
+    .account-form button {
+        margin-top: var(--space-4);
+    }
+
+    .code {
+        font-family: var(--font-mono);
+        font-size: 20px;
+        letter-spacing: 0.1em;
+        word-break: break-all;
+    }
+
+    .recovery-codes {
+        columns: 2;
+        list-style: none;
+        padding: 0;
+    }
+
+    .search-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        align-items: end;
+    }
+
+    .search-form label {
+        flex: 1 1 10rem;
+    }
+
+    a.button {
+        padding: 2px var(--space-2);
+        border: 1px solid currentColor;
+        border-radius: var(--radius-sm);
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .tag {
+        font-size: 13px;
+        padding: 0 var(--space-2);
+        border: 1px solid currentColor;
+        border-radius: var(--radius-sm);
+        white-space: nowrap;
+    }
+
+    .tag.restricted {
+        color: var(--warning);
+    }
+
+    .filter-form {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+        gap: var(--space-2) var(--space-4);
+        align-items: end;
+        margin-bottom: var(--space-4);
+    }
+
+    .filter-form select {
+        width: 100%;
+    }
+
+    tr.flagged {
+        background: var(--row-flagged);
+    }
+
+    td.id {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        word-break: break-all;
+    }
+
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+
+    .transcript {
+        min-height: 4rem;
+        padding: var(--space-2) var(--space-3);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        white-space: pre-wrap;
+    }
+
+    .placeholder,
+    .transcript .tentative {
+        color: var(--ink-muted);
+    }
+
+    mark.unclear {
+        background: var(--highlight-unclear);
+        color: inherit;
+        text-decoration: underline wavy;
+    }
+
+    mark.source-highlight {
+        background: var(--highlight-source);
+        color: inherit;
+    }
+
+    .proposed-field {
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .proposed-field dt {
+        font-weight: 600;
+    }
+
+    .proposed-field dd {
+        margin: 0;
+    }
+
+    .field-status {
+        margin-left: var(--space-2);
+        font-size: 13px;
+        font-weight: normal;
+        padding: 0 var(--space-2);
+        border: 1px solid currentColor;
+        border-radius: var(--radius-sm);
+    }
+
+    .proposed-field.pending .field-status,
+    .field-warning {
+        color: var(--warning);
+    }
+
+    .note-editor label {
+        font-weight: 600;
+        margin-top: var(--space-4);
+    }
+
+    .note-editor textarea {
+        resize: vertical;
+        min-height: 6rem;
+    }
+
+    .note-editor .actions {
+        margin: var(--space-4) 0 var(--space-8);
+    }
+
+    .note-patient {
+        padding-bottom: var(--space-3);
+        border-bottom: 1px solid var(--line);
+    }
+
+    .note-confirm {
+        margin: var(--space-4) 0;
+    }
+
+    .review-columns {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+        gap: var(--space-6);
+    }
+
+    [data-review-state="rejected"] {
+        border-left: 3px solid currentColor;
+        padding-left: var(--space-3);
+    }
+
+    .order-form [aria-invalid="true"] {
+        outline: 2px solid var(--danger);
+    }
 }

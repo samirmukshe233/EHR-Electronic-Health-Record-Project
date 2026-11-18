@@ -3,6 +3,8 @@
 @{
     var isPatient = User.HasClaim(claim => claim.Type == EhrClaims.PatientId);
     var displayName = User.FindFirst(EhrClaims.DisplayName)?.Value ?? User.Identity?.Name;
+    // The portal's pages, signed in or not: its account pages have no patient yet.
+    var isPortal = isPatient || string.Equals(ViewContext.RouteData.Values["area"] as string, "Portal", StringComparison.Ordinal);
 }
 @inject Ehr.Web.Forwarding.OnPremStatus OnPrem
 <!doctype html>
@@ -13,6 +15,25 @@
     @* The htmx features that run JavaScript from attributes stay off, so a strict CSP can be added later. *@
     <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false,"historyCacheSize":0}'>
     <title>@ViewData["Title"]</title>
+    @* The browser's own chrome takes the app bar's color (docs/brand/tokens.json: appbar for staff, surface-raised
+       for the portal), in each theme. *@
+    @if (isPortal)
+    {
+        <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+        <meta name="theme-color" content="#182a3f" media="(prefers-color-scheme: dark)">
+    }
+    else
+    {
+        <meta name="theme-color" content="#0e1b2c" media="(prefers-color-scheme: light)">
+        <meta name="theme-color" content="#091320" media="(prefers-color-scheme: dark)">
+    }
+    <link rel="icon" href="~/_content/Ehr.Design/img/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="~/_content/Ehr.Design/img/favicon-32.png" type="image/png" sizes="32x32">
+    <link rel="apple-touch-icon" href="~/_content/Ehr.Design/img/apple-touch-icon.png">
+    @* The fonts come from this server, never a CDN (tokens.css), so the on-site app works with no internet. They
+       swap in when they arrive and never hold up the first paint. No font is fetched ahead: a test holds that nothing
+       on the patient search page asks for anything early (PatientSearchTests), so no page does. *@
+    <link rel="stylesheet" href="~/_content/Ehr.Design/css/tokens.css">
     <link rel="stylesheet" href="~/_content/Ehr.Design/css/ehr.css">
     @if (ViewData["UseHtmx"] is not false)
     {

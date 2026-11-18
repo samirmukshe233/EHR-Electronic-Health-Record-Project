@@ -30,6 +30,12 @@ Conventions every coding agent (and every person) follows in this repo. Most com
 - Migrations run as `ehr_owner`, only through the migration job (`infra/migrate`): in the local stack, in CI, and at deploy. The running apps never use that role.
 - The synthetic seed (`bench/Ehr.Seed`) is the one other use of `ehr_owner`, and only on a clinic with no patients: in one transaction it lifts forced row-level security and the write-audit triggers on the tables it fills, loads them, and restores both before committing, so seeded rows have no write-audit events. `Ehr.Security.Tests` checks that it leaves both in place, refuses a clinic with patients, and leaves nothing behind when it fails.
 
+## How the UI is styled
+
+- The brand guide is `docs/brand/README.md`, and `docs/brand/tokens.json` is the source of truth for every color, type style, space, radius and size. After changing it, the shared stylesheet, a font or a logo, run `dotnet run tools/brand/sync.cs`: it writes `src/Ehr.Design/wwwroot/css/tokens.css` and the desktop app's copy of the shared CSS, fonts and logos (`src/Ehr.Desktop/frontend/css`, `fonts`, `img`). Never edit those by hand.
+- One shared stylesheet, `src/Ehr.Design/wwwroot/css/ehr.css`, in layers: base, layout, components, pages. It uses the token variables only, never a raw color, so light and dark both work. Components are the guide's, with its `sc-` classes.
+- No CSS or JavaScript framework, no CSS build step, no inline `style` attributes or inline scripts, and nothing loaded from another host: fonts, logos and scripts are served by the apps themselves.
+
 ## Human review
 
 Every change reaches `main` through a pull request, with the `ci` check passing and approval from someone other than its author. On top of that, changes to the following get line-by-line review by someone other than the person who prompted the agent:
@@ -49,6 +55,7 @@ The `ci` check passes (`.github/workflows/ci.yml`). Today it runs:
 - PHI reads only go through the PHI reader, portal handlers take no patient from a request, and no layer depends on the one above it (`Ehr.Architecture.Tests`).
 - Anonymous requests are sent to sign in, each policy refuses the accounts it should, a staff sign-in needs its second factor, and a patient sees only their own record (`Ehr.Web.Tests`).
 - Every model change has a migration, and `db/migrations/schema.sql` matches the migrations (`Ehr.Data.Tests`).
+- The tokens' CSS matches `docs/brand/tokens.json`, and the desktop app's copy of the shared CSS, fonts and logos matches the web apps' (`dotnet run tools/brand/sync.cs -- --check`, and `Ehr.Web.Tests`).
 - The local server stack: the migration job applies cleanly, and the stack serves all three sites, replicates, and backs up.
 - macOS and Windows desktop builds, with `cargo fmt --check` and `cargo clippy -D warnings`.
 - The tests for `src/Ehr.Dictation/setup_models.py`, the dictation sidecar and the eval, and the sidecar's image built for `linux/amd64` and `linux/arm64`.

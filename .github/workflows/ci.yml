@@ -47,6 +47,10 @@ jobs:
       - name: Check formatting
         run: dotnet format Ehr.slnx --verify-no-changes --no-restore
 
+      # The tokens' CSS and the desktop app's copy of the shared CSS, fonts and logos match their sources.
+      - name: Check the brand files
+        run: dotnet run tools/brand/sync.cs -- --check
+
       - name: Test
         run: dotnet test --solution Ehr.slnx --configuration Release --no-build
 
