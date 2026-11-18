@@ -20,6 +20,12 @@ window.SwiftChartDictationView = class {
         };
         const instructionWords = { order: "Order", allergy_change: "Allergy change" };
 
+        // A field's status as a tag (docs/brand: Tag): the words say it, the tone only supports them.
+        function setStatus(status, text, tone) {
+            status.textContent = text;
+            status.className = tone ? `sc-tag sc-tag--${tone}` : "sc-tag";
+        }
+
         function element(tag, text, className) {
             const node = document.createElement(tag);
             if (text !== undefined) {
@@ -43,7 +49,7 @@ window.SwiftChartDictationView = class {
             state.transcript = transcript;
             const text = transcript.text ?? "";
             if (text.length === 0) {
-                transcriptArea.replaceChildren(element("p", "Listening…", "placeholder"));
+                transcriptArea.replaceChildren(element("p", "Listening…", "sc-transcript__placeholder"));
                 return;
             }
 
@@ -62,18 +68,18 @@ window.SwiftChartDictationView = class {
                 const highlighted = highlights.some((h) => h.start <= from && to <= h.end);
                 let node = document.createTextNode(text.slice(from, to));
                 if (segment?.unclear) {
-                    const mark = element("mark", undefined, "unclear");
+                    const mark = element("mark", undefined, "sc-transcript__unclear");
                     mark.title = `Say this again: ${unclearWords[segment.unclear] ?? "it may be wrong"}.`;
                     mark.append(node);
                     node = mark;
                 } else if (segment && !segment.final) {
-                    const span = element("span", undefined, "tentative");
+                    const span = element("span", undefined, "sc-transcript__tentative");
                     span.append(node);
                     node = span;
                 }
 
                 if (highlighted) {
-                    const mark = element("mark", undefined, "source-highlight");
+                    const mark = element("mark", undefined, "sc-transcript__source");
                     mark.append(node);
                     node = mark;
                 }
@@ -114,12 +120,13 @@ window.SwiftChartDictationView = class {
             const container = root.querySelector(`[data-dictation-field="${name}"]`);
             const status = container.querySelector("[data-field-status]");
             const value = container.querySelector("[data-field-value]");
-            container.classList.toggle("pending", field?.status === "pending");
-            container.classList.toggle("empty", field?.status === "empty");
+            container.classList.toggle("sc-proposal--pending", field?.status === "pending");
+            container.classList.toggle("sc-proposal--empty", field?.status === "empty");
+            container.classList.remove("sc-proposal--selected");
             value.replaceChildren();
             if (field?.status === "pending") {
-                status.textContent = "Awaiting review";
-                const text = element("p", field.value, "field-value");
+                setStatus(status, "Awaiting review", "warning");
+                const text = element("p", field.value, "sc-proposal__value");
                 highlightOnFocus(text, field.sources ?? []);
                 value.append(text);
                 for (const control of container.querySelectorAll("button, textarea, summary")) {
@@ -127,26 +134,30 @@ window.SwiftChartDictationView = class {
                     control.onblur = () => renderTranscript(state.transcript);
                 }
                 for (const warning of field.warnings ?? []) {
-                    const note = element("p", warningWords[warning.code] ?? "Check this field against the transcript.", "field-warning");
+                    const note = element("p", warningWords[warning.code] ?? "Check this field against the transcript.", "sc-proposal__warning");
                     highlightOnFocus(note, [warning]);
                     value.append(note);
                 }
             } else if (field?.status === "empty") {
-                status.textContent = "Left empty";
+                setStatus(status, "Left empty");
                 const notDictated = (field.reasons ?? []).includes("not_dictated");
                 value.append(element("p", notDictated
                     ? "Nothing was dictated for this field. Fill it in during review if it's needed."
-                    : "No suggestion: what was proposed didn't pass the automatic checks. Fill it in during review."));
+                    : "No suggestion: what was proposed didn't pass the automatic checks. Fill it in during review.", "sc-proposal__message"));
+            } else if (sorting === "pending") {
+                setStatus(status, "Proposing…", "info");
             } else {
-                status.textContent = sorting === "unavailable" ? "Not sorted" : sorting === "pending" ? "Proposing…" : "Not dictated yet";
+                setStatus(status, sorting === "unavailable" ? "Not sorted" : "Not dictated yet");
             }
         }
 
         // Hovering or focusing the element highlights its ranges in the transcript; the keyboard reaches it with Tab.
+        // A proposed field shows the same tint while its sources are shown.
         function highlightOnFocus(node, ranges) {
             node.tabIndex = 0;
-            const on = () => renderTranscript(state.transcript, ranges);
-            const off = () => renderTranscript(state.transcript);
+            const selected = (isSelected) => node.closest(".sc-proposal")?.classList.toggle("sc-proposal--selected", isSelected);
+            const on = () => { renderTranscript(state.transcript, ranges); selected(true); };
+            const off = () => { renderTranscript(state.transcript); selected(false); };
             node.addEventListener("mouseenter", on);
             node.addEventListener("focus", on);
             node.addEventListener("mouseleave", off);

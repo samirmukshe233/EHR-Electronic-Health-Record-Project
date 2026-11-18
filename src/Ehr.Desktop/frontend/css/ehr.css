@@ -1250,7 +1250,7 @@
         border-radius: var(--radius-md);
         background: var(--surface-raised);
         max-width: var(--width-reading);
-        margin: 0 0 var(--space-4);
+        margin: var(--space-4) 0;
     }
 
     .sc-transcript__head {
@@ -1497,6 +1497,42 @@
     .sc-conflict > :first-child {
         margin-top: 0;
     }
+
+    .sc-version dd {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-1) var(--space-4);
+        align-items: baseline;
+    }
+
+    /* Adding or editing a phrase: the shortcut, the text and the buttons in one row where there is room. */
+    .sc-quicktext-form {
+        display: grid;
+        grid-template-columns: minmax(8rem, 12rem) minmax(12rem, 1fr) auto;
+        gap: var(--space-3) var(--space-4);
+        align-items: start;
+        max-width: var(--width-content);
+        margin: 0 0 var(--space-6);
+    }
+
+    .sc-quicktext-form .sc-field {
+        max-width: none;
+    }
+
+    /* Level with the inputs, under the labels' line. */
+    .sc-quicktext-form .sc-actions {
+        padding-top: calc(20px + var(--space-1));
+    }
+
+    @media (max-width: 48rem) {
+        .sc-quicktext-form {
+            grid-template-columns: 1fr;
+        }
+
+        .sc-quicktext-form .sc-actions {
+            padding-top: 0;
+        }
+    }
 }
 
 @layer pages {
@@ -1696,10 +1732,6 @@
         border-left: 4px solid currentColor;
     }
 
-    .notice.read-only {
-        color: var(--warning);
-    }
-
     .results {
         list-style: none;
         padding: 0;
@@ -1714,35 +1746,6 @@
         display: inline-flex;
         gap: var(--space-3);
         align-items: baseline;
-    }
-
-    .quick-texts {
-        list-style: none;
-        padding: 0;
-    }
-
-    .quick-texts > li {
-        display: flex;
-        gap: var(--space-3);
-        align-items: baseline;
-        padding: var(--space-2) 0;
-        border-bottom: 1px solid var(--line);
-    }
-
-    .quick-texts form {
-        flex: 1;
-    }
-
-    .shortcut {
-        font-family: var(--font-mono);
-        font-weight: 600;
-    }
-
-    .quick-texts .body,
-    .signed-note .body {
-        flex: 1;
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
     }
 
     .account-form {
@@ -1768,25 +1771,6 @@
         columns: 2;
         list-style: none;
         padding: 0;
-    }
-
-    .search-form {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--space-2);
-        align-items: end;
-    }
-
-    .search-form label {
-        flex: 1 1 10rem;
-    }
-
-    a.button {
-        padding: 2px var(--space-2);
-        border: 1px solid currentColor;
-        border-radius: var(--radius-sm);
-        color: inherit;
-        text-decoration: none;
     }
 
     .tag {
@@ -1827,94 +1811,5 @@
         display: flex;
         flex-wrap: wrap;
         gap: var(--space-2);
-    }
-
-    .transcript {
-        min-height: 4rem;
-        padding: var(--space-2) var(--space-3);
-        border: 1px solid var(--line);
-        border-radius: var(--radius-sm);
-        white-space: pre-wrap;
-    }
-
-    .placeholder,
-    .transcript .tentative {
-        color: var(--ink-muted);
-    }
-
-    mark.unclear {
-        background: var(--highlight-unclear);
-        color: inherit;
-        text-decoration: underline wavy;
-    }
-
-    mark.source-highlight {
-        background: var(--highlight-source);
-        color: inherit;
-    }
-
-    .proposed-field {
-        padding: var(--space-2) 0;
-        border-bottom: 1px solid var(--line);
-    }
-
-    .proposed-field dt {
-        font-weight: 600;
-    }
-
-    .proposed-field dd {
-        margin: 0;
-    }
-
-    .field-status {
-        margin-left: var(--space-2);
-        font-size: 13px;
-        font-weight: normal;
-        padding: 0 var(--space-2);
-        border: 1px solid currentColor;
-        border-radius: var(--radius-sm);
-    }
-
-    .proposed-field.pending .field-status,
-    .field-warning {
-        color: var(--warning);
-    }
-
-    .note-editor label {
-        font-weight: 600;
-        margin-top: var(--space-4);
-    }
-
-    .note-editor textarea {
-        resize: vertical;
-        min-height: 6rem;
-    }
-
-    .note-editor .actions {
-        margin: var(--space-4) 0 var(--space-8);
-    }
-
-    .note-patient {
-        padding-bottom: var(--space-3);
-        border-bottom: 1px solid var(--line);
-    }
-
-    .note-confirm {
-        margin: var(--space-4) 0;
-    }
-
-    .review-columns {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-        gap: var(--space-6);
-    }
-
-    [data-review-state="rejected"] {
-        border-left: 3px solid currentColor;
-        padding-left: var(--space-3);
-    }
-
-    .order-form [aria-invalid="true"] {
-        outline: 2px solid var(--danger);
     }
 }

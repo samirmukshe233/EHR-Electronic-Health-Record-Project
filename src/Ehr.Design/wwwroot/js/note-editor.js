@@ -77,7 +77,7 @@
                 if (!response.ok) {
                     conflict = response.status === 409 || response.status === 404;
                     showErrors(result.errors || ['The request could not be completed.']);
-                    setStatus(result.version ? 'Saved' : 'Save Failed');
+                    setStatus(result.version ? 'Saved' : 'Save failed');
                     return;
                 }
                 showErrors([]);
@@ -87,7 +87,7 @@
                 }
                 setStatus(revision === savedRevision ? 'Saved' : 'Unsaved');
             } catch {
-                setStatus('Save Failed');
+                setStatus('Save failed');
                 showErrors(['The clinic server could not confirm this save. Your text is still here. Retry Save draft when connected; if it conflicts, compare with the saved draft in another tab.']);
             }
         })();

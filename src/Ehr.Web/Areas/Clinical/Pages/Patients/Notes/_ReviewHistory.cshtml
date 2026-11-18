@@ -3,7 +3,7 @@
 {
     <details>
         <summary>Saved AI reviews</summary>
-        <ul>
+        <ul class="sc-list">
             @foreach (var review in Model)
             {
                 <li><a asp-page="/Patients/Notes/Review" asp-area="Clinical" asp-route-patientId="@review.PatientId" asp-route-draftId="@review.DraftId" asp-route-reviewId="@review.Id">Dictation and review saved @review.CompletedAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC — original proposals and decisions</a></li>

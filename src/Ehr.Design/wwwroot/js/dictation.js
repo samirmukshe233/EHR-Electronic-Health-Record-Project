@@ -30,6 +30,7 @@
     const stopButton = part("stop");
     const cancelButton = part("cancel");
     const statusArea = part("status");
+    const recordingMark = part("recording");
     const transcriptArea = part("transcript");
     const unclearNotice = part("unclear");
     const sortMessage = part("sort-message");
@@ -72,12 +73,23 @@
         };
     }
 
-    function say(text, isError = false) {
-        statusArea.textContent = text;
-        statusArea.classList.toggle("error", isError);
+    // "Cancel" stops a dictation under way; once there is a transcript it becomes "Discard", which throws work away
+    // and is outlined in danger (docs/brand: Button).
+    function cancelAs(text) {
+        cancelButton.textContent = text;
+        cancelButton.classList.toggle("sc-btn--danger", text === "Discard");
+        cancelButton.classList.toggle("sc-btn--quiet", text !== "Discard");
     }
 
+    function say(text, isError = false) {
+        statusArea.textContent = text;
+        statusArea.classList.toggle("sc-status--error", isError);
+    }
+
+    // While recording, the status line carries a dot and the transcript's head says "Recording": a word beside each.
     function buttons(recording) {
+        statusArea.dataset.state = recording ? "recording" : "idle";
+        recordingMark.hidden = !recording;
         startButton.disabled = recording;
         stopButton.disabled = !recording;
         cancelButton.disabled = !recording && state.session === null;
@@ -129,7 +141,7 @@
         state.requestId = requestId;
         startButton.disabled = true;
         resetScreen();
-        cancelButton.textContent = "Cancel";
+        cancelAs("Cancel");
         try {
             state.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch (error) {
@@ -330,7 +342,7 @@
             state.ended = true;
             buttons(false);
             cancelButton.disabled = false;
-            cancelButton.textContent = "Discard";
+            cancelAs("Discard");
             startButton.disabled = true;
             say(result.sorting === "done"
                 ? "Done. Review each proposed field; nothing is in the note until you approve it."
@@ -432,7 +444,7 @@
         resetScreen();
         buttons(false);
         cancelButton.disabled = true;
-        cancelButton.textContent = "Cancel";
+        cancelAs("Cancel");
         if (session) {
             try {
                 await call("DELETE", `/${session.sessionId}`);
@@ -460,14 +472,16 @@
     function resetScreen() {
         state.transcript = null;
         reviewButton.hidden = true;
-        transcriptArea.replaceChildren(element("p", "Your words appear here as you speak.", "placeholder"));
+        transcriptArea.replaceChildren(element("p", "Your words appear here as you speak.", "sc-transcript__placeholder"));
         unclearNotice.hidden = true;
         sortMessage.textContent = "The fields are proposed once you stop.";
         for (const name of fieldNames) {
             const field = root.querySelector(`[data-dictation-field="${name}"]`);
-            field.querySelector("[data-field-status]").textContent = "Not dictated yet";
+            const status = field.querySelector("[data-field-status]");
+            status.textContent = "Not dictated yet";
+            status.className = "sc-tag";
             field.querySelector("[data-field-value]").replaceChildren();
-            field.classList.remove("pending", "empty");
+            field.classList.remove("sc-proposal--pending", "sc-proposal--empty", "sc-proposal--selected");
         }
 
         notCarried.hidden = true;

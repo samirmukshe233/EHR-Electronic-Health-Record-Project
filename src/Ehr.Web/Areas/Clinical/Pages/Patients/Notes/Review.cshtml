@@ -5,34 +5,61 @@
 @{
     ViewData["Title"] = "Review AI-proposed fields";
 }
-<p><a asp-page="/Patients/Chart" asp-route-id="@Model.Patient.Id">Back to chart</a></p>
+@* The patient, in the banner under the app bar. The note pages read no allergies, so the banner shows none. *@
+@section Banner {
+    <partial name="_PatientBanner" model="new PatientBanner(Model.Patient)" />
+}
+@functions {
+    // A proposal's state in the words and the tone its tag shows it in (js/note-review.js does the same as states change).
+    static string StateWords(string? state) => state switch
+    {
+        AiProposalStates.Pending => "Awaiting review",
+        AiProposalStates.Accepted => "Accepted",
+        AiProposalStates.Edited => "Edited",
+        AiProposalStates.Rejected => "Rejected",
+        _ => "No usable suggestion",
+    };
+
+    static string StateTone(string? state) => state switch
+    {
+        AiProposalStates.Pending => "sc-tag sc-tag--warning",
+        AiProposalStates.Accepted or AiProposalStates.Edited => "sc-tag sc-tag--success",
+        _ => "sc-tag",
+    };
+}
+<div class="sc-pagehead">
+    <p><a asp-page="/Patients/Chart" asp-route-id="@Model.Patient.Id">Back to chart</a></p>
+</div>
 <h1>Review AI-proposed fields</h1>
-<partial name="_PatientIdentity" model="Model.Patient" />
-<p>Compare every suggestion with your original words. Accepted and edited values enter the note only when you complete review. Orders and allergy changes are never executed by this workflow.</p>
+<p class="sc-prose">Compare every suggestion with your original words. Accepted and edited values enter the note only when you complete review. Orders and allergy changes are never executed by this workflow.</p>
 <section data-note-review data-dictation data-stage-url="@($"/api/dictation/sessions/review/{Model.Review.Id}/stage")">
     <script type="application/json" data-review-snapshot>@Json.Serialize(Model.Snapshot)</script>
-    <p id="note-save-status" role="status" aria-live="polite">Saved review</p>
-    <div id="note-errors" class="notice error" role="alert" tabindex="-1" hidden="@(Model.Errors.Count == 0)">
+    <p id="note-save-status" class="sc-status" role="status" aria-live="polite">Saved review</p>
+    <div id="note-errors" class="sc-notice sc-notice--danger" role="alert" tabindex="-1" hidden="@(Model.Errors.Count == 0)">
         @foreach (var error in Model.Errors) { <p>@error</p> }
     </div>
-    <p data-review-progress role="status" aria-live="polite">@(Model.Proposals.Count(p => p.State != AiProposalStates.Pending)) of @Model.Proposals.Count proposals reviewed.</p>
+    <p data-review-progress class="sc-status" role="status" aria-live="polite">@(Model.Proposals.Count(p => p.State != AiProposalStates.Pending)) of @Model.Proposals.Count proposals reviewed.</p>
     @Html.AntiForgeryToken()
     @if (Model.Review.State == AiReviewStates.Recording && !Model.Signed)
     {
-        <p class="notice">This dictation has not been staged for review. Retrieve its finished result, or discard the temporary dictation and continue manually. No AI text has entered the note.</p>
-        <button type="button" data-review-retrieve>Retrieve finished dictation</button>
-        <form method="post" asp-page-handler="Discard" data-review-submit>
-            <button>Discard unfinished dictation and continue manually</button>
-        </form>
+        <p class="sc-notice sc-notice--warning">This dictation has not been staged for review. Retrieve its finished result, or discard the temporary dictation and continue manually. No AI text has entered the note.</p>
+        <div class="sc-actions">
+            <button type="button" class="sc-btn" data-review-retrieve>Retrieve finished dictation</button>
+            <form method="post" asp-page-handler="Discard" data-review-submit>
+                <button class="sc-btn sc-btn--danger">Discard unfinished dictation and continue manually</button>
+            </form>
+        </div>
     }
-    @if (Model.Signed) { <p class="notice">The note is signed. This review evidence is read-only.</p> }
-    <div class="review-columns">
+    @if (Model.Signed) { <p class="sc-notice sc-notice--info">The note is signed. This review evidence is read-only.</p> }
+    <div class="sc-review">
         <section>
-            <h2>Original transcript</h2>
-            <div class="transcript" data-dictation-transcript><p>@Model.Result?.Transcript.Text</p></div>
-            <p class="notice" data-dictation-unclear hidden>Marked passages were unclear. Check them before approving.</p>
-            <p data-dictation-sort-message></p>
-            <section class="notice" data-dictation-not-carried hidden>
+            <section class="sc-transcript" aria-labelledby="review-transcript">
+                <div class="sc-transcript__head"><h2 class="sc-transcript__title" id="review-transcript">Original transcript</h2></div>
+                <div class="sc-transcript__body" data-dictation-transcript><p>@Model.Result?.Transcript.Text</p></div>
+                <p class="sc-transcript__note" data-dictation-unclear hidden>Marked passages were unclear. Check them before approving.</p>
+            </section>
+            <p class="sc-status" data-dictation-sort-message></p>
+            <section class="sc-notice sc-notice--warning" data-dictation-not-carried hidden>
                 <h3>Not carried over</h3>
                 <p>Place any indicated orders or allergy updates through their normal clinical workflow.</p>
                 <ul data-dictation-not-carried-list></ul>
@@ -40,34 +67,38 @@
         </section>
         <section>
             <h2>Proposed fields</h2>
-            <dl class="proposed-fields">
+            <dl class="sc-proposals">
                 @foreach (var field in new[] { "history", "assessment", "plan" })
                 {
                     var proposal = Model.Proposals.SingleOrDefault(p => p.Field == field);
-                    <div class="proposed-field" data-dictation-field="@field" data-proposal-id="@proposal?.Id" data-review-state="@proposal?.State">
-                        <dt>@(char.ToUpperInvariant(field[0]) + field[1..]) <span class="field-status" data-field-status>@(proposal?.State ?? "No usable suggestion")</span></dt>
+                    <div class="sc-proposal" data-dictation-field="@field" data-proposal-id="@proposal?.Id" data-review-state="@proposal?.State">
+                        <dt class="sc-proposal__head"><span class="sc-proposal__field">@(char.ToUpperInvariant(field[0]) + field[1..])</span> <span class="@StateTone(proposal?.State)" data-field-status>@StateWords(proposal?.State)</span></dt>
                         <dd data-field-value>@proposal?.OriginalValue</dd>
                         @if (proposal is { State: AiProposalStates.Pending } && !Model.Signed)
                         {
-                            <dd data-review-controls>
+                            <dd class="sc-proposal__controls" data-review-controls>
                                 <form method="post" asp-page-handler="Decide" data-review-submit>
                                     <input type="hidden" name="Version" value="@Model.Draft.Version" />
                                     <input type="hidden" name="ProposalId" value="@proposal.Id" />
                                     <input type="hidden" name="DecisionKey" value="@(Model.ProposalId == proposal.Id && Model.DecisionKey != Guid.Empty ? Model.DecisionKey : Guid.NewGuid())" />
-                                    <div class="actions">
-                                        <button name="Decision" value="accepted">Accept @field</button>
-                                        <button name="Decision" value="rejected">Reject @field</button>
+                                    <div class="sc-actions">
+                                        <button class="sc-btn" name="Decision" value="accepted">Accept @field</button>
+                                        <button class="sc-btn" name="Decision" value="rejected">Reject @field</button>
                                     </div>
                                     <details>
                                         <summary>Edit @field</summary>
-                                        <label for="edited-@field">Corrected @field</label>
-                                        <textarea id="edited-@field" name="EditedValue" rows="5">@(Model.ProposalId == proposal.Id ? Model.EditedValue : proposal.OriginalValue)</textarea>
-                                        <button name="Decision" value="edited">Approve edited @field</button>
+                                        <div class="sc-stack">
+                                            <div class="sc-field sc-field--wide">
+                                                <label for="edited-@field">Corrected @field</label>
+                                                <textarea id="edited-@field" class="sc-field__input" name="EditedValue" rows="5">@(Model.ProposalId == proposal.Id ? Model.EditedValue : proposal.OriginalValue)</textarea>
+                                            </div>
+                                            <div class="sc-actions"><button class="sc-btn" name="Decision" value="edited">Approve edited @field</button></div>
+                                        </div>
                                     </details>
                                 </form>
                             </dd>
                         }
-                        <dd data-approved-value>@(proposal?.State == AiProposalStates.Rejected ? "Rejected: no text will be copied." : proposal?.ApprovedValue)</dd>
+                        <dd class="sc-proposal__approved" data-approved-value>@(proposal?.State == AiProposalStates.Rejected ? "Rejected: no text will be copied." : proposal?.ApprovedValue)</dd>
                     </div>
                 }
             </dl>
@@ -79,10 +110,10 @@
     </details>
     @if (Model.Review.State == AiReviewStates.Pending && !Model.Signed)
     {
-        <form method="post" asp-page-handler="Complete" data-review-submit data-review-complete>
+        <form method="post" asp-page-handler="Complete" class="sc-form sc-form--wide" data-review-submit data-review-complete>
             <input type="hidden" name="Version" value="@Model.Draft.Version" />
-            <label class="note-confirm"><input type="checkbox" name="Append" value="true" /> Append approved values to fields that already contain text, preserving the existing text.</label>
-            <button disabled="@(Model.Proposals.Any(p => p.State == AiProposalStates.Pending))">Add approved fields and continue to note</button>
+            <label class="sc-check"><input type="checkbox" name="Append" value="true" /> Append approved values to fields that already contain text, preserving the existing text.</label>
+            <button class="sc-btn sc-btn--primary" disabled="@(Model.Proposals.Any(p => p.State == AiProposalStates.Pending))">Add approved fields and continue to note</button>
         </form>
     }
     else if (Model.Review.State != AiReviewStates.Recording || Model.Signed)

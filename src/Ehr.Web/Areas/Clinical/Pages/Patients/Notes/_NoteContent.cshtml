@@ -1,6 +1,7 @@
 @model Ehr.Domain.Notes.NoteContent
-<section class="signed-note">
-    <h2>History</h2><p class="body">@Model.History</p>
-    <h2>Assessment</h2><p class="body">@Model.Assessment</p>
-    <h2>Plan</h2><p class="body">@Model.Plan</p>
+@* A note's three fields, read-only, their text kept as it was typed. *@
+<section class="sc-note">
+    <h2>History</h2><p class="sc-note__text">@Model.History</p>
+    <h2>Assessment</h2><p class="sc-note__text">@Model.Assessment</p>
+    <h2>Plan</h2><p class="sc-note__text">@Model.Plan</p>
 </section>
