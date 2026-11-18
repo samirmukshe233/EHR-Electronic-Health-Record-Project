@@ -10,7 +10,7 @@ Under each step, "In the repo" says what the step touches as the code stood when
 
 | Step | What | Status | Branch | Tag | CI run | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 0 | This plan | in progress | expansion/step-00-plan | | | |
+| 0 | This plan | done | expansion/step-00-plan | expansion-step-00 | [44257188518](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44257188518) | |
 | 1 | Change and discontinue orders | not started | | | | |
 | 2 | Editable allergies, medications, diagnoses | not started | | | | |
 | 2a | Reference data and a coherent synthetic seed | not started | | | | |
@@ -409,4 +409,4 @@ One entry per decision: date, step, the decision, and why.
 
 One entry per session or step: date, step, what was done, measurements (p99, page JavaScript size, first contentful paint), follow-ups, and where to resume.
 
-- **2026-11-18, step 0.** Created `expansion/integration` from main (`b4ad35b`) and `expansion/step-00-plan` from it. Saved this plan and checked it against the repo: added "In the repo" to each step and the corrections above. No code changed, so there are no measurements. Resume at step 1.
+- **2026-11-18, step 0.** Created `expansion/integration` from main (`b4ad35b`) and `expansion/step-00-plan` from it. Saved this plan and checked it against the repo: added "In the repo" to each step and the corrections above. No code changed, so there are no measurements. CI green on the plan commit; merged into `expansion/integration` and tagged `expansion-step-00`. Resume at step 1.
