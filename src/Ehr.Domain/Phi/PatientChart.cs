@@ -25,6 +25,14 @@ public sealed record PatientChart(
     public bool SensitiveShown { get; init; }
 }
 
+// One item of a staff member's inbox as its page lists it: what it is, the patient it is about (by name for a
+// clinician, who may read patients; by ID alone for an admin, who may not), and where it came from.
+public sealed record InboxEntry(
+    Guid Id, string Kind, string Summary, DateTimeOffset CreatedAt, DateTimeOffset? DoneAt, Guid? PatientId, string? PatientName, string? PatientMrn,
+    string? SourceTable, Guid? SourceId);
+
+public sealed record InboxPage(IReadOnlyList<InboxEntry> Items, bool More);
+
 // A patient with their current allergies, for the banner of a page that isn't the chart. One recorded read.
 public sealed record PatientHeader(Patient Patient, IReadOnlyList<AllergyIntolerance> Allergies);
 

@@ -48,6 +48,9 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
         [("ehr_read", "break_glass_accesses")] = ["SELECT"],
         // Chart lists: clinicians add and change entries, and nothing deletes one. Their history is the database's to write.
         [("ehr_app", "allergy_intolerances")] = ["SELECT", "INSERT", "UPDATE"],
+        // The staff inbox: read; marking an item done is a column grant.
+        [("ehr_app", "inbox_items")] = ["SELECT"],
+        [("ehr_read", "inbox_items")] = ["SELECT"],
         [("ehr_app", "chart_history")] = ["SELECT"],
         [("ehr_read", "chart_history")] = ["SELECT"],
         [("ehr_app", "clinical_codes")] = ["SELECT"],
@@ -249,6 +252,8 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
     {
         // UC 1: discontinuing an order.
         [("ehr_app", "orders", "UPDATE")] = ["discontinue_reason", "replaced_by_order_id", "status"],
+        // Marking an inbox item done.
+        [("ehr_app", "inbox_items", "UPDATE")] = ["done_at"],
         // Audit events without details: admins get those from ehr.shown_audit_details, never a sensitive item's.
         [("ehr_app", "audit_events", "SELECT")] = ["action", "actor_id", "id", "occurred_at", "patient_id", "reason", "row_id", "sensitive", "source", "table_name"],
         [("ehr_read", "audit_events", "SELECT")] = ["action", "actor_id", "id", "occurred_at", "patient_id", "reason", "row_id", "sensitive", "source", "table_name"],
