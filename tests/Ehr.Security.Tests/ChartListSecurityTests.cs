@@ -261,6 +261,37 @@ public class ChartListSecurityTests(MigratedDatabase database) : IClassFixture<M
         Assert.Equal(["No known allergy inactive", "Peanut inactive", "No known allergy active"], await ListAsync());
     }
 
+    // Recorded at the same moment, "No known allergies" and an allergy can't both stay active: each patient's allergy
+    // entries are written one at a time, so whichever comes second sees the first.
+    [Fact]
+    public async Task No_known_allergies_and_an_allergy_recorded_at_once_never_both_stay_active()
+    {
+        const string none = "INSERT INTO ehr.allergy_intolerances (id, patient_id, code, display, clinical_status, recorded_at) VALUES (@id, @patient, 'no-known-allergy', 'No known allergy', 'active', now())";
+        for (var round = 0; round < 8; round++)
+        {
+            var (clinician, patient) = await OnPanelAsync();
+            await Task.WhenAll(Enumerable.Range(0, 6).Select(async i =>
+            {
+                try
+                {
+                    await Accounts.ExecuteAsync(App, clinician, i % 2 == 0 ? none : Statements["allergy_intolerances"].Insert,
+                        ("id", Guid.CreateVersion7()), ("patient", patient));
+                }
+                catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.CheckViolation)
+                {
+                    // "No known allergies" arrived after an allergy: refused.
+                }
+            }));
+
+            Assert.Equal(["false"], await AsSuperuserAsync(
+                """
+                SELECT (bool_or(code = 'no-known-allergy') AND bool_or(code <> 'no-known-allergy'))::text
+                FROM ehr.allergy_intolerances WHERE patient_id = @patient AND clinical_status = 'active'
+                """,
+                ("patient", patient)));
+        }
+    }
+
     [Fact]
     public async Task Clinicians_read_the_history_and_nobody_else_does()
     {

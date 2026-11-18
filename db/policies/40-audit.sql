@@ -45,10 +45,12 @@ BEGIN
         is_sensitive,
         changed);
 
-    -- An item that is sensitive now is sensitive throughout its record: its earlier events, written before it was
-    -- marked, are marked too, so the audit page stops showing their values. The one change an audit event ever takes
-    -- (ehr.guard_audit_event below). By patient first, which is indexed.
-    IF is_sensitive AND TG_TABLE_NAME <> 'patients' THEN
+    -- An item that is sensitive now is sensitive throughout its record: when it becomes sensitive, its earlier events,
+    -- written before it was marked, are marked too, so the audit page stops showing their values. The one change an
+    -- audit event ever takes (ehr.guard_audit_event below). Only on the write that marks the item, not on every write
+    -- to a sensitive one: it reads the patient's events, by the index on the patient.
+    IF TG_OP = 'UPDATE' AND coalesce((new_row ->> 'sensitive')::boolean, false) AND NOT coalesce((old_row ->> 'sensitive')::boolean, false)
+       AND TG_TABLE_NAME <> 'patients' THEN
         UPDATE ehr.audit_events e SET sensitive = true
         WHERE e.patient_id = (kept ->> 'patient_id')::uuid AND e.table_name = TG_TABLE_NAME AND e.row_id = (kept ->> 'id')::uuid
           AND NOT e.sensitive;
@@ -100,10 +102,11 @@ REVOKE ALL ON FUNCTION ehr.shown_audit_details(uuid[]) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION ehr.shown_audit_details(uuid[]) TO ehr_app, ehr_read;
 
 -- Events written before an item was marked, or before this rule: marked now, on every pass, as 65-chart-lists.sql
--- marks the diagnoses themselves. Forced row-level security hides the rows from this role, so it is lifted for the
--- statement, inside a transaction; no other session sees the tables without it.
+-- marks the diagnoses themselves. Forced row-level security hides the two lists' rows from this role, so it is lifted
+-- on them for the statement, inside a transaction; no other session sees them without it. It isn't lifted on
+-- audit_events: the owner's own policies (30-rls.sql) let it find and mark events, and locking that table here, before
+-- the lists, could deadlock with a page that has read a list and is about to record its read.
 BEGIN;
-ALTER TABLE ehr.audit_events NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE ehr.conditions NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE ehr.medication_statements NO FORCE ROW LEVEL SECURITY;
 UPDATE ehr.audit_events e SET sensitive = true
@@ -112,7 +115,6 @@ WHERE NOT e.sensitive
        OR e.table_name = 'medication_statements' AND EXISTS (SELECT 1 FROM ehr.medication_statements m WHERE m.id = e.row_id AND m.sensitive));
 ALTER TABLE ehr.medication_statements FORCE ROW LEVEL SECURITY;
 ALTER TABLE ehr.conditions FORCE ROW LEVEL SECURITY;
-ALTER TABLE ehr.audit_events FORCE ROW LEVEL SECURITY;
 COMMIT;
 
 -- Every PHI table gets this trigger; Ehr.Security.Tests fails for one that doesn't.

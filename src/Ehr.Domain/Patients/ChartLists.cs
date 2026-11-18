@@ -111,11 +111,11 @@ public sealed class ChartLists(EhrDbContext db)
             await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
             return false;
         }
-        catch (DbUpdateException e) when (e.InnerException is PostgresException
-        {
-            // Refused by row-level security, or "No known allergies" for a patient with an allergy recorded.
-            SqlState: PostgresErrorCodes.InsufficientPrivilege or PostgresErrorCodes.CheckViolation,
-        })
+        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: var state }
+            // Refused by row-level security; or, for "No known allergies" only, by the rule that a patient with an
+            // allergy recorded has none. Any other broken constraint is a fault, and is thrown.
+            && (state == PostgresErrorCodes.InsufficientPrivilege
+                || state == PostgresErrorCodes.CheckViolation && entry is AllergyIntolerance { Code: AllergyIntolerance.NoKnownAllergy }))
         {
             await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
             return false;

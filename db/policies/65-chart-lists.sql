@@ -56,6 +56,10 @@ BEGIN
 
     -- Nested, not one condition: the other two tables have no clinical_status for the row's fields to resolve.
     IF TG_TABLE_NAME = 'allergy_intolerances' THEN
+        -- One patient's allergy entries are written one at a time: a second transaction waits here until the first
+        -- ends, and then sees what it wrote. Without this, "No known allergies" and an allergy recorded at the same
+        -- moment would each miss the other, and both stay active.
+        PERFORM pg_advisory_xact_lock(hashtextextended('ehr.allergy_intolerances:' || NEW.patient_id::text, 0));
         IF NEW.code = 'no-known-allergy' AND NEW.clinical_status = 'active'
            AND EXISTS (
                SELECT 1 FROM ehr.allergy_intolerances a

@@ -262,7 +262,8 @@ CREATE POLICY observations_own_released_select ON ehr.observations FOR SELECT
 
 -- Audit events (restricted). Admins read. Anyone the grants let insert may insert: the app role for read and
 -- sign-in events, and the write-audit trigger (40-audit.sql), which runs as the table's owner and is bound by this
--- policy too because RLS is forced. Nothing updates or deletes (10-grants.sql).
+-- policy too because RLS is forced. Nothing deletes, and the one update is the trigger marking an event sensitive
+-- (below, and 40-audit.sql); the runtime roles have neither grant (10-grants.sql).
 ALTER TABLE ehr.audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ehr.audit_events FORCE ROW LEVEL SECURITY;
 
