@@ -49,7 +49,7 @@ namespace Ehr.Bench;
 // By default it starts its own PostgreSQL 18, migrated as the tests' is, and seeds it. With --stack it uses the web
 // app's own settings instead, as `dotnet run --project src/Ehr.Web` does, against a primary already seeded with as many
 // patients. Either way it creates a clinician of its own, with a random password nobody keeps, puts 100 of the seeded
-// patients on their panel, signs four orders for each of them (UC 1), so the chart it measures lists active orders,
+// patients on their panel, signs six orders for each of them and discontinues two (UC 1), so the chart it measures lists active orders,
 // signs in with password and authenticator code like a browser, and locks the account at the end. It knows whom to search for from the synthetic clinic itself, so it reads nobody outside the pages it measures.
 //
 // UC 2, off-site (Tahseen Arnan): then the same requests, in the same order, to the cloud app (OffSiteApp), reading as
@@ -114,11 +114,11 @@ internal static partial class RenderBenchmark
             try
             {
                 var panel = await AssignPanelAsync(app, clinicianId, patients);
-                await SignOrdersAsync(app, clinicianId, panel);
+                var labOrders = await SignOrdersAsync(app, clinicianId, panel);
                 var session = new CookieContainer();
                 using var client = await SignInAsync(app, session, email, password, key);
                 await SettleAsync(database);
-                var results = await MeasureEachAsync(client, times, "", panel, patients);
+                var results = await MeasureEachAsync(client, times, "", panel, labOrders, patients);
                 // The patient portal's results page (UC6, FR-16; Simar Rekhi), as a patient with released results, the
                 // last patient in the clinic who has some: the local stack's example account uses the first. On-site, so before the
                 // off-site rows.
@@ -140,7 +140,7 @@ internal static partial class RenderBenchmark
                 else
                 {
                     await SettleAsync(database);
-                    results.AddRange(await MeasureOffSiteAsync(app, database, session, panel, patients));
+                    results.AddRange(await MeasureOffSiteAsync(app, database, session, panel, labOrders, patients));
                 }
 
                 await PrintAsync(app, patients, durability, results);
@@ -193,7 +193,8 @@ internal static partial class RenderBenchmark
 
     // Every kind of request, each row's name after the prefix. The random numbers start from the same seed each time, so
     // on-site and off-site make the same requests.
-    static async Task<List<Result>> MeasureEachAsync(HttpClient client, DatabaseTimes times, string prefix, List<Guid> panel, int patients)
+    static async Task<List<Result>> MeasureEachAsync(
+        HttpClient client, DatabaseTimes times, string prefix, List<Guid> panel, IReadOnlyDictionary<Guid, Guid> labOrders, int patients)
     {
         var random = new Random(20261115);
         SyntheticChart Anyone() => SyntheticClinic.Chart(random.Next(patients));
@@ -218,12 +219,27 @@ internal static partial class RenderBenchmark
             // UC 1's order form (Tahseen Arnan), last so the rows before it make the requests they always did: the patient's
             // banner and allergies, one recorded read, and the lab catalog.
             await MeasureAsync(client, times, prefix + "Order form, a patient on the panel", typing: false, () => $"/patients/{panel[random.Next(panel.Count)]}/orders/new?type=lab"),
+            // UC 1's changes to a signed order, after everything else for the same reason: the patient's discontinued
+            // orders, and the forms that change and discontinue the patient's active lab order. Each is one recorded read.
+            await MeasureAsync(client, times, prefix + "Discontinued orders, a patient on the panel", typing: false,
+                () => $"/patients/{panel[random.Next(panel.Count)]}/orders/discontinued"),
+            await MeasureAsync(client, times, prefix + "Change order form, a patient on the panel", typing: false, () =>
+            {
+                var patient = panel[random.Next(panel.Count)];
+                return $"/patients/{patient}/orders/new?type=lab&replaces={labOrders[patient]}";
+            }),
+            await MeasureAsync(client, times, prefix + "Discontinue order form, a patient on the panel", typing: false, () =>
+            {
+                var patient = panel[random.Next(panel.Count)];
+                return $"/patients/{patient}/orders/{labOrders[patient]}/discontinue";
+            }),
         ];
     }
 
     // UC 2 (Tahseen Arnan): the same requests to the cloud app, with the on-site session's cookies, during an outage. Its
     // audit queue goes in a folder of its own, deleted at the end.
-    static async Task<List<Result>> MeasureOffSiteAsync(BenchApp onPrem, MigratedDatabase database, CookieContainer session, List<Guid> panel, int patients)
+    static async Task<List<Result>> MeasureOffSiteAsync(
+        BenchApp onPrem, MigratedDatabase database, CookieContainer session, List<Guid> panel, IReadOnlyDictionary<Guid, Guid> labOrders, int patients)
     {
         var queue = Path.Combine(Path.GetTempPath(), $"ehr-bench-cloud-audit-{Guid.NewGuid():N}");
         try
@@ -237,7 +253,7 @@ internal static partial class RenderBenchmark
             }
 
             using var client = cloud.CreateDefaultClient(Base, new RedirectHandler(), new CookieContainerHandler(session));
-            return await MeasureEachAsync(client, times, "Off-site, ", panel, patients);
+            return await MeasureEachAsync(client, times, "Off-site, ", panel, labOrders, patients);
         }
         finally
         {
@@ -667,20 +683,25 @@ internal static partial class RenderBenchmark
 
     // UC 1 Place an order (Tahseen Arnan): one active order of each type for every patient on the panel, signed as the
     // clinician through the database's own signing trigger and policies, so the chart the benchmark measures has its
-    // list of active orders to load. The seed can't make them: an order's signer is a staff account, and the seeded
-    // clinic has none. With --stack they stay on the primary afterwards, as the benchmark's audit events do.
-    static async Task SignOrdersAsync(BenchApp app, Guid clinicianId, List<Guid> panel)
+    // list of active orders to load; and two more that are then discontinued, through the database's own rules for
+    // that, so the discontinued orders' page has rows to load. The seed can't make them: an order's signer is a staff
+    // account, and the seeded clinic has none. With --stack they stay on the primary afterwards, as the benchmark's
+    // audit events do. Returns each patient's active lab order, for the forms that change and discontinue it.
+    static async Task<Dictionary<Guid, Guid>> SignOrdersAsync(BenchApp app, Guid clinicianId, List<Guid> panel)
     {
         var items = OrderType.All.Select(type => OrderCatalogItem.Seeded.First(item => item.Type == type)).ToList();
+        var stopped = OrderType.All.Take(2).Select(type => OrderCatalogItem.Seeded.Last(item => item.Type == type)).ToList();
         await using var scope = app.Services.CreateAsyncScope();
         scope.ServiceProvider.GetRequiredService<UserContext>().UserId = clinicianId;
         var db = scope.ServiceProvider.GetRequiredService<EhrDbContext>();
         await using var transaction = await db.Database.BeginTransactionAsync();
+        var labOrders = new Dictionary<Guid, Guid>();
+        var discontinued = new List<Guid>();
         foreach (var patient in panel)
         {
-            foreach (var item in items)
+            foreach (var item in items.Concat(stopped))
             {
-                db.Add(new Order
+                var order = new Order
                 {
                     Id = Guid.CreateVersion7(),
                     PatientId = patient,
@@ -688,12 +709,25 @@ internal static partial class RenderBenchmark
                     CatalogCode = item.Code,
                     Details = "{}",
                     Status = OrderStatus.Active,
-                });
+                };
+                db.Add(order);
+                if (stopped.Contains(item))
+                {
+                    discontinued.Add(order.Id);
+                }
+                else if (item.Type == OrderType.Lab)
+                {
+                    labOrders[patient] = order.Id;
+                }
             }
         }
 
         await db.SaveChangesAsync();
+        await db.Orders.Where(order => discontinued.Contains(order.Id)).ExecuteUpdateAsync(set => set
+            .SetProperty(order => order.Status, OrderStatus.Revoked)
+            .SetProperty(order => order.DiscontinueReason, "Synthetic: no longer needed"));
         await transaction.CommitAsync();
+        return labOrders;
     }
 
     // Signs in as a browser does, password then authenticator code, and returns a client with the session's cookies, which
