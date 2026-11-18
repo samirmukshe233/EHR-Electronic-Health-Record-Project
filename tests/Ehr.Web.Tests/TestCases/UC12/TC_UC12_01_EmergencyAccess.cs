@@ -78,7 +78,7 @@ public class TC_UC12_01_EmergencyAccess(WebApps apps) : IClassFixture<WebApps>
             var html = await ReadAsync(opened);
             Assert.Equal($"/patients/{patient}", PathOf(opened));
             Assert.Contains("Offpanel, Ezra", html);
-            Assert.Contains("Emergency access: this patient is not on your panel.", html);
+            Assert.Contains("Emergency access: this patient is not on your panel.", Words(html));
         }
 
         Assert.Equal(TimeSpan.FromHours(4), await AccessLengthAsync(clinician.Id, patient));
@@ -93,8 +93,8 @@ public class TC_UC12_01_EmergencyAccess(WebApps apps) : IClassFixture<WebApps>
         var adminSession = await SignInAsync(apps.OnPrem, admin);
         var audit = await ReadAsync(await adminSession.Client.GetAsync($"/admin/audit?Flagged=true&Patient={patient}", Cancel));
         Assert.Equal(1, await apps.AuditEventsAsync(AuditActions.BreakGlass, clinician.Id, patient));
-        Assert.Contains("<tr class=\"flagged\">", audit);
-        Assert.Contains("break_glass <span class=\"tag\">Review</span>", audit);
+        Assert.Contains("<tr class=\"sc-table__flagged\">", audit);
+        Assert.Contains("break_glass <span class=\"sc-tag sc-tag--danger\">Review</span>", audit);
         Assert.Contains("Dr. Night Cover", audit);
         Assert.Contains(patient.ToString(), audit);
         Assert.Contains(Reason, audit);

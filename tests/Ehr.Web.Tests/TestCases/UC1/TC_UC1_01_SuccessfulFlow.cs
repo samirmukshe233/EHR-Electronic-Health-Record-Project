@@ -67,7 +67,7 @@ public class TC_UC1_01_SuccessfulFlow(WebApps apps) : IClassFixture<WebApps>
         var url = JsonDocument.Parse(await signed.Content.ReadAsStringAsync(Cancel)).RootElement.GetProperty("url").GetString()!;
 
         var confirmed = await session.Client.GetStringAsync(url, Cancel);
-        Assert.Contains("Order signed: <strong>Complete blood count (CBC)</strong>", confirmed);
+        Assert.Contains("Order signed: Complete blood count (CBC)", Words(confirmed));
         Assert.Contains("<h3>Active orders</h3>", confirmed);
         Assert.Contains("<strong>Complete blood count (CBC)</strong> (Lab)", confirmed);
         Assert.Contains("Reason for the test: Synthetic fatigue", confirmed);

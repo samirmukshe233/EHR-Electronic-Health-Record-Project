@@ -113,7 +113,9 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
         page.PageError += (_, error) => errors.Add(error);
         await StartAndReviewAsync(page, $"{server.Url}/patients/{patient}/dictate");
         Assert.True(await page.EvaluateAsync<bool>("document.activeElement.matches('[data-dictation-field=history] [value=accepted]')"));
-        Assert.Contains("Cough", await page.Locator("mark.source-highlight").First.TextContentAsync());
+        Assert.Contains("Cough", await page.Locator("mark.sc-transcript__source").First.TextContentAsync());
+        // The app bar's logo is drawn here too, on the second page that shows it, where the browser only checks it again.
+        Assert.True(await page.EvaluateAsync<bool>("document.querySelector('.sc-appbar__logo').naturalWidth > 0"));
         await page.Keyboard.PressAsync("Enter");
         await page.WaitForFunctionAsync("document.querySelector('[data-review-progress]').textContent.includes('1 of 3')");
         await TabToAsync(page, "[data-dictation-field=assessment] summary");
@@ -215,7 +217,7 @@ public class AiReviewBrowserTests(WebApps apps) : IClassFixture<WebApps>
         await page.Locator("#edited-history").FillAsync("Synthetic corrected text retained after failure");
         await page.RouteAsync("**/*handler=Decide", route => route.AbortAsync("connectionrefused"));
         await page.Locator("[data-dictation-field=history] [value=edited]").PressAsync("Enter");
-        await page.WaitForFunctionAsync("document.getElementById('note-save-status').textContent === 'Save Failed'");
+        await page.WaitForFunctionAsync("document.getElementById('note-save-status').textContent === 'Save failed'");
         Assert.Equal("Synthetic corrected text retained after failure", await page.Locator("#edited-history").InputValueAsync());
         Assert.True(await page.EvaluateAsync<bool>("document.activeElement.id === 'note-errors'"));
         Assert.Contains("0 of 3", await page.Locator("[data-review-progress]").TextContentAsync());

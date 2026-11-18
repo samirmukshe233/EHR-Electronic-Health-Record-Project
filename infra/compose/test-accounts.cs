@@ -307,7 +307,7 @@ sealed class Setup(Options options)
 
         var invited = await admin.PostAsync(Clinical("/admin/staff"), staff, ("Input.Email", email),
             ("Input.DisplayName", options.ClinicianName), ("Input.Clinician", "true"), ("Input.Admin", "false"));
-        var link = Regex.Match(invited.Html, @"<p class=""code"">\s*(https?://[^<\s]+/sign-in/setup\?[^<\s]+)");
+        var link = Regex.Match(invited.Html, @"<p class=""sc-copy"">\s*(https?://[^<\s]+/sign-in/setup\?[^<\s]+)");
         if (!link.Success)
         {
             throw Unexpected(invited, "inviting the clinician at Staff");
@@ -372,7 +372,7 @@ sealed class Setup(Options options)
 
         var enroll = FormAction(chart, "Enroll") ?? throw Unexpected(chart, "opening the patient's chart");
         var issued = await clinician.PostAsync(Clinical(enroll), chart);
-        var code = Regex.Match(issued.Html, @"<p class=""code"">\s*([^<]+?)\s*</p>");
+        var code = Regex.Match(issued.Html, @"<p class=""mono-code"">\s*([^<]+?)\s*</p>");
         if (!code.Success)
         {
             throw Unexpected(issued, "issuing an enrollment code");
@@ -489,7 +489,7 @@ sealed class Setup(Options options)
             throw Unexpected(done, "enrolling an authenticator");
         }
 
-        account.RecoveryCodes = [.. Regex.Matches(done.Html, @"<li class=""code"">\s*([^<]+?)\s*</li>").Select(m => WebUtility.HtmlDecode(m.Groups[1].Value))];
+        account.RecoveryCodes = [.. Regex.Matches(done.Html, @"<li class=""mono-code"">\s*([^<]+?)\s*</li>").Select(m => WebUtility.HtmlDecode(m.Groups[1].Value))];
         Save();
     }
 
@@ -589,7 +589,7 @@ sealed class Setup(Options options)
     // The chart link of the search result whose MRN is exactly this one.
     static string? ChartLink(Page results, string mrn) => Regex
         .Matches(results.Html, @"<tr>(.*?)</tr>", RegexOptions.Singleline)
-        .Where(row => row.Groups[1].Value.Contains($"<td>{mrn}</td>", StringComparison.Ordinal))
+        .Where(row => Regex.IsMatch(row.Groups[1].Value, $@"<td[^>]*>{Regex.Escape(mrn)}</td>"))
         .Select(row => Regex.Match(row.Groups[1].Value, @"href=""(/patients/[0-9a-f-]{36}[^""]*)"""))
         .Where(link => link.Success)
         .Select(link => WebUtility.HtmlDecode(link.Groups[1].Value))
@@ -732,7 +732,7 @@ sealed record Page(Uri Url, HttpStatusCode Status, string Html)
 
     // The errors the page shows: the validation summary's, each field's, and an error notice.
     public IReadOnlyList<string> Problems =>
-        [.. Regex.Matches(Html, @"validation-summary-errors[^>]*>(.*?)</div>|field-validation-error[^>]*>(.*?)</span>|class=""notice error""[^>]*>(.*?)</(?:p|ul)>", RegexOptions.Singleline)
+        [.. Regex.Matches(Html, @"validation-summary-errors[^>]*>(.*?)</div>|field-validation-error[^>]*>(.*?)</span>|class=""sc-notice sc-notice--danger""[^>]*>(.*?)</(?:p|ul)>", RegexOptions.Singleline)
             .Select(m => Text(m.Groups[1].Value + m.Groups[2].Value + m.Groups[3].Value))
             .Where(text => text.Length > 0)];
 

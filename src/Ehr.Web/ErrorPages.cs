@@ -66,15 +66,13 @@ public static class ErrorPages
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <title>{{title}}</title>
-                <link rel="stylesheet" href="/_content/Ehr.Design/css/ehr.css">
+                {{StandalonePage.Head}}
             </head>
-            <body>
-                <main>
+            {{StandalonePage.Open}}
                     <h1>{{title}}</h1>
-                    <p class="notice error" role="alert">{{message}}</p>
+                    <p class="sc-notice sc-notice--danger" role="alert">{{message}}</p>
                     <p><a href="{{link}}">{{linkText}}</a></p>
-                </main>
-            </body>
+            {{StandalonePage.Close}}
             </html>
             """,
             CancellationToken.None);

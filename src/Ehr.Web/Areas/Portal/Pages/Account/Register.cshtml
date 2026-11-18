@@ -6,22 +6,34 @@
 <h1>Register for the patient portal</h1>
 @if (Model.Registered)
 {
-    <p class="notice">Check your email. We've sent a link to confirm your address; once you've opened it, you can <a asp-page="SignIn">sign in</a>.</p>
+    <p class="sc-notice sc-notice--success">Check your email. We've sent a link to confirm your address; once you've opened it, you can <a asp-page="SignIn">sign in</a>.</p>
 }
 else
 {
     <p>You need the enrollment code the clinic gave you.</p>
-    <form method="post" class="account-form">
-        <label>Enrollment code <input asp-for="Input.Code" autocomplete="off" required autofocus placeholder="XXXX-XXXX-XXXX"></label>
-        <span asp-validation-for="Input.Code" class="error"></span>
-        <label>Email <input asp-for="Input.Email" type="email" autocomplete="username" required></label>
-        <span asp-validation-for="Input.Email" class="error"></span>
-        <label>Password <input asp-for="Input.Password" type="password" autocomplete="new-password" required></label>
-        <span asp-validation-for="Input.Password" class="error"></span>
-        <label>Password, again <input asp-for="Input.Confirm" type="password" autocomplete="new-password" required></label>
-        <span asp-validation-for="Input.Confirm" class="error"></span>
-        <div asp-validation-summary="ModelOnly" class="error"></div>
-        <button>Register</button>
+    <form method="post" class="sc-form">
+        <div class="sc-field">
+            <label asp-for="Input.Code" class="sc-field__label">Enrollment code</label>
+            <input asp-for="Input.Code" class="sc-field__input sc-field__input--mono" autocomplete="off" required autofocus placeholder="XXXX-XXXX-XXXX">
+            <span asp-validation-for="Input.Code" class="sc-field__error"></span>
+        </div>
+        <div class="sc-field">
+            <label asp-for="Input.Email" class="sc-field__label">Email</label>
+            <input asp-for="Input.Email" class="sc-field__input" type="email" autocomplete="username" required>
+            <span asp-validation-for="Input.Email" class="sc-field__error"></span>
+        </div>
+        <div class="sc-field">
+            <label asp-for="Input.Password" class="sc-field__label">Password</label>
+            <input asp-for="Input.Password" class="sc-field__input" type="password" autocomplete="new-password" required>
+            <span asp-validation-for="Input.Password" class="sc-field__error"></span>
+        </div>
+        <div class="sc-field">
+            <label asp-for="Input.Confirm" class="sc-field__label">Password, again</label>
+            <input asp-for="Input.Confirm" class="sc-field__input" type="password" autocomplete="new-password" required>
+            <span asp-validation-for="Input.Confirm" class="sc-field__error"></span>
+        </div>
+        <div asp-validation-summary="ModelOnly" class="sc-notice sc-notice--danger"></div>
+        <button class="sc-btn sc-btn--primary">Register</button>
     </form>
     <p>Already registered? <a asp-page="SignIn">Sign in</a>.</p>
 }

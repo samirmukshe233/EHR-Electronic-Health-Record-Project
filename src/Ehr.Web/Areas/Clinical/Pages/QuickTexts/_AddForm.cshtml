@@ -1,9 +1,17 @@
 @model QuickTextForm
-<form id="add-quick-text" class="quick-text-form" method="post"
+<form id="add-quick-text" class="sc-quicktext-form" method="post"
       hx-post="@Url.Page("Index", "Add")" hx-target="this" hx-swap="outerHTML">
-    <label>Shortcut <input asp-for="Shortcut" id="add-shortcut" autocomplete="off" placeholder=".nad"></label>
-    <span asp-validation-for="Shortcut" class="error"></span>
-    <label>Text <textarea asp-for="Body" id="add-body" rows="2"></textarea></label>
-    <span asp-validation-for="Body" class="error"></span>
-    <button>Add</button>
+    <div class="sc-field">
+        <label class="sc-field__label" for="add-shortcut">Shortcut</label>
+        <input asp-for="Shortcut" id="add-shortcut" class="sc-field__input sc-field__input--mono" autocomplete="off" placeholder=".nad">
+        <span id="add-shortcut-error" asp-validation-for="Shortcut" class="sc-field__error"></span>
+    </div>
+    <div class="sc-field">
+        <label class="sc-field__label" for="add-body">Text</label>
+        <textarea asp-for="Body" id="add-body" class="sc-field__input" rows="2"></textarea>
+        <span id="add-body-error" asp-validation-for="Body" class="sc-field__error"></span>
+    </div>
+    <div class="sc-actions">
+        <button class="sc-btn sc-btn--primary">Add</button>
+    </div>
 </form>

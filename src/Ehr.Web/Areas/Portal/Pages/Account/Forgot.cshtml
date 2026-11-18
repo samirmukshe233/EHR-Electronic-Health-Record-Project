@@ -6,15 +6,18 @@
 <h1>Reset your password</h1>
 @if (Model.Sent)
 {
-    <p class="notice">If that address has a patient portal account, we have sent it a link to choose a new password. The link works once.</p>
+    <p class="sc-notice sc-notice--info">If that address has a patient portal account, we have sent it a link to choose a new password. The link works once.</p>
 }
 else
 {
     <p>Enter the email address of your portal account. We will send a link to choose a new password.</p>
-    <form method="post" class="account-form">
-        <label>Email <input asp-for="Email" type="email" autocomplete="username" required autofocus></label>
-        <span asp-validation-for="Email" class="error"></span>
-        <button>Send the link</button>
+    <form method="post" class="sc-form">
+        <div class="sc-field">
+            <label asp-for="Email" class="sc-field__label">Email</label>
+            <input asp-for="Email" class="sc-field__input" type="email" autocomplete="username" required autofocus>
+            <span asp-validation-for="Email" class="sc-field__error"></span>
+        </div>
+        <button class="sc-btn sc-btn--primary">Send the link</button>
     </form>
 }
 <p><a asp-page="SignIn">Back to sign in</a></p>

@@ -9,6 +9,7 @@
     let busy = false;
     const dirty = new Set();
     const buttons = () => root.querySelectorAll("button");
+    const stateWords = { pending: "Awaiting review", accepted: "Accepted", edited: "Edited", rejected: "Rejected" };
 
     function showErrors(messages) {
         errors.replaceChildren(...messages.map(text => {
@@ -24,8 +25,12 @@
             const card = root.querySelector(`[data-proposal-id="${proposal.id}"]`);
             if (!card) continue;
             card.dataset.reviewState = proposal.state;
-            card.classList.toggle("pending", proposal.state === "pending");
-            card.querySelector("[data-field-status]").textContent = proposal.state === "pending" ? "Awaiting review" : proposal.state;
+            card.classList.toggle("sc-proposal--pending", proposal.state === "pending");
+            // The state as a tag: its words, and the tone that supports them (Review.cshtml renders the same).
+            const tag = card.querySelector("[data-field-status]");
+            tag.textContent = stateWords[proposal.state] ?? proposal.state;
+            tag.className = proposal.state === "pending" ? "sc-tag sc-tag--warning"
+                : proposal.state === "accepted" || proposal.state === "edited" ? "sc-tag sc-tag--success" : "sc-tag";
             card.querySelector("[data-approved-value]").textContent = proposal.state === "rejected"
                 ? "Rejected: no text will be copied." : proposal.approvedValue ? `Approved value: ${proposal.approvedValue}` : "";
             const controls = card.querySelector("[data-review-controls]");
@@ -61,7 +66,7 @@
             const result = await response.json();
             if (!response.ok) {
                 showErrors(result.errors || ["The review was not saved. Compare the saved draft and retry."]);
-                status.textContent = "Save Failed";
+                status.textContent = "Save failed";
                 return;
             }
             form.querySelectorAll("textarea").forEach(field => dirty.delete(field.id));
@@ -72,7 +77,7 @@
             saved = true;
             render();
         } catch {
-            status.textContent = "Save Failed";
+            status.textContent = "Save failed";
             showErrors(["The clinic server could not confirm this decision. Your edited text is still here. Retry; the same decision request will not be duplicated."]);
         } finally {
             busy = false;
@@ -100,7 +105,7 @@
             showErrors(result.errors || [result.message || "The result could not be retrieved. Your saved draft is intact; retry or continue manually."]);
             status.textContent = "Not staged";
         } catch {
-            status.textContent = "Save Failed";
+            status.textContent = "Save failed";
             showErrors(["The clinic server could not retrieve the result. Your saved draft is intact; retry or discard the unfinished dictation and continue manually."]);
         } finally { busy = false; }
     });

@@ -22,14 +22,16 @@ public sealed class PatientAccounts(UserManager<PatientUser> users, EhrDbContext
         var token = await users.GeneratePasswordResetTokenAsync(user);
         audit.Record(AuditActions.PasswordResetRequested, patientId: user.PatientId);
         await db.SaveChangesAsync(cancellationToken);
+        var link = resetLink(user.Id, token);
         await email.SendAsync(address, "Reset your patient portal password",
             $"""
             Open this link to choose a new password for your patient portal account:
 
-            {resetLink(user.Id, token)}
+            {link}
 
             If you didn't ask for this, you can ignore this message; your password hasn't changed.
             """,
+            new EmailAction("Reset your password", link),
             cancellationToken);
     }
 

@@ -9,22 +9,22 @@ namespace Ehr.Web.Email;
 // (/portal/resend, /portal/forgot). Past 1,000 waiting messages, new ones are dropped rather than held in memory.
 public sealed class QueuedEmailSender(IEmailSender inner, ILogger<QueuedEmailSender> logger) : BackgroundService, IEmailSender
 {
-    readonly Channel<(string To, string Subject, string Body)> queue =
-        Channel.CreateBounded<(string, string, string)>(new BoundedChannelOptions(1_000) { FullMode = BoundedChannelFullMode.DropWrite });
+    readonly Channel<(string To, string Subject, string Body, EmailAction Action)> queue =
+        Channel.CreateBounded<(string, string, string, EmailAction)>(new BoundedChannelOptions(1_000) { FullMode = BoundedChannelFullMode.DropWrite });
 
-    public Task SendAsync(string to, string subject, string body, CancellationToken cancellationToken)
+    public Task SendAsync(string to, string subject, string body, EmailAction action, CancellationToken cancellationToken)
     {
-        queue.Writer.TryWrite((to, subject, body));
+        queue.Writer.TryWrite((to, subject, body, action));
         return Task.CompletedTask;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var (to, subject, body) in queue.Reader.ReadAllAsync(stoppingToken))
+        await foreach (var (to, subject, body, action) in queue.Reader.ReadAllAsync(stoppingToken))
         {
             try
             {
-                await inner.SendAsync(to, subject, body, stoppingToken);
+                await inner.SendAsync(to, subject, body, action, stoppingToken);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {

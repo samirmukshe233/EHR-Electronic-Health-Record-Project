@@ -90,7 +90,7 @@ public class EditModel(PhiReader phi, PatientAssignments assignments, BreakGlass
         // Tag helpers prefer posted ModelState over updated properties.
         ModelState.Remove(nameof(Version));
         Errors = errors;
-        SaveStatus = result.Draft is null ? "Save Failed" : "Saved";
+        SaveStatus = result.Draft is null ? "Save failed" : "Saved";
         Response.StatusCode = status;
         return Page();
     }

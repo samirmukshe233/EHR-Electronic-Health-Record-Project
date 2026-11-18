@@ -1,15 +1,23 @@
 @model QuickTextForm
 <li id="quick-text-@Model.Id">
-    <form class="quick-text-form" method="post"
+    <form class="sc-quicktext-form" method="post"
           hx-post="@Url.Page("Index", "Save")" hx-target="closest li" hx-swap="outerHTML">
         <input type="hidden" name="Id" value="@Model.Id">
         <input type="hidden" name="Version" value="@Model.Version">
-        <label>Shortcut <input asp-for="Shortcut" id="shortcut-@Model.Id" autocomplete="off"></label>
-        <span asp-validation-for="Shortcut" class="error"></span>
-        <label>Text <textarea asp-for="Body" id="body-@Model.Id" rows="2"></textarea></label>
-        <span asp-validation-for="Body" class="error"></span>
-        <button>Save</button>
-        <button type="button" hx-get="@Url.Page("Index", "Row", new { id = Model.Id })"
-                hx-target="closest li" hx-swap="outerHTML">Cancel</button>
+        <div class="sc-field">
+            <label class="sc-field__label" for="shortcut-@Model.Id">Shortcut</label>
+            <input asp-for="Shortcut" id="shortcut-@Model.Id" class="sc-field__input sc-field__input--mono" autocomplete="off">
+            <span id="shortcut-@Model.Id-error" asp-validation-for="Shortcut" class="sc-field__error"></span>
+        </div>
+        <div class="sc-field">
+            <label class="sc-field__label" for="body-@Model.Id">Text</label>
+            <textarea asp-for="Body" id="body-@Model.Id" class="sc-field__input" rows="2"></textarea>
+            <span id="body-@Model.Id-error" asp-validation-for="Body" class="sc-field__error"></span>
+        </div>
+        <div class="sc-actions">
+            <button class="sc-btn">Save</button>
+            <button type="button" class="sc-btn sc-btn--quiet" hx-get="@Url.Page("Index", "Row", new { id = Model.Id })"
+                    hx-target="closest li" hx-swap="outerHTML">Cancel</button>
+        </div>
     </form>
 </li>

@@ -1,4 +1,5 @@
 using System.Net;
+using Ehr.Domain.Accounts;
 using Ehr.Web.Email;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -91,7 +92,7 @@ public class RateLimitTests(WebApps apps) : IClassFixture<WebApps>
 
         foreach (var to in new[] { "capped@example.test", "Capped@example.test", "CAPPED@example.test", "capped@example.test" })
         {
-            await sender.SendAsync(to, "Subject", "Body", Cancel);
+            await sender.SendAsync(to, "Subject", "Body", new EmailAction("Open", "https://portal.example.com/portal"), Cancel);
         }
 
         Assert.Equal(3, inner.Sent.Count);

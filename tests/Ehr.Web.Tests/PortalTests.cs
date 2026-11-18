@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Ehr.Data.Audit;
+using Ehr.Domain.Accounts;
 using Ehr.Web.CloudAudit;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -42,6 +43,8 @@ public partial class PortalTests(WebApps apps) : IClassFixture<WebApps>
 
         var message = Assert.Single(apps.Emails.Sent, m => m.To == email);
         var confirmPath = new Uri(ConfirmLink().Match(message.Body).Value).PathAndQuery;
+        // The message's button says what its link does, and goes where the text's link goes.
+        Assert.Equal(new EmailAction("Confirm your account", ConfirmLink().Match(message.Body).Value), apps.Emails.Actions[message.Body]);
         using var confirmed = await PostFormAsync(client, confirmPath, confirmPath);
         Assert.Contains("Your address is confirmed", await ReadAsync(confirmed));
 
@@ -133,7 +136,7 @@ public partial class PortalTests(WebApps apps) : IClassFixture<WebApps>
 
         var html = await ReadAsync(response);
         Assert.Contains("Remote, Finley", html);
-        Assert.Contains("Read-only: the clinic's server can't be reached", html);
+        Assert.Contains("Read-only: the clinic's server can't be reached", Words(html));
         // Recorded in the cloud app's queue, waiting for the on-prem app.
         var (queued, _) = apps.CloudCutOff.Services.GetRequiredService<CloudAuditQueue>().ReadPending(int.MaxValue);
         Assert.Contains(queued, e => e.Action == AuditActions.Read && e.PatientId == patient && e.ActorId == clinician.Id);
@@ -185,6 +188,11 @@ public partial class PortalTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Contains("/portal/sign-in", message.Body);
         Assert.Contains("/portal/forgot", message.Body);
         Assert.DoesNotContain("/portal/confirm", message.Body);
+        // Its button offers to sign in, at the address the text gives for that.
+        var action = apps.Emails.Actions[message.Body];
+        Assert.Equal("Sign in", action.Label);
+        Assert.EndsWith("/portal/sign-in", action.Link);
+        Assert.Contains(action.Link, message.Body);
 
         using var registered = await PostFormAsync(client, "/portal/register", "/portal/register",
             ("Input.Code", code), ("Input.Email", WebApps.NewEmail()), ("Input.Password", password), ("Input.Confirm", password));
@@ -315,7 +323,7 @@ public partial class PortalTests(WebApps apps) : IClassFixture<WebApps>
         return match.Groups[1].Value;
     }
 
-    [GeneratedRegex("<p class=\"code\">([A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4})</p>")]
+    [GeneratedRegex("<p class=\"mono-code\">([A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4})</p>")]
     private static partial Regex EnrollmentCode();
 
     [GeneratedRegex("name=\"__RequestVerificationToken\"[^>]*>")]

@@ -53,7 +53,19 @@ public partial class TC_UC2_03_InvalidInput(WebApps apps) : IClassFixture<WebApp
         // Back to the form, by the browser's history where JavaScript runs, by its address where it doesn't.
         Assert.Contains($"<a href=\"/patients/{patient}/reason\" data-back>Back</a>", html);
         var assets = PageAssets().Matches(html).Select(match => match.Groups[1].Value).ToList();
-        Assert.Equal(["/_content/Ehr.Design/css/ehr.css", "/_content/Ehr.Design/js/back-link.js"], assets);
+        // The page's icons, styles, script and mark: all the cloud app's own, each answered with the link cut.
+        Assert.Equal(
+            [
+                "/_content/Ehr.Design/img/favicon.svg",
+                "/_content/Ehr.Design/img/favicon-32.png",
+                "/_content/Ehr.Design/img/apple-touch-icon.png",
+                "/_content/Ehr.Design/css/tokens.css",
+                "/_content/Ehr.Design/css/ehr.css",
+                "/_content/Ehr.Design/js/back-link.js",
+                "/_content/Ehr.Design/img/swiftchart-mark.svg",
+                "/_content/Ehr.Design/img/swiftchart-mark-reversed.svg",
+            ],
+            assets);
         foreach (var asset in assets)
         {
             using var file = await client.GetAsync(asset, Cancel);

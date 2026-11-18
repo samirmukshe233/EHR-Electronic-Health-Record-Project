@@ -165,16 +165,16 @@ public sealed class CloudForwardingMiddleware(
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <title>Not saved</title>
-                <link rel="stylesheet" href="/_content/Ehr.Design/css/ehr.css">
+                {{StandalonePage.Head}}
                 <script src="/_content/Ehr.Design/js/back-link.js" defer></script>
             </head>
-            <body>
-                <main>
+            {{StandalonePage.Open}}
                     <h1>Not saved</h1>
-                    <p class="notice read-only" role="alert">Nothing was saved, because the clinic's server can't be reached. {{next}}</p>
+                    <p class="sc-notice sc-notice--warning" role="alert">Nothing was saved, because the clinic's server can't be reached. {{next}}</p>
+                    <div class="sc-form sc-kept">
                     {{fields}}<p><a href="{{HtmlEncoder.Default.Encode(formPage.ToString())}}" data-back>Back</a></p>
-                </main>
-            </body>
+                    </div>
+            {{StandalonePage.Close}}
             </html>
             """;
     }

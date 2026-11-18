@@ -49,7 +49,7 @@ public class TC_UC6_04_ExceptionalCondition(WebApps apps) : IClassFixture<WebApp
 
         var html = await ReadAsync(response);
         Assert.Contains("13.2 g/dL", html);
-        Assert.Contains("Read-only: the clinic's server can't be reached", html);
+        Assert.Contains("Read-only: the clinic's server can't be reached", Words(html));
         var (queued, _) = apps.CloudCutOff.Services.GetRequiredService<CloudAuditQueue>().ReadPending(int.MaxValue);
         Assert.Contains(queued, e => e.Action == AuditActions.Read && e.PatientId == patient);
     }

@@ -10,16 +10,19 @@
 @if (!OnPrem.IsReachable)
 {
     @* Off-site with the clinic's server down, the grant couldn't be saved (UC 2). *@
-    <p>This patient is not on your panel. Emergency access can't be granted until the clinic's server is back, since the reason has to be recorded there first.</p>
+    <p class="sc-prose">This patient is not on your panel. Emergency access can't be granted until the clinic's server is back, since the reason has to be recorded there first.</p>
 }
 else
 {
-    <p>This patient is not on your panel. To open the chart, say why you need it, in @BreakGlass.MinimumReasonLength to @BreakGlass.MaximumReasonLength characters. Your access and the reason are recorded and reviewed, and the chart stays open to you for @BreakGlass.Duration.TotalHours hours.</p>
+    <p class="sc-prose">This patient is not on your panel. To open the chart, say why you need it, in @BreakGlass.MinimumReasonLength to @BreakGlass.MaximumReasonLength characters. Your access and the reason are recorded and reviewed, and the chart stays open to you for @BreakGlass.Duration.TotalHours hours.</p>
     @* No action: the form posts to this page's own address, the search's criteria included. *@
-    <form method="post" class="account-form">
-        <label>Reason <textarea asp-for="Reason" rows="3" required autofocus></textarea></label>
-        <span asp-validation-for="Reason" class="error"></span>
-        <button>Open the chart</button>
+    <form method="post" class="sc-form">
+        <div class="sc-field">
+            <label asp-for="Reason" class="sc-field__label">Reason</label>
+            <textarea asp-for="Reason" class="sc-field__input" rows="3" required autofocus></textarea>
+            <span asp-validation-for="Reason" class="sc-field__error"></span>
+        </div>
+        <button class="sc-btn sc-btn--primary">Open the chart</button>
     </form>
 }
 <p><partial name="_BackToSearch" model="Model.Search" /></p>

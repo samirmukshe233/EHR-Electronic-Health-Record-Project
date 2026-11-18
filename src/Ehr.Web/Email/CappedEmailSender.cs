@@ -11,7 +11,7 @@ public sealed class CappedEmailSender(IEmailSender inner, int perAddressPerHour,
 
     readonly Dictionary<string, List<DateTimeOffset>> sent = [];
 
-    public Task SendAsync(string to, string subject, string body, CancellationToken cancellationToken)
+    public Task SendAsync(string to, string subject, string body, EmailAction action, CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
         lock (sent)
@@ -39,6 +39,6 @@ public sealed class CappedEmailSender(IEmailSender inner, int perAddressPerHour,
             recent.Add(now);
         }
 
-        return inner.SendAsync(to, subject, body, cancellationToken);
+        return inner.SendAsync(to, subject, body, action, cancellationToken);
     }
 }

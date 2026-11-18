@@ -218,7 +218,7 @@ public partial class StaffSignInTests(WebApps apps) : IClassFixture<WebApps>
     [GeneratedRegex("secret=([A-Z2-7]+)")]
     private static partial Regex AuthenticatorSecret();
 
-    [GeneratedRegex("<li class=\"code\">")]
+    [GeneratedRegex("<li class=\"mono-code\">")]
     private static partial Regex RecoveryCode();
 
     [GeneratedRegex("https://[^<\\s]+/sign-in/setup\\?user=[^<\\s]+")]

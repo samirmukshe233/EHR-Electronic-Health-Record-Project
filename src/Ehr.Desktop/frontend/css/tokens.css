@@ -1,0 +1,162 @@
+/* SwiftChart tokens, generated from docs/brand/tokens.json by tools/brand/sync.cs: change that file, not this one.
+   Light is the default; dark applies with [data-theme="dark"] or, when no theme is set, the system preference. */
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --brand-navy: #0e1b2c;
+  --brand-mint: #5fd4ba;
+  --brand-teal: #0b6e5c;
+  --surface: #ffffff;
+  --surface-subtle: #f4f6f8;
+  --surface-raised: #ffffff;
+  --line: #dce2e8;
+  --line-strong: #7b8896;
+  --ink: var(--brand-navy);
+  --ink-muted: #4e5d6c;
+  --primary: var(--brand-navy);
+  --on-primary: #ffffff;
+  --accent: var(--brand-mint);
+  --accent-ink: var(--brand-teal);
+  --accent-soft: #e3f6f1;
+  --appbar: var(--brand-navy);
+  --on-appbar: #ffffff;
+  --appbar-muted: #aebbc8;
+  --danger: #b3261e;
+  --danger-soft: #fcebea;
+  --warning: #8a5300;
+  --warning-soft: #fdf3dd;
+  --success: #1d7a3e;
+  --success-soft: #e7f4eb;
+  --info: #2459a8;
+  --info-soft: #e8effa;
+  --status-unknown: #6b7785;
+  --focus: var(--brand-teal);
+  --highlight-unclear: rgba(227, 116, 0, 0.3);
+  --highlight-source: rgba(36, 89, 168, 0.22);
+  --row-flagged: rgba(179, 38, 30, 0.1);
+  --shadow-float: 0 4px 16px rgba(14, 27, 44, 0.12);
+  --shadow-dialog: 0 12px 40px rgba(14, 27, 44, 0.2);
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --brand-navy: #0e1b2c;
+  --brand-mint: #5fd4ba;
+  --brand-teal: #0b6e5c;
+  --surface: var(--brand-navy);
+  --surface-subtle: #132336;
+  --surface-raised: #182a3f;
+  --line: #2a3d53;
+  --line-strong: #7d8fa3;
+  --ink: #e8eef3;
+  --ink-muted: #a8b5c2;
+  --primary: var(--brand-mint);
+  --on-primary: var(--brand-navy);
+  --accent: var(--brand-mint);
+  --accent-ink: var(--brand-mint);
+  --accent-soft: #163a3a;
+  --appbar: #091320;
+  --on-appbar: #e8eef3;
+  --appbar-muted: #9aa9b8;
+  --danger: #f2918a;
+  --danger-soft: #3a1e24;
+  --warning: #f0b95a;
+  --warning-soft: #33291a;
+  --success: #7dcb98;
+  --success-soft: #173022;
+  --info: #8fb6f2;
+  --info-soft: #1a2c47;
+  --status-unknown: #93a1b0;
+  --focus: var(--brand-mint);
+  --highlight-unclear: rgba(240, 185, 90, 0.28);
+  --highlight-source: rgba(143, 182, 242, 0.25);
+  --row-flagged: rgba(242, 145, 138, 0.16);
+  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-dialog: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --brand-navy: #0e1b2c;
+    --brand-mint: #5fd4ba;
+    --brand-teal: #0b6e5c;
+    --surface: var(--brand-navy);
+    --surface-subtle: #132336;
+    --surface-raised: #182a3f;
+    --line: #2a3d53;
+    --line-strong: #7d8fa3;
+    --ink: #e8eef3;
+    --ink-muted: #a8b5c2;
+    --primary: var(--brand-mint);
+    --on-primary: var(--brand-navy);
+    --accent: var(--brand-mint);
+    --accent-ink: var(--brand-mint);
+    --accent-soft: #163a3a;
+    --appbar: #091320;
+    --on-appbar: #e8eef3;
+    --appbar-muted: #9aa9b8;
+    --danger: #f2918a;
+    --danger-soft: #3a1e24;
+    --warning: #f0b95a;
+    --warning-soft: #33291a;
+    --success: #7dcb98;
+    --success-soft: #173022;
+    --info: #8fb6f2;
+    --info-soft: #1a2c47;
+    --status-unknown: #93a1b0;
+    --focus: var(--brand-mint);
+    --highlight-unclear: rgba(240, 185, 90, 0.28);
+    --highlight-source: rgba(143, 182, 242, 0.25);
+    --row-flagged: rgba(242, 145, 138, 0.16);
+    --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --shadow-dialog: 0 12px 40px rgba(0, 0, 0, 0.6);
+  }
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+  --radius-app-icon: 23.3%;
+  --appbar-height: 56px;
+  --control-height: 36px;
+  --control-height-portal: 44px;
+  --width-form: 24rem;
+  --width-reading: 40rem;
+  --width-content: 80rem;
+  --font-display: "Sora", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@font-face { font-family: 'Sora'; src: url('../fonts/Sora-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Sora'; src: url('../fonts/Sora-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Sora'; src: url('../fonts/Sora-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('../fonts/IBMPlexSans-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('../fonts/IBMPlexSans-400-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('../fonts/IBMPlexSans-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('../fonts/IBMPlexSans-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('../fonts/IBMPlexSans-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('../fonts/IBMPlexMono-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('../fonts/IBMPlexMono-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('../fonts/IBMPlexMono-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+.display { font-family: var(--font-display); font-size: 40px; line-height: 44px; font-weight: 600; letter-spacing: -0.02em; }
+.title-1 { font-family: var(--font-display); font-size: 28px; line-height: 34px; font-weight: 600; letter-spacing: -0.01em; }
+.title-2 { font-family: var(--font-display); font-size: 22px; line-height: 28px; font-weight: 600; }
+.title-3 { font-family: var(--font-display); font-size: 18px; line-height: 24px; font-weight: 600; }
+.body { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 400; }
+.body-strong { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 600; }
+.body-sm { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; }
+.label { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 600; }
+.caption { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 500; }
+.portal-body { font-family: var(--font-sans); font-size: 18px; line-height: 28px; font-weight: 400; }
+.mono-id { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 500; }
+.mono-shortcut { font-family: var(--font-mono); font-size: 12px; line-height: 16px; font-weight: 600; }
+.mono-code { font-family: var(--font-mono); font-size: 20px; line-height: 28px; font-weight: 500; letter-spacing: 0.1em; }
