@@ -92,9 +92,12 @@ GRANT SELECT ON ehr.clinical_notes TO ehr_read;
 GRANT SELECT ON ehr.order_catalog_items TO ehr_app, ehr_read;
 
 -- Orders. PHI: row-level security is enabled and forced, and every write is recorded by trigger, in the policy files
--- that follow. Append-only, since discontinuing or completing an order isn't built: no UPDATE and no DELETE. The signing
--- trigger locks the patient's row (60-orders.sql), which takes the UPDATE ehr_app has on patients.
+-- that follow. A signed order is never edited and never deleted: there is no table-wide UPDATE and no DELETE. The one
+-- change is discontinuing an order, so UPDATE is granted on just the three columns that writes: the status, the reason,
+-- and the order that replaced it. Who and when are set by the trigger that also holds the update to that one change
+-- (60-orders.sql). The signing trigger locks the patient's row, which takes the UPDATE ehr_app has on patients.
 GRANT SELECT, INSERT ON ehr.orders TO ehr_app;
+GRANT UPDATE (status, discontinue_reason, replaced_by_order_id) ON ehr.orders TO ehr_app;
 GRANT SELECT ON ehr.orders TO ehr_read;
 
 -- UC 13: private, auditable proposals and decisions; replica reads use identical forced ownership RLS.

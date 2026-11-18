@@ -539,6 +539,19 @@ namespace Ehr.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("details");
 
+                    b.Property<string>("DiscontinueReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("discontinue_reason");
+
+                    b.Property<DateTimeOffset?>("DiscontinuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("discontinued_at");
+
+                    b.Property<Guid?>("DiscontinuerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("discontinuer_id");
+
                     b.Property<string>("DuplicateReason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -547,6 +560,14 @@ namespace Ehr.Migrations
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uuid")
                         .HasColumnName("patient_id");
+
+                    b.Property<Guid?>("ReplacedByOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("replaced_by_order_id");
+
+                    b.Property<Guid?>("ReplacesOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("replaces_order_id");
 
                     b.Property<DateTimeOffset>("SignedAt")
                         .ValueGeneratedOnAdd()
@@ -578,6 +599,17 @@ namespace Ehr.Migrations
                     b.HasAlternateKey("Id", "PatientId")
                         .HasName("ak_orders_id_patient_id");
 
+                    b.HasIndex("DiscontinuerId")
+                        .HasDatabaseName("ix_orders_discontinuer_id");
+
+                    b.HasIndex("ReplacedByOrderId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_orders_replaced_by_order_id");
+
+                    b.HasIndex("ReplacesOrderId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_orders_replaces_order_id");
+
                     b.HasIndex("SignerId")
                         .HasDatabaseName("ix_orders_signer_id");
 
@@ -590,6 +622,12 @@ namespace Ehr.Migrations
                     b.ToTable("orders", "ehr", t =>
                         {
                             t.HasCheckConstraint("ck_orders_details", "jsonb_typeof(details) = 'object'");
+
+                            t.HasCheckConstraint("ck_orders_discontinued", "(status = 'revoked') = (discontinued_at IS NOT NULL) AND (discontinued_at IS NULL) = (discontinuer_id IS NULL) AND (discontinued_at IS NULL) = (discontinue_reason IS NULL)");
+
+                            t.HasCheckConstraint("ck_orders_replaced", "replaced_by_order_id IS NULL OR status = 'revoked'");
+
+                            t.HasCheckConstraint("ck_orders_replaces_another", "replaces_order_id <> id AND replaced_by_order_id <> id");
 
                             t.HasCheckConstraint("ck_orders_status", "status IN ('draft', 'active', 'on-hold', 'revoked', 'completed', 'entered-in-error', 'unknown')");
 
@@ -1757,12 +1795,30 @@ namespace Ehr.Migrations
 
             modelBuilder.Entity("Ehr.Data.Orders.Order", b =>
                 {
+                    b.HasOne("Ehr.Data.Accounts.StaffUser", null)
+                        .WithMany()
+                        .HasForeignKey("DiscontinuerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_orders_staff_users_discontinuer_id");
+
                     b.HasOne("Ehr.Data.Patients.Patient", null)
                         .WithMany()
                         .HasForeignKey("PatientId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_orders_patients_patient_id");
+
+                    b.HasOne("Ehr.Data.Orders.Order", null)
+                        .WithOne()
+                        .HasForeignKey("Ehr.Data.Orders.Order", "ReplacedByOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_orders_orders_replaced_by_order_id");
+
+                    b.HasOne("Ehr.Data.Orders.Order", null)
+                        .WithOne()
+                        .HasForeignKey("Ehr.Data.Orders.Order", "ReplacesOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_orders_orders_replaces_order_id");
 
                     b.HasOne("Ehr.Data.Accounts.StaffUser", null)
                         .WithMany()

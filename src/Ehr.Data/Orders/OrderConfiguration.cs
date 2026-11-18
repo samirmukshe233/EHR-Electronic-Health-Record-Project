@@ -17,6 +17,12 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             table.HasCheckConstraint("ck_orders_type", $"type IN ({Codes.List(OrderType.All)})");
             table.HasCheckConstraint("ck_orders_status", $"status IN ({Codes.List(OrderStatus.All)})");
             table.HasCheckConstraint("ck_orders_details", "jsonb_typeof(details) = 'object'");
+            // A discontinued order says why, who and when; an active one has none of the three.
+            table.HasCheckConstraint("ck_orders_discontinued",
+                $"(status = '{OrderStatus.Revoked}') = (discontinued_at IS NOT NULL) AND (discontinued_at IS NULL) = (discontinuer_id IS NULL) "
+                + "AND (discontinued_at IS NULL) = (discontinue_reason IS NULL)");
+            table.HasCheckConstraint("ck_orders_replaced", $"replaced_by_order_id IS NULL OR status = '{OrderStatus.Revoked}'");
+            table.HasCheckConstraint("ck_orders_replaces_another", "replaces_order_id <> id AND replaced_by_order_id <> id");
         });
 
         order.Property(o => o.Type).HasMaxLength(20);
@@ -24,6 +30,7 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         order.Property(o => o.Details).HasColumnType("jsonb");
         order.Property(o => o.Status).HasMaxLength(20);
         order.Property(o => o.DuplicateReason).HasMaxLength(500);
+        order.Property(o => o.DiscontinueReason).HasMaxLength(500);
         // The database's, as for signed notes: the signed-in user, and the time (db/policies/60-orders.sql sets it again).
         order.Property(o => o.SignerId).HasDefaultValueSql("NULLIF(current_setting('app.user_id', true), '')::uuid");
         order.Property(o => o.SignedAt).HasDefaultValueSql("now()");
@@ -33,6 +40,10 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasForeignKey(o => new { o.Type, o.CatalogCode })
             .HasPrincipalKey(item => new { item.Type, item.Code })
             .OnDelete(DeleteBehavior.Restrict);
+        order.HasOne<StaffUser>().WithMany().HasForeignKey(o => o.DiscontinuerId).OnDelete(DeleteBehavior.Restrict);
+        // An order is replaced once, by one order, and replaces at most one.
+        order.HasOne<Order>().WithOne().HasForeignKey<Order>(o => o.ReplacesOrderId).OnDelete(DeleteBehavior.Restrict);
+        order.HasOne<Order>().WithOne().HasForeignKey<Order>(o => o.ReplacedByOrderId).OnDelete(DeleteBehavior.Restrict);
         // Read by patient: the chart's active orders, newest first, and the check for an active order of the same item.
         order.HasIndex(o => new { o.PatientId, o.SignedAt });
     }
