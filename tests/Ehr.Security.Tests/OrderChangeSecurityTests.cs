@@ -288,6 +288,48 @@ public class OrderChangeSecurityTests(MigratedDatabase database) : IClassFixture
         Assert.Equal(["active - - - - -"], await RowAsync(order));
     }
 
+    // A clinician can't mark an order replaced by a colleague's order: the two halves of a change are one clinician's.
+    // Here a colleague signs the replacement, and the signed-in user changes before the old order is discontinued.
+    [Fact]
+    public async Task The_two_halves_of_a_change_are_the_same_clinicians()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+        var old = await OrderAsync(clinician, patient);
+        var colleague = await Accounts.StaffAsync(database, StaffRoles.Clinician);
+        await Accounts.AssignAsync(database, colleague, patient);
+
+        var error = await Assert.ThrowsAsync<PostgresException>(() => Accounts.ExecuteAsync(App, colleague,
+            """
+            INSERT INTO ehr.orders (id, patient_id, type, catalog_code, details, status, replaces_order_id)
+            VALUES (@new, @patient, 'lab', 'SYN-LAB-001', '{}', 'active', @old);
+            SELECT set_config('app.user_id', @other, true);
+            UPDATE ehr.orders SET status = 'revoked', discontinue_reason = 'Synthetic', replaced_by_order_id = @new WHERE id = @old
+            """,
+            ("new", Guid.CreateVersion7()), ("old", old), ("patient", patient), ("other", clinician.ToString())));
+
+        Assert.Equal(PostgresErrorCodes.CheckViolation, error.SqlState);
+        Assert.Equal(["active - - - - -"], await RowAsync(old));
+    }
+
+    // An upsert is an update too: it goes through the same trigger.
+    [Fact]
+    public async Task An_upsert_edits_nothing()
+    {
+        var (clinician, patient) = await OnPanelAsync();
+        var order = await OrderAsync(clinician, patient);
+
+        var error = await Assert.ThrowsAsync<PostgresException>(() => Accounts.ExecuteAsync(App, clinician,
+            """
+            INSERT INTO ehr.orders (id, patient_id, type, catalog_code, details, status, duplicate_reason)
+            VALUES (@id, @patient, 'lab', 'SYN-LAB-001', '{}', 'active', 'Synthetic')
+            ON CONFLICT (id) DO UPDATE SET status = 'active', discontinue_reason = 'Synthetic'
+            """,
+            ("id", order), ("patient", patient)));
+
+        Assert.Equal(PostgresErrorCodes.CheckViolation, error.SqlState);
+        Assert.Equal(["active - - - - -"], await RowAsync(order));
+    }
+
     // The grant is on three columns, not the table: 10-grants.sql, repeated here on purpose, as ExpectedPrivileges
     // repeats the table grants (RuntimeRoleTests), where orders stay SELECT and INSERT.
     [Fact]

@@ -136,9 +136,13 @@ BEGIN
 END
 $$;
 REVOKE ALL ON FUNCTION ehr.check_order_replacement() FROM PUBLIC;
+-- A constraint trigger can't be replaced in place. Dropped and created in one transaction, so no replacement signed
+-- while this file runs again commits without the check.
+BEGIN;
 DROP TRIGGER IF EXISTS orders_replacement ON ehr.orders;
 CREATE CONSTRAINT TRIGGER orders_replacement
     AFTER INSERT ON ehr.orders
     DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW WHEN (NEW.replaces_order_id IS NOT NULL)
     EXECUTE FUNCTION ehr.check_order_replacement();
+COMMIT;

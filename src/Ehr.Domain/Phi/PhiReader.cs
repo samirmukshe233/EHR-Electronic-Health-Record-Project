@@ -33,7 +33,7 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
     // visits, up to `visits`, newest first. It is one view of one patient, so it is one recorded read of the patient,
     // however many rows the sections hold: the same event a list of patients records for each. Draft and signed-note
     // reads have their own table/row events, also accepted by the cloud audit queue (CloudAuditEvents).
-    public async Task<PatientChart?> ChartAsync(Guid id, int visits, CancellationToken cancellationToken)
+    public async Task<PatientChart?> ChartAsync(Guid id, int visits, CancellationToken cancellationToken, Guid? discontinued = null)
     {
         var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (patient is null)
@@ -56,10 +56,13 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             .Take(visits)
             .ToListAsync(cancellationToken);
         var orders = await ActiveOrders(id, catalogCode: null).ToListAsync(cancellationToken);
+        // Only when the discontinue page sent the clinician here: whether that order is this patient's, and discontinued.
+        var confirmed = discontinued is not null && await db.Orders.AsNoTracking()
+            .AnyAsync(order => order.Id == discontinued && order.PatientId == id && order.Status == OrderStatus.Revoked, cancellationToken);
 
         audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
         await db.SaveChangesAsync(cancellationToken);
-        return new PatientChart(patient, allergies, medications, conditions, encounters, orders);
+        return new PatientChart(patient, allergies, medications, conditions, encounters, orders) { ConfirmsDiscontinued = confirmed };
     }
 
     // UC 1 (Tahseen Arnan): the order form's view of a patient (OrderForm). One view of one patient, so one recorded read

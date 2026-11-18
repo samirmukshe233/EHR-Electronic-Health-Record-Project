@@ -126,8 +126,10 @@ public sealed class ClinicalOrders(EhrDbContext db)
     }
 
     // The one update of an order there is: active to revoked, with the reason and, for a change, the order that
-    // replaced it. Writes those three columns of the row and reads nothing: the caller already read the order through
-    // PhiReader, and row-level security and the trigger decide whether the update may happen. False when it didn't.
+    // replaced it. Writes those three columns of the row with this ID and reads nothing. The patient and type only
+    // fill the stand-in entity: they aren't sent and aren't checked here. The caller already read the order as this
+    // patient's through PhiReader, and row-level security and the trigger decide whether the update may happen.
+    // False when it didn't.
     async Task<bool> UpdateAsync(Guid id, Guid patient, string type, string reason, Guid? replacedBy, CancellationToken cancellationToken)
     {
         // A stand-in for the row, with its key: only the properties marked below are sent.

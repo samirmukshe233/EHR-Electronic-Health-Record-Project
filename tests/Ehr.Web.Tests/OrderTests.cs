@@ -244,12 +244,35 @@ public class OrderTests(WebApps apps) : IClassFixture<WebApps>
         using var stopped = await DiscontinueAsync(session.Client, patient, order, "Synthetic");
         var noRedirects = Client(apps.OnPrem, session.Jar, followRedirects: false);
 
-        foreach (var path in new[] { DiscontinuePath(patient, order), ChangePath(patient, "lab", order), ChangePath(patient, "lab", Guid.NewGuid()) })
+        // Another patient's active order, under this patient's address, is no order of this patient's either.
+        var (clinician, _, _) = await OnPanelAsync(apps);
+        var otherPatient = await apps.InsertPatientAsync("Synthetic", "Other orders");
+        await apps.AssignAsync(clinician, otherPatient);
+        var theirs = await SignedAsync(session.Client, otherPatient, "lab", "Complete blood count (CBC)", Cbc);
+        var token = Token(await session.Client.GetStringAsync($"/patients/{patient}", Cancel));
+
+        foreach (var path in new[]
+        {
+            DiscontinuePath(patient, order), ChangePath(patient, "lab", order), ChangePath(patient, "lab", Guid.NewGuid()),
+            DiscontinuePath(patient, theirs), ChangePath(patient, "lab", theirs),
+        })
         {
             using var form = await noRedirects.GetAsync(path, Cancel);
             Assert.Equal(HttpStatusCode.Redirect, form.StatusCode);
             Assert.Equal($"/patients/{patient}", new Uri(Base, form.Headers.Location!).AbsolutePath);
         }
+
+        using var discontinue = await DiscontinueAsync(session.Client, patient, theirs, "Synthetic", token: token);
+        using var change = await ChangeAsync(session.Client, patient, "lab", theirs, "Lipid panel", Cbc, token: token);
+        Assert.Equal(HttpStatusCode.Conflict, discontinue.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, change.StatusCode);
+        Assert.Equal("active|-|-|-|-", await RowAsync(apps, theirs));
+        Assert.Equal(1, await OrdersAsync(apps, patient));
+
+        // And the chart confirms a discontinuation only of an order of this patient's that is discontinued.
+        Assert.Contains("Order discontinued:", Words(await session.Client.GetStringAsync($"/patients/{patient}?discontinued={order}", Cancel)));
+        Assert.DoesNotContain("Order discontinued:", Words(await session.Client.GetStringAsync($"/patients/{patient}?discontinued={theirs}", Cancel)));
+        Assert.DoesNotContain("Order discontinued:", Words(await session.Client.GetStringAsync($"/patients/{patient}?discontinued={Guid.NewGuid()}", Cancel)));
     }
 
     // Cancel goes back to the chart and saves nothing.

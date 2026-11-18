@@ -12,7 +12,12 @@ public sealed record PatientChart(
     IReadOnlyList<MedicationStatement> Medications,
     IReadOnlyList<Condition> Conditions,
     IReadOnlyList<Encounter> Visits,
-    IReadOnlyList<ActiveOrder> Orders);
+    IReadOnlyList<ActiveOrder> Orders)
+{
+    // UC 1: set when the chart was asked to confirm a discontinuation and that order is this patient's and
+    // discontinued. Part of the same recorded read.
+    public bool ConfirmsDiscontinued { get; init; }
+}
 
 // UC 1 (Tahseen Arnan): a patient as the order form shows them, already recorded as one read of the patient: the
 // banner's name and allergies, and, once an item is picked, the patient's active orders for it, for the duplicate warning.

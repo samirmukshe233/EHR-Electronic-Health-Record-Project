@@ -42,7 +42,7 @@
 {
     <p class="sc-notice sc-notice--danger"><span class="sc-notice__state">Emergency access:</span> this patient is not on your panel. Your access and the reason you gave are recorded for review. It lasts until @until.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
 }
-@if (Model.Discontinued is not null)
+@if (Model.Chart.ConfirmsDiscontinued)
 {
     <p class="sc-notice sc-notice--success" role="status"><span class="sc-notice__state">Order discontinued:</span> it is listed under this chart's discontinued orders.</p>
 }
