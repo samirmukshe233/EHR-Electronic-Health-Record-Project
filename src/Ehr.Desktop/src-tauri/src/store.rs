@@ -818,6 +818,7 @@ mod tests {
             conditions: vec![],
             visits: vec![],
             sensitive_not_kept: 0,
+            allergy_status: None,
         };
         store.replace_panel(clinician, &[chart]).unwrap();
         assert!(
@@ -873,6 +874,7 @@ mod tests {
             conditions: vec![],
             visits: vec![],
             sensitive_not_kept: 0,
+            allergy_status: None,
         };
 
         // The draft exists: written on the chart and saved by the server as version 1, before going offline.
@@ -1370,6 +1372,7 @@ mod tests {
                 })
                 .collect(),
             sensitive_not_kept: 0,
+            allergy_status: None,
         }
     }
 }

@@ -9,7 +9,14 @@
 --   B20, Z21          HIV disease, and asymptomatic HIV infection status
 --   O04, Z33.2        termination of pregnancy
 --   T74, T76          abuse, neglect and other maltreatment, confirmed or suspected
---   X71-X83, R45.851  intentional self-harm, and suicidal ideations
+--   X71-X83           intentional self-harm
+--   T14.91            suicide attempt
+--   R45.851           suicidal ideations
+--   Z91.51, Z91.52    personal history of suicidal behavior, and of nonsuicidal self-harm
+--   T36-T65, intent 2 poisoning by drugs and toxic effects of other substances, intentional self-harm: the codes whose
+--                     sixth character is 2 (T39.012A), and those of a four-character subcategory, where the 2 is
+--                     the fifth and an X fills the sixth (T36.92XA). Checked against the fiscal year 2027 code file:
+--                     together these are exactly its 954 "intentional self-harm" codes in T36-T65, and no others.
 -- Codes are compared without regard to case or surrounding spaces, with or without the dot. Not a table: the rule
 -- changes by review here.
 CREATE OR REPLACE FUNCTION ehr.icd10cm_is_sensitive(code text) RETURNS boolean
@@ -21,8 +28,9 @@ AS $$
     SELECT coalesce(
         c ~ '^F[0-9][0-9A-Z]'
         OR (c ~ '^A[0-9]{2}' AND substr(c, 1, 3) BETWEEN 'A50' AND 'A64')
-        OR c ~ '^(B20|Z21|O04|Z332|T74|T76|R45851)'
-        OR (c ~ '^X[0-9]{2}' AND substr(c, 1, 3) BETWEEN 'X71' AND 'X83'),
+        OR c ~ '^(B20|Z21|O04|Z332|T74|T76|R45851|T1491|Z9151|Z9152)'
+        OR (c ~ '^X[0-9]{2}' AND substr(c, 1, 3) BETWEEN 'X71' AND 'X83')
+        OR (c ~ '^T[0-9]{2}' AND substr(c, 1, 3) BETWEEN 'T36' AND 'T65' AND (substr(c, 6, 1) = '2' OR substr(c, 5, 2) = '2X')),
         false)
     FROM (SELECT upper(replace(btrim(code), '.', '')) AS c) AS normalized
 $$;
@@ -32,6 +40,7 @@ GRANT EXECUTE ON FUNCTION ehr.icd10cm_is_sensitive(text) TO ehr_app, ehr_read;
 -- Before each insert or update of a chart entry. Runs as the caller, so the grants and row-level security bind it.
 --   1. An entry never moves: not to another patient, and not to another ID.
 --   2. A diagnosis whose code is in a sensitive range is sensitive, whatever the client sent: the app can't clear it.
+--   3. "No known allergies" is refused for a patient who has an active allergy recorded: the list is one or the other.
 CREATE OR REPLACE FUNCTION ehr.guard_chart_entry() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = pg_catalog, pg_temp
@@ -43,6 +52,17 @@ BEGIN
 
     IF TG_TABLE_NAME = 'conditions' AND ehr.icd10cm_is_sensitive(NEW.code) THEN
         NEW.sensitive := true;
+    END IF;
+
+    -- Nested, not one condition: the other two tables have no clinical_status for the row's fields to resolve.
+    IF TG_TABLE_NAME = 'allergy_intolerances' THEN
+        IF NEW.code = 'no-known-allergy' AND NEW.clinical_status = 'active'
+           AND EXISTS (
+               SELECT 1 FROM ehr.allergy_intolerances a
+               WHERE a.patient_id = NEW.patient_id AND a.clinical_status = 'active' AND a.code IS DISTINCT FROM 'no-known-allergy'
+                 AND a.id <> NEW.id) THEN
+            RAISE EXCEPTION 'A patient with an allergy recorded has no "No known allergies"' USING ERRCODE = '23514';
+        END IF;
     END IF;
 
     RETURN NEW;
@@ -59,6 +79,27 @@ CREATE OR REPLACE TRIGGER medication_statements_guard
 CREATE OR REPLACE TRIGGER conditions_guard
     BEFORE INSERT OR UPDATE ON ehr.conditions
     FOR EACH ROW EXECUTE FUNCTION ehr.guard_chart_entry();
+
+-- A patient's allergy list is one of three things: nothing recorded, "No known allergies", or allergies. So when an
+-- active allergy is added, or an entry is made active again, an active "No known allergies" is made inactive, in the
+-- same statement's transaction, by whoever recorded the allergy. Runs as the caller: the update is theirs, bound by
+-- the same policies, and goes into the history and the write audit like any other.
+CREATE OR REPLACE FUNCTION ehr.clear_no_known_allergies() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog, pg_temp
+AS $$
+BEGIN
+    UPDATE ehr.allergy_intolerances
+    SET clinical_status = 'inactive'
+    WHERE patient_id = NEW.patient_id AND code = 'no-known-allergy' AND clinical_status = 'active';
+    RETURN NULL;
+END
+$$;
+REVOKE ALL ON FUNCTION ehr.clear_no_known_allergies() FROM PUBLIC;
+CREATE OR REPLACE TRIGGER allergy_intolerances_status
+    AFTER INSERT OR UPDATE ON ehr.allergy_intolerances
+    FOR EACH ROW WHEN (NEW.clinical_status = 'active' AND NEW.code IS DISTINCT FROM 'no-known-allergy')
+    EXECUTE FUNCTION ehr.clear_no_known_allergies();
 
 -- The history clinicians read: after each insert or update of a chart entry, who changed it, when, and the entry
 -- before and after. It runs as its owner, ehr_owner (SECURITY DEFINER), because nothing at runtime may write
