@@ -646,11 +646,33 @@ namespace Ehr.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("code");
 
+                    b.Property<bool>("Common")
+                        .HasColumnType("boolean")
+                        .HasColumnName("common");
+
                     b.Property<string>("Display")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("display");
+
+                    b.Property<string>("DisplayKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("display_key")
+                        .HasComputedColumnSql("lower(display)", true);
+
+                    b.Property<string>("StandardCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("standard_code");
+
+                    b.Property<string>("StandardSystem")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("standard_system");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -664,9 +686,20 @@ namespace Ehr.Migrations
                     b.HasAlternateKey("Type", "Code")
                         .HasName("ak_order_catalog_items_type_code");
 
+                    b.HasIndex("Display")
+                        .HasDatabaseName("ix_order_catalog_items_display")
+                        .HasAnnotation("Npgsql:TsVectorConfig", "simple");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Display"), "GIN");
+
                     b.HasIndex("Type", "Display")
                         .IsUnique()
                         .HasDatabaseName("ix_order_catalog_items_type_display");
+
+                    b.HasIndex("Type", "DisplayKey")
+                        .HasDatabaseName("ix_order_catalog_items_type_display_key");
+
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Type", "DisplayKey"), new[] { null, "text_pattern_ops" });
 
                     b.ToTable("order_catalog_items", "ehr", t =>
                         {
@@ -677,175 +710,259 @@ namespace Ehr.Migrations
                         new
                         {
                             Code = "SYN-LAB-001",
+                            Common = true,
                             Display = "Complete blood count (CBC)",
+                            DisplayKey = "",
+                            StandardCode = "58410-2",
+                            StandardSystem = "loinc",
                             Type = "lab"
                         },
                         new
                         {
                             Code = "SYN-LAB-002",
+                            Common = true,
                             Display = "Basic metabolic panel (BMP)",
+                            DisplayKey = "",
                             Type = "lab"
                         },
                         new
                         {
                             Code = "SYN-LAB-003",
+                            Common = true,
                             Display = "Comprehensive metabolic panel (CMP)",
+                            DisplayKey = "",
+                            StandardCode = "24323-8",
+                            StandardSystem = "loinc",
                             Type = "lab"
                         },
                         new
                         {
                             Code = "SYN-LAB-004",
+                            Common = true,
                             Display = "Lipid panel",
+                            DisplayKey = "",
+                            StandardCode = "57698-3",
+                            StandardSystem = "loinc",
                             Type = "lab"
                         },
                         new
                         {
                             Code = "SYN-LAB-005",
+                            Common = true,
                             Display = "Hemoglobin A1c",
+                            DisplayKey = "",
                             Type = "lab"
                         },
                         new
                         {
                             Code = "SYN-LAB-006",
+                            Common = true,
                             Display = "Thyroid-stimulating hormone (TSH)",
+                            DisplayKey = "",
+                            StandardCode = "3016-3",
+                            StandardSystem = "loinc",
                             Type = "lab"
                         },
                         new
                         {
                             Code = "SYN-LAB-007",
+                            Common = true,
                             Display = "Urinalysis",
+                            DisplayKey = "",
+                            StandardCode = "24356-8",
+                            StandardSystem = "loinc",
                             Type = "lab"
                         },
                         new
                         {
                             Code = "SYN-LAB-008",
+                            Common = true,
                             Display = "Vitamin D, 25-hydroxy",
+                            DisplayKey = "",
+                            StandardCode = "62292-8",
+                            StandardSystem = "loinc",
                             Type = "lab"
                         },
                         new
                         {
                             Code = "SYN-IMG-001",
+                            Common = true,
                             Display = "Chest X-ray, 2 views",
+                            DisplayKey = "",
                             Type = "imaging"
                         },
                         new
                         {
                             Code = "SYN-IMG-002",
+                            Common = true,
                             Display = "Lumbar spine X-ray",
+                            DisplayKey = "",
                             Type = "imaging"
                         },
                         new
                         {
                             Code = "SYN-IMG-003",
+                            Common = true,
                             Display = "Abdominal ultrasound",
+                            DisplayKey = "",
                             Type = "imaging"
                         },
                         new
                         {
                             Code = "SYN-IMG-004",
+                            Common = true,
                             Display = "CT head without contrast",
+                            DisplayKey = "",
                             Type = "imaging"
                         },
                         new
                         {
                             Code = "SYN-IMG-005",
+                            Common = true,
                             Display = "MRI lumbar spine without contrast",
+                            DisplayKey = "",
                             Type = "imaging"
                         },
                         new
                         {
                             Code = "SYN-IMG-006",
+                            Common = true,
                             Display = "Screening mammogram",
+                            DisplayKey = "",
                             Type = "imaging"
                         },
                         new
                         {
                             Code = "SYN-MED-001",
+                            Common = true,
                             Display = "Lisinopril 10 mg tablet",
+                            DisplayKey = "",
+                            StandardCode = "314076",
+                            StandardSystem = "rxnorm",
                             Type = "medication"
                         },
                         new
                         {
                             Code = "SYN-MED-002",
+                            Common = true,
                             Display = "Metformin 500 mg tablet",
+                            DisplayKey = "",
+                            StandardCode = "861007",
+                            StandardSystem = "rxnorm",
                             Type = "medication"
                         },
                         new
                         {
                             Code = "SYN-MED-003",
+                            Common = true,
                             Display = "Atorvastatin 20 mg tablet",
+                            DisplayKey = "",
+                            StandardCode = "617310",
+                            StandardSystem = "rxnorm",
                             Type = "medication"
                         },
                         new
                         {
                             Code = "SYN-MED-004",
+                            Common = true,
                             Display = "Amlodipine 5 mg tablet",
+                            DisplayKey = "",
+                            StandardCode = "197361",
+                            StandardSystem = "rxnorm",
                             Type = "medication"
                         },
                         new
                         {
                             Code = "SYN-MED-005",
+                            Common = true,
                             Display = "Amoxicillin 500 mg capsule",
+                            DisplayKey = "",
+                            StandardCode = "308191",
+                            StandardSystem = "rxnorm",
                             Type = "medication"
                         },
                         new
                         {
                             Code = "SYN-MED-006",
+                            Common = true,
                             Display = "Albuterol 90 mcg inhaler",
+                            DisplayKey = "",
                             Type = "medication"
                         },
                         new
                         {
                             Code = "SYN-MED-007",
+                            Common = true,
                             Display = "Sertraline 50 mg tablet",
+                            DisplayKey = "",
+                            StandardCode = "312941",
+                            StandardSystem = "rxnorm",
                             Type = "medication"
                         },
                         new
                         {
                             Code = "SYN-MED-008",
+                            Common = true,
                             Display = "Ibuprofen 400 mg tablet",
+                            DisplayKey = "",
+                            StandardCode = "197805",
+                            StandardSystem = "rxnorm",
                             Type = "medication"
                         },
                         new
                         {
                             Code = "SYN-REF-001",
+                            Common = true,
                             Display = "Cardiology referral",
+                            DisplayKey = "",
                             Type = "referral"
                         },
                         new
                         {
                             Code = "SYN-REF-002",
+                            Common = true,
                             Display = "Dermatology referral",
+                            DisplayKey = "",
                             Type = "referral"
                         },
                         new
                         {
                             Code = "SYN-REF-003",
+                            Common = true,
                             Display = "Endocrinology referral",
+                            DisplayKey = "",
                             Type = "referral"
                         },
                         new
                         {
                             Code = "SYN-REF-004",
+                            Common = true,
                             Display = "Gastroenterology referral",
+                            DisplayKey = "",
                             Type = "referral"
                         },
                         new
                         {
                             Code = "SYN-REF-005",
+                            Common = true,
                             Display = "Orthopedics referral",
+                            DisplayKey = "",
                             Type = "referral"
                         },
                         new
                         {
                             Code = "SYN-REF-006",
+                            Common = true,
                             Display = "Physical therapy referral",
+                            DisplayKey = "",
                             Type = "referral"
                         },
                         new
                         {
                             Code = "SYN-REF-007",
+                            Common = true,
                             Display = "Psychiatry referral",
+                            DisplayKey = "",
                             Type = "referral"
                         });
                 });
@@ -1041,8 +1158,8 @@ namespace Ehr.Migrations
 
                     b.Property<string>("Display")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("display");
 
                     b.Property<Guid>("PatientId")
@@ -1215,6 +1332,17 @@ namespace Ehr.Migrations
                     b.HasKey("Kind", "System", "Code")
                         .HasName("pk_clinical_codes");
 
+                    b.HasIndex("Display")
+                        .HasDatabaseName("ix_clinical_codes_display")
+                        .HasAnnotation("Npgsql:TsVectorConfig", "simple");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Display"), "GIN");
+
+                    b.HasIndex("Kind", "Code")
+                        .HasDatabaseName("ix_clinical_codes_kind_code");
+
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Kind", "Code"), new[] { null, "text_pattern_ops" });
+
                     b.HasIndex("Kind", "DisplayKey")
                         .HasDatabaseName("ix_clinical_codes_kind_display_key");
 
@@ -1369,8 +1497,8 @@ namespace Ehr.Migrations
 
                     b.Property<string>("Display")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("display");
 
                     b.Property<DateOnly?>("OnsetDate")
@@ -1473,8 +1601,8 @@ namespace Ehr.Migrations
 
                     b.Property<string>("Display")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("display");
 
                     b.Property<string>("Dosage")
@@ -1799,6 +1927,209 @@ namespace Ehr.Migrations
                         .HasDatabaseName("ix_quick_texts_shortcut");
 
                     b.ToTable("quick_texts", "ehr");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Reference.DrugClass", b =>
+                {
+                    b.Property<string>("IngredientCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("ingredient_code");
+
+                    b.Property<string>("ClassName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("class_name");
+
+                    b.HasKey("IngredientCode", "ClassName")
+                        .HasName("pk_drug_classes");
+
+                    b.HasIndex("ClassName")
+                        .HasDatabaseName("ix_drug_classes_class_name");
+
+                    b.ToTable("drug_classes", "ehr");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Reference.DrugClassCrossReaction", b =>
+                {
+                    b.Property<string>("ClassA")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("class_a");
+
+                    b.Property<string>("ClassB")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("class_b");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("source");
+
+                    b.HasKey("ClassA", "ClassB")
+                        .HasName("pk_drug_class_cross_reactions");
+
+                    b.ToTable("drug_class_cross_reactions", "ehr");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Reference.DrugIngredient", b =>
+                {
+                    b.Property<string>("ProductCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("product_code");
+
+                    b.Property<string>("IngredientCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("ingredient_code");
+
+                    b.HasKey("ProductCode", "IngredientCode")
+                        .HasName("pk_drug_ingredients");
+
+                    b.ToTable("drug_ingredients", "ehr");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Reference.DrugInteraction", b =>
+                {
+                    b.Property<string>("IngredientA")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("ingredient_a");
+
+                    b.Property<string>("IngredientB")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("ingredient_b");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("level");
+
+                    b.HasKey("IngredientA", "IngredientB")
+                        .HasName("pk_drug_interactions");
+
+                    b.HasIndex("IngredientB")
+                        .HasDatabaseName("ix_drug_interactions_ingredient_b");
+
+                    b.ToTable("drug_interactions", "ehr", t =>
+                        {
+                            t.HasCheckConstraint("ck_drug_interactions_level", "level IN ('major', 'moderate', 'minor')");
+
+                            t.HasCheckConstraint("ck_drug_interactions_order", "ingredient_a < ingredient_b");
+                        });
+                });
+
+            modelBuilder.Entity("Ehr.Data.Reference.ObservationCode", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Copyright")
+                        .HasColumnType("text")
+                        .HasColumnName("copyright");
+
+                    b.Property<string>("Display")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("display");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("RangeSource")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("range_source");
+
+                    b.Property<decimal?>("ReferenceHigh")
+                        .HasColumnType("numeric")
+                        .HasColumnName("reference_high");
+
+                    b.Property<decimal?>("ReferenceLow")
+                        .HasColumnType("numeric")
+                        .HasColumnName("reference_low");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("unit");
+
+                    b.HasKey("Code")
+                        .HasName("pk_observation_codes");
+
+                    b.ToTable("observation_codes", "ehr", t =>
+                        {
+                            t.HasCheckConstraint("ck_observation_codes_kind", "kind IN ('lab', 'vital', 'survey')");
+                        });
+                });
+
+            modelBuilder.Entity("Ehr.Data.Reference.OrderResultCode", b =>
+                {
+                    b.Property<string>("CatalogCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("catalog_code");
+
+                    b.Property<string>("ObservationCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("observation_code");
+
+                    b.HasKey("CatalogCode", "ObservationCode")
+                        .HasName("pk_order_result_codes");
+
+                    b.HasIndex("ObservationCode")
+                        .HasDatabaseName("ix_order_result_codes_observation_code");
+
+                    b.ToTable("order_result_codes", "ehr");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Reference.Questionnaire", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Copyright")
+                        .HasColumnType("text")
+                        .HasColumnName("copyright");
+
+                    b.Property<string>("Definition")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("definition");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Code")
+                        .HasName("pk_questionnaires");
+
+                    b.ToTable("questionnaires", "ehr", t =>
+                        {
+                            t.HasCheckConstraint("ck_questionnaires_definition", "jsonb_typeof(definition) = 'object'");
+                        });
                 });
 
             modelBuilder.Entity("Ehr.Data.SyncOperation", b =>
@@ -2165,6 +2496,23 @@ namespace Ehr.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_patient_enrollments_patients_patient_id");
+                });
+
+            modelBuilder.Entity("Ehr.Data.Reference.OrderResultCode", b =>
+                {
+                    b.HasOne("Ehr.Data.Orders.OrderCatalogItem", null)
+                        .WithMany()
+                        .HasForeignKey("CatalogCode")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_result_codes_order_catalog_items_catalog_code");
+
+                    b.HasOne("Ehr.Data.Reference.ObservationCode", null)
+                        .WithMany()
+                        .HasForeignKey("ObservationCode")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_result_codes_observation_codes_observation_code");
                 });
 #pragma warning restore 612, 618
         }

@@ -74,6 +74,13 @@ GRANT SELECT ON ehr.chart_history TO ehr_app, ehr_read;
 -- nothing at runtime changes it. Its rows are db/reference/*.sql, applied as ehr_owner after these files.
 GRANT SELECT ON ehr.clinical_codes TO ehr_app, ehr_read;
 
+-- The rest of the reference data, none of it about a patient: what a result or vital sign is and this clinic's range
+-- for it, which results an order produces, the PHQ-9 and GAD-7 questionnaires, what each drug product is made of, the
+-- classes its ingredients belong to and which of those cross-react, and known interactions between ingredients. Read
+-- by both apps; nothing at runtime changes any of it. Its rows are db/reference's generated SQL.
+GRANT SELECT ON ehr.observation_codes, ehr.order_result_codes, ehr.questionnaires, ehr.drug_ingredients, ehr.drug_classes,
+    ehr.drug_class_cross_reactions, ehr.drug_interactions TO ehr_app, ehr_read;
+
 -- Test results (observations). PHI, like the chart: row-level security and the write-audit trigger follow. Read only:
 -- results will come from the lab interface, and no page changes them. The portal reads them on either server.
 GRANT SELECT ON ehr.observations TO ehr_app, ehr_read;
