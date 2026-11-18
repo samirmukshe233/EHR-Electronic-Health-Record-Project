@@ -12,7 +12,7 @@ Under each step, "In the repo" says what the step touches as the code stood when
 | --- | --- | --- | --- | --- | --- | --- |
 | 0 | This plan | done | expansion/step-00-plan | expansion-step-00 | [44257188518](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44257188518) | |
 | 1 | Change and discontinue orders | done | expansion/step-01-order-changes | expansion-step-01 | [44263160924](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44263160924) | UC 1 (Tahseen). Touches `db/policies` |
-| 2 | Editable allergies, medications, diagnoses | not started | | | | |
+| 2 | Editable allergies, medications, diagnoses | in progress | expansion/step-02-chart-lists | | | UC 4 (Diego), UC 7 (Sara). Touches `db/policies`. See the log for the design and where to resume |
 | 2a | Reference data and a coherent synthetic seed | not started | | | | |
 | 3 | Clinician inbox | not started | | | | |
 | 4 | Appointments | not started | | | | |
@@ -416,6 +416,15 @@ One entry per decision: date, step, the decision, and why.
 - **2026-11-18, step 1. The chart links to discontinued orders and doesn't load or count them,** so the chart's render time is unchanged. The off-site sentence for the two actions is its own ("Changing or discontinuing an order needs the clinic's server."), beside the existing one that TC-UC1-04 and the brand guide quote.
 - **2026-11-18, step 1. Orders aren't in the desktop app's offline copy** (they weren't before), so the desktop app didn't change. Whether offline charts should list orders is open for UC 7's owner.
 - **2026-11-18, step 1. An independent review agent reads each step's protected-path changes before the merge.** It isn't the human line-by-line review AGENTS.md requires, which still happens on the phase pull request.
+
+- **2026-11-18, step 2, design (decided before building; change it only with a new entry).**
+  - *Reference codes.* One table, `ehr.clinical_codes` (kind: condition, medication or allergen; system: `icd-10-cm`, `rxnorm` or `unii`; code; display; category for allergens; sensitive). Not PHI: grants only. Its rows are generated SQL in `db/reference/`, written by `dotnet run tools/reference/import.cs` from pinned source files (checksums in the script; the files are downloaded to a folder outside the repo, never fetched at runtime). The migration job, the tests' database and the benchmark apply `db/reference/*.sql` after `db/policies`. Step 2 loads a curated subset (the codes the synthetic clinic uses and common primary-care ones); step 2a widens the filter to the full lists and adds the search index that needs.
+  - *Sources used in step 2, none needing an account:* RxNorm Current Prescribable Content of 2026-11-02 (SCD for medications, IN for drug allergens), ICD-10-CM FY2027 code descriptions, FDA UNII (non-drug allergens). Attribution goes in `docs/expansion/reference-data.md`, started in this step.
+  - *Writes.* `ehr_app` gets INSERT and UPDATE on `allergy_intolerances`, `medication_statements` and `conditions`, never DELETE. RLS: a clinician, for a patient on their active panel (the orders rule). A trigger on each refuses a change of the row's patient or ID.
+  - *History.* One PHI table, `ehr.chart_history`, written only by a `SECURITY DEFINER` trigger on the three tables (who, when, the row before and after). Clinicians read it; nothing at runtime may insert, update or delete it. The write-audit trigger still records every change for admins.
+  - *Sensitive rule.* A diagnosis is sensitive when its ICD-10-CM code is in F01–F99 (mental, behavioral and neurodevelopmental disorders, which include substance use F10–F19), A50–A64 (sexually transmitted infections), B20 and Z21 (HIV), O04 and Z33.2 (termination of pregnancy), T74 and T76 (abuse and neglect), X71–X83 and R45.851 (self-harm and suicidal ideation), or when a clinician marks it. A medication is sensitive when a clinician marks it (a rule by drug class waits for step 2a's class data). The database sets the flag from the code, in a trigger, so the app can't clear it for a code in a sensitive range.
+  - *Showing sensitive items.* The server leaves them out of the chart unless the clinician asks ("Show sensitive items", a link that reloads the chart). Asking is recorded as its own audit action, `read_sensitive`. They never appear in the patient banner. `docs/brand/README.md` gets a "Sensitive items" section.
+  - *Notes marked sensitive* (named in "Every step must meet these") are built with this step if it stays inside the budget, and otherwise recorded as a follow-up for Tahseen to place: the note pipeline is UC 13 and UC 14's.
 
 ## Log
 
