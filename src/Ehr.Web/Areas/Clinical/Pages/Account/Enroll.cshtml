@@ -7,24 +7,27 @@
 {
     <h1>Your recovery codes</h1>
     <p>Your authenticator is set up and you are signed in. If you ever lose your phone, one of these codes signs you in instead. Each works once. Save them somewhere safe now: they are not shown again.</p>
-    <ul class="recovery-codes">
+    <ul class="sc-codes">
         @foreach (var code in codes)
         {
-            <li class="code">@code</li>
+            <li class="mono-code">@code</li>
         }
     </ul>
-    <p><a href="@Model.Continue">Continue</a></p>
+    <p><a href="@Model.Continue" class="sc-btn sc-btn--primary">Continue</a></p>
 }
 else
 {
     <h1>Set up your authenticator</h1>
     <p>Every staff sign-in needs a code from an authenticator app on your phone, wherever you sign in from. Add this account to your app, then enter the code it shows.</p>
     <p><a href="@Model.Setup!.Uri">Open in an authenticator app</a>, or enter this key by hand:</p>
-    <p class="code">@Model.KeyGrouped</p>
-    <form method="post" class="account-form">
+    <p class="sc-code mono-code">@Model.KeyGrouped</p>
+    <form method="post" class="sc-form">
         <input type="hidden" asp-for="ReturnUrl">
-        <label>Code from your app <input asp-for="Code" inputmode="numeric" autocomplete="one-time-code" required autofocus></label>
-        <span asp-validation-for="Code" class="error"></span>
-        <button>Finish setup</button>
+        <div class="sc-field">
+            <label asp-for="Code" class="sc-field__label">Code from your app</label>
+            <input asp-for="Code" class="sc-field__input sc-field__input--mono" inputmode="numeric" autocomplete="one-time-code" required autofocus>
+            <span asp-validation-for="Code" class="sc-field__error"></span>
+        </div>
+        <button class="sc-btn sc-btn--primary">Finish setup</button>
     </form>
 }

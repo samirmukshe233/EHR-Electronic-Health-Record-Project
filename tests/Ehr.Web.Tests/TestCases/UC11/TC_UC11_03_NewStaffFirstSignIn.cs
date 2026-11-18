@@ -120,7 +120,7 @@ public partial class TC_UC11_03_NewStaffFirstSignIn(WebApps apps) : IClassFixtur
     [GeneratedRegex("secret=([A-Z2-7]+)")]
     private static partial Regex AuthenticatorSecret();
 
-    [GeneratedRegex("<li class=\"code\">")]
+    [GeneratedRegex("<li class=\"mono-code\">")]
     private static partial Regex RecoveryCode();
 
     [GeneratedRegex("https://[^<\\s]+/sign-in/setup\\?user=[^<\\s]+")]

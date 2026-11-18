@@ -5,10 +5,13 @@
 }
 <h1>Enter your code</h1>
 <p>Enter the code from your authenticator app, or one of your recovery codes.</p>
-<form method="post" class="account-form">
+<form method="post" class="sc-form">
     <input type="hidden" asp-for="ReturnUrl">
-    <label>Code <input asp-for="Code" autocomplete="one-time-code" required autofocus></label>
-    <span asp-validation-for="Code" class="error"></span>
-    <div asp-validation-summary="ModelOnly" class="error"></div>
-    <button>Sign in</button>
+    <div class="sc-field">
+        <label asp-for="Code" class="sc-field__label">Code</label>
+        <input asp-for="Code" class="sc-field__input sc-field__input--mono" autocomplete="one-time-code" required autofocus>
+        <span asp-validation-for="Code" class="sc-field__error"></span>
+    </div>
+    <div asp-validation-summary="ModelOnly" class="sc-notice sc-notice--danger"></div>
+    <button class="sc-btn sc-btn--primary">Sign in</button>
 </form>
