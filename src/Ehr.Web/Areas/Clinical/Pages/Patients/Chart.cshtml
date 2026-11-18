@@ -251,7 +251,7 @@ else if (Model.Chart.SensitiveHidden > 0)
                     <li>
                         <strong>@condition.Display</strong>
                         @if (condition.Code is { } diagnosisCode) { <text>(@diagnosisCode)</text> }
-                        @if (condition.OnsetDate is { } onset) { <text>since @onset.ToString("yyyy-MM-dd")</text> }
+                        @if (condition.OnsetDate is { } onset) { <text> since @onset.ToString("yyyy-MM-dd")</text> }
                         @if (condition.Sensitive)
                         {
                             <span class="sc-tag sc-tag--warning">Sensitive</span>
