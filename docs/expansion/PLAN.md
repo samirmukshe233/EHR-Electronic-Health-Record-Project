@@ -13,7 +13,8 @@ Under each step, "In the repo" says what the step touches as the code stood when
 | 0 | This plan | done | expansion/step-00-plan | expansion-step-00 | [44257188518](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44257188518) | |
 | 1 | Change and discontinue orders | done | expansion/step-01-order-changes | expansion-step-01 | [44263160924](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44263160924) | UC 1 (Tahseen). Touches `db/policies` |
 | 2 | Editable allergies, medications, diagnoses | done | expansion/step-02-chart-lists | expansion-step-02 | [44271858512](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44271858512) | UC 4 (Diego), UC 7 (Sara), and the banner on UC 9, 13 and 14's pages (Samir, Satwik). Touches `db/policies`. Notes can't be marked sensitive yet: see the log |
-| 2a | Reference data and a coherent synthetic seed | not started | | | | |
+| 2b | Sensitive-item and allergy-status fixes | in progress | expansion/step-02b-sensitive-fixes | | | Inserted by Tahseen on 2026-11-18; done before 2a |
+| 2a | Reference data and a coherent synthetic seed | not started | expansion/step-02a-reference-data | | | Decisions made (see the decision log). The LOINC files arrived in `~/swiftchart-expansion-scratch/reference/loinc/` on 2026-11-18 |
 | 3 | Clinician inbox | not started | | | | |
 | 4 | Appointments | not started | | | | |
 | 5 | Secure messaging | not started | | | | |
@@ -233,7 +234,17 @@ If step 1's own prompt gave more detail, that detail wins.
   - *New:* write grants and RLS write policies for clinicians (panel rule, as for orders); history (a row per version, or a history table written by trigger); `sensitive` on conditions, medications and notes with the ICD-10-CM range rule; the reference tables this step needs (or 2a's); a type-ahead endpoint and its small script; edit forms on the chart; a "Sensitive items" section in `docs/brand/README.md` and its component in `ehr.css`; replacing the SNOMED CT "No known allergies" code.
   - *Tests:* `PatientChartTests.cs`, `PatientWriteTests.cs`, `RowLevelSecurityTests.cs`, `WriteAuditTests.cs`, `ProtectionTests.cs`, `SeedTests.cs`, `TestCases/UC4/` continuing its numbering, the desktop's Rust tests. `docs/UC4.md` doesn't exist yet.
 
+**Step 2b. Sensitive-item and allergy-status fixes** (inserted by Tahseen after step 2; done before step 2a)
+- **Allergy status:** a patient's allergy list is either "No allergy information recorded", "No known allergies" or a list of allergies. Clinicians can record "No known allergies", which is audited, and adding an allergy clears it. The banner and chart show the right state. Update the desktop app's offline copy and the tests.
+- **Admins and sensitive values:** in the admin audit view, a write to a sensitive item shows that a sensitive item changed and by whom, never its values. The full record stays in the audit store. Add security and UI tests.
+- **Sensitive codes:** add T14.91 (suicide attempt), R45.851 (suicidal ideation), Z91.51 and Z91.52 (history of suicidal behavior, history of non-suicidal self-harm), the intentional self-harm poisoning and toxic-effect codes (T36–T65 with "2" as the sixth character), and B20 and Z21 (HIV). Document the full rule in `docs/expansion/reference-data.md`, and migrate existing rows that the new rule marks.
+- **Touches:** `db/policies`. **Affects:** UC 4, UC 7, UC 12.
+
 **Step 2a. Reference data and a coherent synthetic seed**
+- **Tahseen's decisions for this step (2026-11-18):**
+  - *LOINC:* Tahseen downloads it himself into `~/swiftchart-expansion-scratch/reference/loinc/`. Until the files are there, do the rest of 2a without LOINC and mark the LOINC parts as waiting on him. When they are, load the subset the plan needs (lab orderables, results, vitals, PHQ-9 and GAD-7), with LOINC's copyright notice in `docs/expansion/reference-data.md`, carrying each term's EXTERNAL_COPYRIGHT_NOTICE where it has one.
+  - *Drug classes:* not MED-RT, and not RxClass (its FDASPL classes come from MED-RT, and data.gov lists RxClass under ODbL). Use the FDA's Established Pharmacologic Class indexing files and DailyMed's mapping files to RxNorm, downloaded once at import time from a pinned date, plus a small curated table of which classes cross-react, each entry citing its source. If that join can't be made reliably, stop and tell Tahseen.
+  - *Interactions (for step 8):* DDInter 2.0 as the only source, at a pinned download version, mapped to RxNorm. Its license is CC BY-NC-SA 4.0: keep the imported table in its own folder with that license and DDInter's citation, and record it in `docs/expansion/reference-data.md` and the decision log as an accepted exception to NFR-16. Show each warning's severity and DDInter's management advice, and label the checks in the UI as decision support for this demo system, not a complete clinical reference.
 - Load every source in "Reference data and synthetic data" with its import script, and write `docs/expansion/reference-data.md`.
 - Upgrade the seed so all 50,000 patients have coherent coded conditions, medications, allergies, labs, vitals and visits, with a realistic share of sensitive items.
 - Keep the benchmark and CI times in budget, and record seed size and seeding time in the log.
@@ -296,6 +307,7 @@ At the end of phase 1, every FR in the course document is built. Write the phase
 - **In the repo:** blood pressure and heart rate are columns of `ehr.encounters` today (`SystolicMmHg`, `DiastolicMmHg`, `HeartRatePerMinute`), shown with the chart's latest visit and in the desktop's offline chart; `ehr.observations` holds lab results only and has no category column. This step moves vitals to observations and migrates those columns.
 
 **Step 10. Addenda to signed notes**
+- **Sensitive notes (placed here by Tahseen, 2026-11-18):** a note or addendum can be marked sensitive, and it follows the same rules as other sensitive items. It must be done before step 13a.
 - Signed notes stay locked. An addendum is a new signed text attached to the note, shown in order with its author and time, and audited.
 - The desktop app's offline view shows addenda too.
 - **Affects:** UC 14.
@@ -435,6 +447,13 @@ One entry per decision: date, step, the decision, and why.
 - **2026-11-18, step 2. The code search is a page of the clinical area (`/codes`),** not a new API group, so the area's existing policy covers it and no authorization code was added. Suggestions use the browser's own list (`datalist`), filled by a 1 KB script: no listbox widget to build or maintain.
 - **2026-11-18, step 2. Admins see the values of sensitive entries in the write audit's details** at `/admin/audit`, as they see any changed value there. That page is the one place admins see patient data, by the team's earlier decision; it isn't a `read_sensitive`. Tahseen may want to revisit it.
 - **2026-11-18, step 2. Not built, for Tahseen to place:** marking a *note* sensitive (the note pipeline is UC 13 and UC 14's; it fits step 10, addenda, or step 6, when proxies first need it); a button to record "No known allergies"; and three ranges the review suggested for the sensitive rule (T14.91 suicide attempt, self-harm poisoning codes in T36–T65, Z91.51 history of self-harm).
+- **2026-11-18, Tahseen's decisions after step 2.**
+  - *A step 2b is inserted before 2a:* allergy status ("No known allergies" recorded by clinicians, cleared by adding an allergy), admins never see a sensitive item's values in the audit view, and more sensitive codes (T14.91, R45.851, Z91.51, Z91.52, T36–T65 with "2" as the sixth character, B20, Z21).
+  - *LOINC:* Tahseen creates the loinc.org account and downloads the files himself. They were in the scratch folder the same day.
+  - *Drug classes:* the FDA's Established Pharmacologic Class indexing files joined to RxNorm through DailyMed's mapping files; not MED-RT, not RxClass. A small curated cross-reactivity table, each entry cited. Stop if the join isn't reliable.
+  - *Interactions:* DDInter 2.0 only, pinned, mapped to RxNorm. **An accepted exception to NFR-16:** DDInter is CC BY-NC-SA 4.0, free but non-commercial and share-alike. Its table lives in its own folder with that license and DDInter's citation, and must be replaced if the project ever goes commercial. Warnings show severity and DDInter's management advice, and the UI labels the checks as decision support for this demo system, not a complete clinical reference.
+  - *Sensitive notes* go in step 10, before step 13a.
+  - *Review:* the review agent doesn't replace the human line-by-line review of `db/policies`; that happens on phase 1's pull request. Keep listing the protected paths in commit messages.
 
 ## Log
 
