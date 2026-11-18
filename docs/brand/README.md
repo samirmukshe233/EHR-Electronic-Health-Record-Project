@@ -63,7 +63,7 @@ Rules:
 - **A notice about a state starts with the state**, then a colon: "Read-only:", "Emergency access:". The word carries the meaning; the color only supports it.
 - **Dictation proposes; the clinician decides.** Say "proposed" and "awaiting your review", never "diagnosed", "decided" or "filled in for you". Say what was not carried over and why ("dictation never places orders or changes the allergy list").
 - **Clinician screens can be terse**, using MRN and standard clinical abbreviations. **The portal is for patients**: spell labels out ("Medical record number", "Date of birth"), explain results in plain language, and never show internal IDs or audit details.
-- **Dates** are `YYYY-MM-DD` everywhere, as the apps already write them, with 24-hour times (`2026-11-15 14:05`). Say "UTC" when a time is in UTC.
+- **Dates** in clinician views and tables are `YYYY-MM-DD`, with 24-hour times (`2026-11-15 14:05`). The portal writes a result's date out for patients ("Nov 2, 2026"). Say "UTC" when a time is in UTC.
 - **Names** in clinician views are charted "Family, Given" ("Rivera, Ana"); the portal greets patients by given name.
 
 ## Color
@@ -79,11 +79,11 @@ Two brand colors, both from the logo: `brand-navy` (#0E1B2C) and `brand-mint` (#
 
 ## Typography
 
-Three families, all open-source (SIL Open Font License) and served from the apps themselves, never from a font CDN: the on-site server and the desktop app must work with no internet. The files are in `fonts/` (Latin subsets, WOFF2). Sora and IBM Plex Sans are the course deck's own pairing.
+Three families, all open-source (SIL Open Font License) and served from the apps themselves, never from a font CDN: the on-site server and the desktop app must work with no internet. The files are in `fonts/` (Latin subsets, WOFF2). They load with `font-display: swap`, so text shows at once in the fallback font, and no page preloads them: the patient search page must fetch nothing ahead (a test that guards patient information holds it to that), so no page does. Sora and IBM Plex Sans are the course deck's own pairing.
 
 - **Sora** (`--font-display`) for headings and display text only: `display`, `title-1`, `title-2`, `title-3`. Never for form labels, tables or body text.
 - **IBM Plex Sans** (`--font-sans`) for everything people read and operate: `body`, `body-strong`, `body-sm`, `label`, `caption`; and `portal-body` (18px) as the portal's default body size.
-- **IBM Plex Mono** (`--font-mono`) for things people compare or type character by character: `mono-id` (MRNs, audit row IDs, table timestamps), `mono-shortcut` (keyboard shortcuts and quick-text triggers such as `.nad`) and `mono-code` (authenticator keys and recovery codes, letter-spaced, in groups of four).
+- **IBM Plex Mono** (`--font-mono`) for things people compare or type character by character: `mono-id` (MRNs, audit row IDs, table timestamps), `mono-shortcut` (keyboard shortcuts and quick-text triggers such as `.nad`) and `mono-code` (authenticator keys and recovery codes, letter-spaced). An authenticator key is shown in groups of four; a recovery code is shown exactly as it was issued, since that is what the person types back.
 - One `title-1` per page. Headings follow the page outline (h1 to h3) and are never chosen just for their size.
 
 ## Layout and spacing
@@ -113,11 +113,11 @@ SwiftChart has no icon set of its own yet, and the apps use none today. When ico
 
 ### Clinician web app (on-site)
 
-The main product, for clinicians at the clinic. App bar: `appbar` with the reversed lockup on the left, then the main navigation (Patients, with its "/" shortcut, and Quick text), and on the right the signed-in name and "Sign out". The current nav item gets a 2px `accent` underline. Under it, the patient banner on every patient page: name, MRN, date of birth, and allergies (high-criticality ones as a danger chip, or "No allergy information recorded" in `ink-muted`). Dense layout (`body-sm` tables, 36px controls) at `width-content`. One primary button per screen: "Sign note…" on the note editor, "Confirm and sign note" on the review page. A signed note shows a "Signed · read-only" tag beside its title.
+The main product, for clinicians at the clinic. App bar: `appbar` with the reversed lockup on the left, then the main navigation (Patients, with its "/" shortcut, and Quick text), and on the right the signed-in name and "Sign out". The current nav item gets a 2px `accent` underline. Under it, the patient banner on every patient page: name, MRN, date of birth and gender. Where the page already reads the patient's allergies (the chart and the order form), the banner shows them too: high-criticality ones as a danger chip, "No known allergies", or "No allergy information recorded" in `ink-muted`. On the other patient pages (notes, dictation and its review) the banner has no allergy area, rather than a "none recorded" the page hasn't checked. Dense layout (`body-sm` tables, 36px controls) at `width-content`. One primary button per screen: "Sign note…" on the note editor, "Confirm and sign note" on the review page. A signed note shows a "Signed · read-only" tag beside its title.
 
 ### Off-site access (cloud copy)
 
-The same app, served from the cloud copy when the clinic is unreachable. It looks the same, with three differences: the app bar shows an "Off-site" tag next to the lockup; the full-width warning notice sits under the app bar on every page ("Read-only: the clinic's server can't be reached. …"); and every save action stays visible but disabled, with the reason in its hint. Never hide what can't be done; say why.
+The same app, served from the cloud copy when the clinic is unreachable. It looks the same, with three differences: the app bar shows an "Off-site" tag next to the lockup; the full-width warning notice sits under the app bar on every page ("Read-only: the clinic's server can't be reached. …"); and each save action is taken off the page, with a sentence in its place that says what can't be done and why ("New orders need the clinic's server. Active orders remain readable."). Never leave a gap where an action was; say why it isn't there.
 
 ### Patient portal
 
