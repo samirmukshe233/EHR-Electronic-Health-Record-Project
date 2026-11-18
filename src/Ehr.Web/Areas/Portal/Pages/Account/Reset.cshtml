@@ -6,20 +6,26 @@
 <h1>Choose a new password</h1>
 @if (Model.Done)
 {
-    <p class="notice">Your password is changed. <a asp-page="SignIn">Sign in</a> with it.</p>
+    <p class="sc-notice sc-notice--success">Your password is changed. <a asp-page="SignIn">Sign in</a> with it.</p>
 }
 else if (!Model.LinkIsValid)
 {
-    <p class="notice error">This link is not valid or has already been used. <a asp-page="Forgot">Ask for a new one</a>.</p>
+    <p class="sc-notice sc-notice--danger">This link is not valid or has already been used. <a asp-page="Forgot">Ask for a new one</a>.</p>
 }
 else
 {
-    <form method="post" class="account-form" asp-route-user="@Model.UserId" asp-route-token="@Model.Token">
-        <label>New password <input asp-for="Input.Password" type="password" autocomplete="new-password" required autofocus></label>
-        <span asp-validation-for="Input.Password" class="error"></span>
-        <label>New password, again <input asp-for="Input.Confirm" type="password" autocomplete="new-password" required></label>
-        <span asp-validation-for="Input.Confirm" class="error"></span>
-        <div asp-validation-summary="ModelOnly" class="error"></div>
-        <button>Change password</button>
+    <form method="post" class="sc-form" asp-route-user="@Model.UserId" asp-route-token="@Model.Token">
+        <div class="sc-field">
+            <label asp-for="Input.Password" class="sc-field__label">New password</label>
+            <input asp-for="Input.Password" class="sc-field__input" type="password" autocomplete="new-password" required autofocus>
+            <span asp-validation-for="Input.Password" class="sc-field__error"></span>
+        </div>
+        <div class="sc-field">
+            <label asp-for="Input.Confirm" class="sc-field__label">New password, again</label>
+            <input asp-for="Input.Confirm" class="sc-field__input" type="password" autocomplete="new-password" required>
+            <span asp-validation-for="Input.Confirm" class="sc-field__error"></span>
+        </div>
+        <div asp-validation-summary="ModelOnly" class="sc-notice sc-notice--danger"></div>
+        <button class="sc-btn sc-btn--primary">Change password</button>
     </form>
 }

@@ -6,15 +6,17 @@
 <h1>My record</h1>
 @if (Model.Patient is { } patient)
 {
-    <dl class="record">
-        <dt>Name</dt><dd>@patient.GivenName @patient.FamilyName</dd>
-        <dt>Medical record number</dt><dd>@patient.Mrn</dd>
-        <dt>Date of birth</dt><dd>@patient.BirthDate.ToString("yyyy-MM-dd")</dd>
-    </dl>
-    <p><a asp-page="/Results">See your test results</a></p>
-    <p>Appointments and messages will appear here.</p>
+    <section class="sc-panel" aria-label="About you">
+        <dl class="record">
+            <dt>Name</dt><dd>@patient.GivenName @patient.FamilyName</dd>
+            <dt>Medical record number</dt><dd>@patient.Mrn</dd>
+            <dt>Date of birth</dt><dd>@patient.BirthDate.ToString("yyyy-MM-dd")</dd>
+        </dl>
+    </section>
+    <p><a asp-page="/Results" class="sc-btn sc-btn--primary">See your test results</a></p>
+    <p class="sc-muted">Appointments and messages will appear here.</p>
 }
 else
 {
-    <p class="notice error">Your record is not available right now. Contact the clinic if this continues.</p>
+    <p class="sc-notice sc-notice--danger">Your record is not available right now. Contact the clinic if this continues.</p>
 }
