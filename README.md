@@ -35,8 +35,8 @@ src/
   Ehr.Web/          ASP.NET Core Razor Pages host: Areas/Clinical, Areas/Portal, Api/Sync, Api/Dictation
   Ehr.Domain/       services, authorization policies, PHI reader, FHIR-shaped models
   Ehr.Data/         EF Core + Dapper on Npgsql: read and write contexts, RLS interceptor
-  Ehr.Design/       Razor class library: design tokens, CSS, sprite sheet, shared partials, htmx, Alpine.js
-  Ehr.Desktop/      Tauri 2 app: src-tauri (Rust shell, SQLCipher, sync) + frontend
+  Ehr.Design/       Razor class library: the SwiftChart tokens, shared CSS, fonts and logos (wwwroot), shared partials, htmx, Alpine.js
+  Ehr.Desktop/      Tauri 2 app: src-tauri (Rust shell, SQLCipher, sync) + frontend (with its copy of the shared CSS, fonts and logos)
   Ehr.Dictation/    setup_models.py (downloads both models) and its tests; sidecar (Python: MedASR, K2 Horizon, the checks), schema (note schema and prompt), contract (the sidecar's answers, pinned), llama-server config
 tests/
   Ehr.Security.Tests/      RLS, role, and audit gates against real PostgreSQL 18
@@ -47,6 +47,8 @@ tests/
 db/
   migrations/       EF Core migrations (the Ehr.Migrations project) and the SQL they produce, schema.sql
   policies/         RLS, triggers, roles, grants (hand-written, human-reviewed)
+docs/               each use case's guide, and brand (the SwiftChart brand guide and tokens.json, the source of truth for the UI's styling)
+tools/              brand/sync.cs: writes the tokens' CSS and the desktop app's copy of the shared CSS, fonts and logos
 eval/               dictation test set, scoring and results
 bench/              the synthetic clinic and its seed (Ehr.Seed), and the render-time benchmark (Ehr.Bench)
 infra/              compose (local server stack), migrate (migration job), barman (backup image), tailscale (access rules)
@@ -296,6 +298,7 @@ There is no `latest` tag: a deployment names the exact commit it runs.
 | .NET package versions | `Directory.Packages.props` |
 | .NET tools (`dotnet-ef`) | `.config/dotnet-tools.json`; run `dotnet tool restore` once |
 | htmx, Alpine.js (CSP build) | `src/Ehr.Design/libman.json`, restored into `wwwroot/lib` at build and served from our own origin |
+| Fonts (Sora, IBM Plex Sans, IBM Plex Mono) and logos | Committed in `src/Ehr.Design/wwwroot/fonts` (WOFF2, with their SIL Open Font Licenses) and `wwwroot/img`, served from our own origin; the brand guide and tokens are in `docs/brand` |
 | Desktop | `src/Ehr.Desktop/src-tauri/Cargo.toml` |
 | Dictation sidecar | `src/Ehr.Dictation/sidecar/pyproject.toml`, locked in its `uv.lock` |
 | Dictation models | `src/Ehr.Dictation/setup_models.py` (repositories and quantization); what each machine installed is in `infra/compose/models/models-manifest.json` |

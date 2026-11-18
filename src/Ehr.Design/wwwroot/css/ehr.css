@@ -681,6 +681,13 @@
         padding: var(--space-1) var(--space-3);
     }
 
+    /* A field shows the focus ring however it took focus: a date field's parts take it in place of the field. */
+    .sc-field__input:focus,
+    .sc-field__input:focus-within {
+        outline: 2px solid var(--focus);
+        outline-offset: 2px;
+    }
+
     textarea.sc-field__input {
         min-height: 96px;
         resize: vertical;
