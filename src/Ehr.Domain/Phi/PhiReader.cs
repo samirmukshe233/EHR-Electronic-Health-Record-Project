@@ -69,11 +69,8 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             hidden = medications.RemoveAll(m => m.Sensitive) + conditions.RemoveAll(c => c.Sensitive);
         }
 
-        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
-        if (sensitive)
-        {
-            audit.Record(AuditActions.ReadSensitive, patient.Id, PatientsTable, patient.Id);
-        }
+        // One event for one view: a read, or a read that showed sensitive items.
+        audit.Record(sensitive ? AuditActions.ReadSensitive : AuditActions.Read, patient.Id, PatientsTable, patient.Id);
 
         await db.SaveChangesAsync(cancellationToken);
         return new PatientChart(patient, allergies, medications, conditions, encounters, orders)
@@ -101,8 +98,8 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
     }
 
     // The form for one entry of a chart list: the patient, their allergies for the banner and, when changing an entry,
-    // that entry, which must be this patient's. One recorded read of the patient; and, when the entry is sensitive, a
-    // recorded read of sensitive items too, since the form shows it.
+    // that entry, which must be this patient's. One recorded read of the patient: of sensitive items, when the entry
+    // is sensitive, since the form shows it.
     public async Task<ChartEntryForm?> ChartEntryAsync(Guid id, string? table, Guid? entry, CancellationToken cancellationToken)
     {
         var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
@@ -123,11 +120,8 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             };
         }
 
-        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
-        if (form.Medication?.Sensitive == true || form.Condition?.Sensitive == true)
-        {
-            audit.Record(AuditActions.ReadSensitive, patient.Id, PatientsTable, patient.Id);
-        }
+        var showsSensitive = form.Medication?.Sensitive == true || form.Condition?.Sensitive == true;
+        audit.Record(showsSensitive ? AuditActions.ReadSensitive : AuditActions.Read, patient.Id, PatientsTable, patient.Id);
 
         await db.SaveChangesAsync(cancellationToken);
         return form;
@@ -159,11 +153,8 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             hidden = changes.RemoveAll(change => IsSensitive(change.After) || IsSensitive(change.Before));
         }
 
-        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
-        if (sensitive)
-        {
-            audit.Record(AuditActions.ReadSensitive, patient.Id, PatientsTable, patient.Id);
-        }
+        // One event for one view: a read, or a read that showed sensitive items.
+        audit.Record(sensitive ? AuditActions.ReadSensitive : AuditActions.Read, patient.Id, PatientsTable, patient.Id);
 
         await db.SaveChangesAsync(cancellationToken);
         return new ChartHistory(patient, changes, more, hidden, sensitive);

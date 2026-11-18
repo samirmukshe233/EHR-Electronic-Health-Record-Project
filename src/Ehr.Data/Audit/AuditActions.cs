@@ -7,7 +7,7 @@ public static class AuditActions
     public const string Read = "read";
 
     // A read that showed a patient's sensitive items (diagnoses and medications marked sensitive), which a chart
-    // leaves out until asked: recorded beside the read itself, by the PHI reader.
+    // leaves out until asked: recorded by the PHI reader in place of the plain read, so one view is one event.
     public const string ReadSensitive = "read_sensitive";
 
     // Writes to a PHI table, recorded by its trigger.
