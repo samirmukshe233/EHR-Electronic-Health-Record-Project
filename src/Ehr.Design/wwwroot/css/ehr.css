@@ -72,8 +72,13 @@
     ol,
     dl,
     pre,
-    fieldset {
+    fieldset,
+    details {
         margin: 0 0 var(--space-4);
+    }
+
+    details > summary + * {
+        margin-top: var(--space-2);
     }
 
     ul,
@@ -1425,11 +1430,24 @@
         font-weight: 600;
     }
 
-    .sc-proposal__controls {
+    /* The decision's buttons, and under them the way to correct the text first. */
+    .sc-proposal .sc-proposal__controls {
         margin-top: var(--space-3);
     }
 
-    .sc-proposal__approved {
+    .sc-proposal__controls details {
+        margin: var(--space-3) 0 0;
+    }
+
+    .sc-proposal__controls summary {
+        margin: 0 0 var(--space-2);
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+        color: var(--accent-ink);
+    }
+
+    .sc-proposal .sc-proposal__approved {
         margin-top: var(--space-2);
         white-space: pre-wrap;
         overflow-wrap: anywhere;
