@@ -1098,10 +1098,10 @@
 
     /* A record line's own actions, such as an order's "Change" and "Discontinue…": plain links after the line's text. */
     .sc-list__actions {
-        display: inline-flex;
+        display: flex;
         flex-wrap: wrap;
         gap: var(--space-3);
-        margin-inline-start: var(--space-3);
+        margin-top: var(--space-1);
         font-size: 14px;
         line-height: 20px;
         font-weight: 600;
