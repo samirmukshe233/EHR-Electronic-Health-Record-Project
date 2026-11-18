@@ -64,10 +64,16 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Contains("value=\"Generalized anxiety disorder\"", byWord);
         Assert.Contains("value=\"Type 2 diabetes mellitus without complications\"", await session.Client.GetStringAsync("/codes?kind=condition&q=e11.9", Cancel));
         Assert.Contains("value=\"lisinopril 10 MG Oral Tablet\"", await session.Client.GetStringAsync("/codes?kind=medication&q=lisin", Cancel));
-        var allergens = await session.Client.GetStringAsync("/codes?kind=allergen&q=pe", Cancel);
+        var allergens = await session.Client.GetStringAsync("/codes?kind=allergen&q=peanu", Cancel);
         Assert.Contains("value=\"Peanut\"", allergens);
-        Assert.Contains("value=\"Penicillin G\"", allergens);
+        Assert.Contains("value=\"Penicillin G\"", await session.Client.GetStringAsync("/codes?kind=allergen&q=penicillin", Cancel));
         Assert.DoesNotContain("label=", allergens);
+        // Words in any order, each by its start, among about a hundred thousand names.
+        Assert.Contains("value=\"Type 2 diabetes mellitus without complications\"",
+            await session.Client.GetStringAsync("/codes?kind=condition&q=diab+mell+without+compl+type+2", Cancel));
+        Assert.Contains("[Lipitor]", await session.Client.GetStringAsync("/codes?kind=medication&q=lipitor+20", Cancel));
+        // What is typed is never read as the search's own syntax.
+        Assert.DoesNotContain("<option", await session.Client.GetStringAsync("/codes?kind=condition&q=" + Uri.EscapeDataString("zz:* | !a & (b"), Cancel));
         // Too little typed, an unknown kind, and LIKE's own characters: nothing.
         foreach (var address in new[] { "/codes?kind=condition&q=e", "/codes?kind=order&q=essential", "/codes?kind=condition&q=%25%25", "/codes" })
         {

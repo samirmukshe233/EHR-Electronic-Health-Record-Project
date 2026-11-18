@@ -802,3 +802,19 @@ VALUES ('20261118095004_AuditSensitive', '10.0.13');
 
 COMMIT;
 
+START TRANSACTION;
+ALTER TABLE ehr.medication_statements ALTER COLUMN display TYPE character varying(300);
+
+ALTER TABLE ehr.conditions ALTER COLUMN display TYPE character varying(300);
+
+ALTER TABLE ehr.allergy_intolerances ALTER COLUMN display TYPE character varying(300);
+
+CREATE INDEX ix_clinical_codes_display ON ehr.clinical_codes USING GIN (to_tsvector('simple', display));
+
+CREATE INDEX ix_clinical_codes_kind_code ON ehr.clinical_codes (kind, code text_pattern_ops);
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261118105016_ClinicalCodeSearch', '10.0.13');
+
+COMMIT;
+

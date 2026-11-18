@@ -71,7 +71,12 @@ public sealed class ClinicalCodeConfiguration : IEntityTypeConfiguration<Clinica
         code.Property(c => c.Display).HasMaxLength(300);
         code.Property(c => c.DisplayKey).HasMaxLength(300).HasComputedColumnSql("lower(display)", stored: true);
         code.Property(c => c.Category).HasMaxLength(20);
-        // The search: a kind's names that start with what was typed, and the form's check of a name picked from it.
+        // The search: a kind's names that start with what was typed, and the form's check of a name picked from it;
+        // a diagnosis by the start of its code; and names with a word that starts with what was typed ("diabetes"
+        // finds "Type 2 diabetes mellitus ..."), through PostgreSQL's own text search, which needs no extension: a
+        // hundred thousand names are too many to scan on every keystroke.
         code.HasIndex(c => new { c.Kind, c.DisplayKey }).HasOperators(null!, "text_pattern_ops");
+        code.HasIndex(c => new { c.Kind, c.Code }).HasOperators(null!, "text_pattern_ops");
+        code.HasIndex(c => c.Display).HasMethod("GIN").IsTsVectorExpressionIndex("simple");
     }
 }

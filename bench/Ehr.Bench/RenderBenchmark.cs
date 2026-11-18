@@ -242,6 +242,9 @@ internal static partial class RenderBenchmark
                 () => $"/patients/{panel[random.Next(panel.Count)]}/diagnoses"),
             await MeasureAsync(client, times, prefix + "Code search, first 3 letters", typing: false,
                 () => $"/codes?kind=condition&q={CodeSearches[random.Next(CodeSearches.Length)]}"),
+            // The same search by words inside the names, which goes through the text-search index.
+            await MeasureAsync(client, times, prefix + "Code search, words inside the name", typing: false,
+                () => $"/codes?kind=condition&q={Uri.EscapeDataString(CodeWords[random.Next(CodeWords.Length)])}"),
             await MeasureAsync(client, times, prefix + "Chart history, a patient on the panel", typing: false,
                 () => $"/patients/{panel[random.Next(panel.Count)]}/chart-history"),
         ];
@@ -249,6 +252,8 @@ internal static partial class RenderBenchmark
 
     // What a clinician might have typed so far when looking for a diagnosis.
     static readonly string[] CodeSearches = ["typ", "ess", "anx", "ast", "hyp", "dia", "dep", "alc", "low", "mig"];
+
+    static readonly string[] CodeWords = ["diabetes", "mellitus compl", "fracture femur", "pneumonia", "kidney chronic", "pain", "infarction", "left", "unspecified site", "encounter"];
 
     // UC 2 (Tahseen Arnan): the same requests to the cloud app, with the on-site session's cookies, during an outage. Its
     // audit queue goes in a folder of its own, deleted at the end.

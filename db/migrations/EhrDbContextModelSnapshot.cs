@@ -1041,8 +1041,8 @@ namespace Ehr.Migrations
 
                     b.Property<string>("Display")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("display");
 
                     b.Property<Guid>("PatientId")
@@ -1215,6 +1215,17 @@ namespace Ehr.Migrations
                     b.HasKey("Kind", "System", "Code")
                         .HasName("pk_clinical_codes");
 
+                    b.HasIndex("Display")
+                        .HasDatabaseName("ix_clinical_codes_display")
+                        .HasAnnotation("Npgsql:TsVectorConfig", "simple");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Display"), "GIN");
+
+                    b.HasIndex("Kind", "Code")
+                        .HasDatabaseName("ix_clinical_codes_kind_code");
+
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Kind", "Code"), new[] { null, "text_pattern_ops" });
+
                     b.HasIndex("Kind", "DisplayKey")
                         .HasDatabaseName("ix_clinical_codes_kind_display_key");
 
@@ -1369,8 +1380,8 @@ namespace Ehr.Migrations
 
                     b.Property<string>("Display")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("display");
 
                     b.Property<DateOnly?>("OnsetDate")
@@ -1473,8 +1484,8 @@ namespace Ehr.Migrations
 
                     b.Property<string>("Display")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("display");
 
                     b.Property<string>("Dosage")
