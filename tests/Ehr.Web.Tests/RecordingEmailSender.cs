@@ -8,9 +8,13 @@ public sealed class RecordingEmailSender : IEmailSender
 {
     public ConcurrentQueue<(string To, string Subject, string Body)> Sent { get; } = new();
 
-    public Task SendAsync(string to, string subject, string body, CancellationToken cancellationToken)
+    // What each message's button says and where it goes, by the message's body.
+    public ConcurrentDictionary<string, EmailAction> Actions { get; } = new();
+
+    public Task SendAsync(string to, string subject, string body, EmailAction action, CancellationToken cancellationToken)
     {
         Sent.Enqueue((to, subject, body));
+        Actions[body] = action;
         return Task.CompletedTask;
     }
 }

@@ -7,7 +7,7 @@ namespace Ehr.Web.Email;
 // whenever Ehr:Smtp:Host is set).
 public sealed class LoggingEmailSender(ILogger<LoggingEmailSender> logger) : IEmailSender
 {
-    public Task SendAsync(string to, string subject, string body, CancellationToken cancellationToken)
+    public Task SendAsync(string to, string subject, string body, EmailAction action, CancellationToken cancellationToken)
     {
         logger.LogInformation("Email to {To}: {Subject}\n{Body}", to, subject, body);
         return Task.CompletedTask;

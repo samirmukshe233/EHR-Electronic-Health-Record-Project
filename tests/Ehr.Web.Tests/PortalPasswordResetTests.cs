@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Ehr.Data.Audit;
+using Ehr.Domain.Accounts;
 using Xunit;
 using static Ehr.Web.Tests.Browser;
 
@@ -23,6 +24,8 @@ public partial class PortalPasswordResetTests(WebApps apps) : IClassFixture<WebA
         Assert.Contains("we have sent it a link", await ReadAsync(asked));
         var message = Assert.Single(apps.Emails.Sent, m => m.To == email && m.Subject.Contains("Reset"));
         var resetPath = new Uri(ResetLink().Match(message.Body).Value).PathAndQuery;
+        // The message's button says what its link does, and goes where the text's link goes.
+        Assert.Equal(new EmailAction("Reset your password", ResetLink().Match(message.Body).Value), apps.Emails.Actions[message.Body]);
 
         const string newPassword = "a-new-portal-password";
         using var changed = await PostFormAsync(client, resetPath, resetPath, ("Input.Password", newPassword), ("Input.Confirm", newPassword));

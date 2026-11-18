@@ -61,6 +61,7 @@ public sealed class PatientRegistration(UserManager<PatientUser> users, EhrDbCon
                     $"""
                     Someone tried to register a patient portal account with this address. If it was you, sign in at {signInLink} or reset your password at {forgotLink}. If it wasn't, you can ignore this message.
                     """,
+                    new EmailAction("Sign in", signInLink),
                     cancellationToken);
             }
             else
@@ -131,14 +132,16 @@ public sealed class PatientRegistration(UserManager<PatientUser> users, EhrDbCon
     async Task SendConfirmationAsync(PatientUser user, Func<Guid, string, string> confirmationLink, CancellationToken cancellationToken)
     {
         var token = await users.GenerateEmailConfirmationTokenAsync(user);
+        var link = confirmationLink(user.Id, token);
         await email.SendAsync(user.Email!, "Confirm your patient portal account",
             $"""
             Open this link to confirm your email address and finish setting up your patient portal account:
 
-            {confirmationLink(user.Id, token)}
+            {link}
 
             If you didn't register, you can ignore this message.
             """,
+            new EmailAction("Confirm your account", link),
             cancellationToken);
     }
 

@@ -1,13 +1,15 @@
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using Ehr.Domain.Accounts;
 
 namespace Ehr.Web.Email;
 
 // The HTML alternative of an account email, made from its plain text, which stays the message's first part and is
 // never changed (docs/brand: Email). One column on white: the lockup, the subject as the heading, the text's
-// paragraphs, and one navy button. A paragraph that is nothing but a link becomes that button, labeled with the
-// subject, which names the action ("Confirm your patient portal account"); a link inside a sentence stays a link.
+// paragraphs, and one navy button, which says what the message's action does ("Confirm your account", "Reset your
+// password", "Sign in") and goes to its link. It takes the place of the paragraph that is nothing but that link; when
+// the text gives the link inside a sentence, the sentence keeps its links and the button follows the text.
 //
 // An email can load nothing from the app: mail programs drop stylesheets and block remote images. So the styles are
 // inline, the colors are the tokens' light values written out (docs/brand/tokens.json: brand-navy, surface, ink-muted),
@@ -22,7 +24,7 @@ public static partial class EmailHtml
     const string Sans = "'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif";
     const string Display = "'Sora', system-ui, -apple-system, 'Segoe UI', sans-serif";
 
-    public static string From(string subject, string text)
+    public static string From(string subject, string text, EmailAction action)
     {
         var html = new StringBuilder();
         html.Append("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
@@ -34,21 +36,33 @@ public static partial class EmailHtml
             .Append($"<img src=\"cid:{LogoContentId}\" alt=\"SwiftChart\" width=\"140\" style=\"display:block;width:140px;height:auto;margin:0 0 32px;border:0\">\n")
             .Append($"<h1 style=\"margin:0 0 16px;font-family:{Display};font-size:22px;line-height:28px;font-weight:600\">{Encode(subject)}</h1>\n");
 
-        var buttons = 0;
+        // Only a web address is ever a link.
+        if (!action.Link.StartsWith("https://", StringComparison.Ordinal) && !action.Link.StartsWith("http://", StringComparison.Ordinal))
+        {
+            throw new ArgumentException("An email's action must link to a web address.", nameof(action));
+        }
+
+        var button = $"<p style=\"margin:24px 0\"><a href=\"{Encode(action.Link)}\" style=\"display:inline-block;background:{Navy};color:#ffffff;"
+            + $"font-family:{Sans};font-size:16px;line-height:44px;font-weight:600;padding:0 24px;border-radius:4px;text-decoration:none\">"
+            + $"{Encode(action.Label)}</a></p>\n";
+        var placed = false;
         foreach (var paragraph in Blank().Split(text.ReplaceLineEndings("\n").Trim()).Select(part => part.Trim()).Where(part => part.Length > 0))
         {
-            // One button per message: a second bare link is written out as a link.
-            if (buttons == 0 && OnlyLink().IsMatch(paragraph))
+            // One button per message, where the text gives the action's link on a line of its own.
+            if (!placed && paragraph == action.Link)
             {
-                buttons++;
-                html.Append($"<p style=\"margin:24px 0\"><a href=\"{Encode(paragraph)}\" style=\"display:inline-block;background:{Navy};color:#ffffff;")
-                    .Append($"font-family:{Sans};font-size:16px;line-height:44px;font-weight:600;padding:0 24px;border-radius:4px;text-decoration:none\">")
-                    .Append($"{Encode(subject)}</a></p>\n");
+                placed = true;
+                html.Append(button);
             }
             else
             {
                 html.Append($"<p style=\"margin:0 0 16px\">{Linked(paragraph)}</p>\n");
             }
+        }
+
+        if (!placed)
+        {
+            html.Append(button);
         }
 
         return html.Append("</div>\n</body>\n</html>\n").ToString();
@@ -75,9 +89,6 @@ public static partial class EmailHtml
 
     [GeneratedRegex(@"\n[ \t]*\n")]
     private static partial Regex Blank();
-
-    [GeneratedRegex(@"^https?://[^\s<>""]+$")]
-    private static partial Regex OnlyLink();
 
     [GeneratedRegex(@"https?://[^\s<>""]+")]
     private static partial Regex Link();
