@@ -1,20 +1,27 @@
 @model QuickTextConflict
-<li id="quick-text-@Model.Theirs.Id" class="conflict">
-    <form method="post" hx-post="@Url.Page("Index", "Save")" hx-target="closest li" hx-swap="outerHTML">
-        <p role="alert">Someone else saved this phrase while you were editing it. Choose which version to keep.</p>
-        <dl>
-            <dt>Theirs (saved)</dt>
-            <dd><span class="shortcut">@Model.Theirs.Shortcut</span> <span class="body">@Model.Theirs.Body</span></dd>
-            <dt>Mine (not saved)</dt>
-            <dd><span class="shortcut">@Model.Mine.Shortcut</span> <span class="body">@Model.Mine.Body</span></dd>
+@* Both versions side by side; nothing is merged silently (docs/brand). *@
+<li id="quick-text-@Model.Theirs.Id">
+    <form class="sc-conflict" method="post" hx-post="@Url.Page("Index", "Save")" hx-target="closest li" hx-swap="outerHTML">
+        <p class="sc-notice sc-notice--warning" role="alert">Someone else saved this phrase while you were editing it. Choose which version to keep.</p>
+        <dl class="sc-versions">
+            <div class="sc-version">
+                <dt class="sc-version__label">Theirs (saved)</dt>
+                <dd><span class="sc-quicktext__shortcut">@Model.Theirs.Shortcut</span> <span class="sc-quicktext__body">@Model.Theirs.Body</span></dd>
+            </div>
+            <div class="sc-version">
+                <dt class="sc-version__label">Mine (not saved)</dt>
+                <dd><span class="sc-quicktext__shortcut">@Model.Mine.Shortcut</span> <span class="sc-quicktext__body">@Model.Mine.Body</span></dd>
+            </div>
         </dl>
         @* Keep mine saves over their version, so it starts from their version number. *@
         <input type="hidden" name="Id" value="@Model.Theirs.Id">
         <input type="hidden" name="Version" value="@Model.Theirs.Version">
         <input type="hidden" name="Shortcut" value="@Model.Mine.Shortcut">
         <input type="hidden" name="Body" value="@Model.Mine.Body">
-        <button>Keep mine</button>
-        <button type="button" hx-get="@Url.Page("Index", "Row", new { id = Model.Theirs.Id })"
-                hx-target="closest li" hx-swap="outerHTML">Keep theirs</button>
+        <div class="sc-actions">
+            <button class="sc-btn">Keep mine</button>
+            <button type="button" class="sc-btn" hx-get="@Url.Page("Index", "Row", new { id = Model.Theirs.Id })"
+                    hx-target="closest li" hx-swap="outerHTML">Keep theirs</button>
+        </div>
     </form>
 </li>

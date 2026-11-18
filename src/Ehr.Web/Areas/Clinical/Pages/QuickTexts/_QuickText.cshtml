@@ -1,11 +1,11 @@
 @model QuickText
 @inject Ehr.Web.Forwarding.OnPremStatus OnPrem
 <li id="quick-text-@Model.Id">
-    <span class="shortcut">@Model.Shortcut</span>
-    <span class="body">@Model.Body</span>
+    <span class="sc-quicktext__shortcut">@Model.Shortcut</span>
+    <span class="sc-quicktext__body">@Model.Body</span>
     @if (OnPrem.IsReachable)
     {
-        <button type="button" hx-get="@Url.Page("Index", "Edit", new { id = Model.Id })"
+        <button type="button" class="sc-btn sc-btn--compact" hx-get="@Url.Page("Index", "Edit", new { id = Model.Id })"
                 hx-target="closest li" hx-swap="outerHTML">Edit</button>
     }
 </li>
