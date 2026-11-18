@@ -540,11 +540,11 @@ internal static partial class RenderBenchmark
         }
 
         Console.WriteLine();
-        Console.WriteLine($"{"",-46}{"p50",7}{"p95",7}{"p99",7}{"max",7}  excl. commit{"p50",6}{"p99",7}  audit{"p50",6}{"p99",7}"
+        Console.WriteLine($"{"",-58}{"p50",7}{"p95",7}{"p99",7}{"max",7}  excl. commit{"p50",6}{"p99",7}  audit{"p50",6}{"p99",7}"
             + $"  commit{"p50",6}{"p99",7}{"max",7}  rest{"p50",6}{"p99",7}");
         foreach (var result in results)
         {
-            Console.WriteLine($"{result.Name,-46}{Percentile(result.Total, 0.5),7:F1}{Percentile(result.Total, 0.95),7:F1}{Percentile(result.Total, 0.99),7:F1}{result.Total.Max(),7:F1}"
+            Console.WriteLine($"{result.Name,-58}{Percentile(result.Total, 0.5),7:F1}{Percentile(result.Total, 0.95),7:F1}{Percentile(result.Total, 0.99),7:F1}{result.Total.Max(),7:F1}"
                 + $"              {Percentile(result.ExcludingCommit, 0.5),6:F1}{Percentile(result.ExcludingCommit, 0.99),7:F1}"
                 + $"       {Percentile(result.Audit, 0.5),6:F1}{Percentile(result.Audit, 0.99),7:F1}"
                 + $"        {Percentile(result.Commit, 0.5),6:F1}{Percentile(result.Commit, 0.99),7:F1}{result.Commit.Max(),7:F1}"
