@@ -28,6 +28,10 @@ pub struct Chart {
     pub medications: Vec<Medication>,
     pub conditions: Vec<Condition>,
     pub visits: Vec<Visit>,
+    /// How many sensitive diagnoses and medications the server left out:
+    /// they are never kept offline. Absent from copies made before it was sent.
+    #[serde(default)]
+    pub sensitive_not_kept: u32,
 }
 
 #[derive(Deserialize, Serialize)]

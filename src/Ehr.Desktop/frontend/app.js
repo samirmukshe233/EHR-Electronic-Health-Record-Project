@@ -405,6 +405,10 @@ async function openChart(patient, reset = true) {
     chartSection('Allergies', chart.allergies.map((a) => details(a.display, a.reaction, a.criticality))),
     chartSection('Medications', chart.medications.map((m) => details(m.display, m.dosage))),
     chartSection('Conditions', chart.conditions.map((c) => details(c.display, c.onsetDate))),
+    // Sensitive diagnoses and medications are never kept on this device: say so, rather than look complete.
+    ...(chart.sensitiveNotKept
+      ? [el('p', { className: 'sc-muted', textContent: `Sensitive items not kept offline: ${chart.sensitiveNotKept}. Open the chart on the clinic's site to see them.` })]
+      : []),
     chartSection('Recent visits', chart.visits.map((v) => details(v.periodStart.slice(0, 10), v.reason,
       v.systolicMmHg != null && v.diastolicMmHg != null ? `${v.systolicMmHg}/${v.diastolicMmHg} mmHg` : '',
       v.heartRatePerMinute != null ? `${v.heartRatePerMinute} bpm` : ''))),

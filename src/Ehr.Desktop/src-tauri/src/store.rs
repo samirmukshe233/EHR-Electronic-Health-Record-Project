@@ -817,6 +817,7 @@ mod tests {
             medications: vec![],
             conditions: vec![],
             visits: vec![],
+            sensitive_not_kept: 0,
         };
         store.replace_panel(clinician, &[chart]).unwrap();
         assert!(
@@ -871,6 +872,7 @@ mod tests {
             medications: vec![],
             conditions: vec![],
             visits: vec![],
+            sensitive_not_kept: 0,
         };
 
         // The draft exists: written on the chart and saved by the server as version 1, before going offline.
@@ -1367,6 +1369,7 @@ mod tests {
                     heart_rate_per_minute: Some(70),
                 })
                 .collect(),
+            sensitive_not_kept: 0,
         }
     }
 }

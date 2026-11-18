@@ -26,6 +26,8 @@ public static class CloudAuditEvents
             AuditActions.Read => e.PatientId is { } patient && patient != Guid.Empty
                 && (e.TableName == PhiReader.PatientsTable && e.RowId == patient
                     || e.TableName is "clinical_notes" or "clinical_drafts" or "ai_note_reviews" or "ai_field_proposals" && e.RowId is { } row && row != Guid.Empty),
+            // Asking the chart for a patient's sensitive items, off-site as on-site.
+            AuditActions.ReadSensitive => e.PatientId is { } shown && shown != Guid.Empty && e.TableName == PhiReader.PatientsTable && e.RowId == shown,
             AuditActions.SignOut => e.TableName is null && e.RowId is null && e.PatientId != Guid.Empty,
             _ => false,
         };

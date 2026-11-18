@@ -7,7 +7,7 @@
 }
 @* The patient, in the banner under the app bar. The note pages read no allergies, so the banner shows none. *@
 @section Banner {
-    <partial name="_PatientBanner" model="new PatientBanner(Model.Patient)" />
+    <partial name="_PatientBanner" model="new PatientBanner(Model.Patient, Model.Allergies)" />
 }
 @functions {
     // A proposal's state in the words and the tone its tag shows it in (js/note-review.js does the same as states change).

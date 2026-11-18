@@ -13,6 +13,9 @@ public abstract class PatientNotePage(PhiReader phi, PatientAssignments assignme
 
     public Patient Patient { get; private set; } = null!;
 
+    // The patient's current allergies, for the banner: part of the same recorded read as the patient.
+    public IReadOnlyList<AllergyIntolerance> Allergies { get; private set; } = [];
+
     protected async Task<IActionResult?> LoadPatientAsync(Guid patientId)
     {
         Response.Headers.CacheControl = "no-store";
@@ -22,13 +25,13 @@ public abstract class PatientNotePage(PhiReader phi, PatientAssignments assignme
             return RedirectToPage("/Patients/Reason", new { id = patientId });
         }
 
-        var patient = await Phi.PatientAsync(patientId, HttpContext.RequestAborted);
-        if (patient is null)
+        var header = await Phi.HeaderAsync(patientId, HttpContext.RequestAborted);
+        if (header is null)
         {
             return NotFound();
         }
 
-        Patient = patient;
+        (Patient, Allergies) = (header.Patient, header.Allergies);
         return null;
     }
 }

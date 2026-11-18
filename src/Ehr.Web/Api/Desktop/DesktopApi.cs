@@ -81,7 +81,9 @@ public static class DesktopApi
             chart.Allergies.Select(a => new CachedAllergy(a.Display, a.Reaction, a.Criticality)).ToList(),
             chart.Medications.Select(m => new CachedMedication(m.Display, m.Dosage)).ToList(),
             chart.Conditions.Select(c => new CachedCondition(c.Display, c.OnsetDate)).ToList(),
-            chart.Visits.Select(v => new CachedVisit(v.PeriodStart, v.Reason, v.SystolicMmHg, v.DiastolicMmHg, v.HeartRatePerMinute)).ToList())).ToList());
+            chart.Visits.Select(v => new CachedVisit(v.PeriodStart, v.Reason, v.SystolicMmHg, v.DiastolicMmHg, v.HeartRatePerMinute)).ToList(),
+            // The offline copy never holds sensitive items: the chart read left them out, and says how many.
+            chart.SensitiveHidden)).ToList());
     }
 
     static async Task<IResult> SignOutAsync(ClaimsPrincipal user, DesktopSessions sessions, CancellationToken cancellationToken)

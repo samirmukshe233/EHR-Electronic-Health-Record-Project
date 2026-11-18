@@ -233,8 +233,22 @@ internal static partial class RenderBenchmark
                 var patient = panel[random.Next(panel.Count)];
                 return $"/patients/{patient}/orders/{labOrders[patient]}/discontinue";
             }),
+            // Editing the chart's lists (the expansion plan's step 2): the chart with its sensitive diagnoses and
+            // medications shown, which records a second audit event; the form that adds a diagnosis; the search of the
+            // reference codes as a clinician types, which reads nothing about a patient; and the lists' history.
+            await MeasureAsync(client, times, prefix + "Chart with sensitive items, a patient on the panel", typing: false,
+                () => $"/patients/{panel[random.Next(panel.Count)]}?sensitive=true"),
+            await MeasureAsync(client, times, prefix + "Chart entry form, a patient on the panel", typing: false,
+                () => $"/patients/{panel[random.Next(panel.Count)]}/diagnoses"),
+            await MeasureAsync(client, times, prefix + "Code search, first 3 letters", typing: false,
+                () => $"/codes?kind=condition&q={CodeSearches[random.Next(CodeSearches.Length)]}"),
+            await MeasureAsync(client, times, prefix + "Chart history, a patient on the panel", typing: false,
+                () => $"/patients/{panel[random.Next(panel.Count)]}/chart-history"),
         ];
     }
+
+    // What a clinician might have typed so far when looking for a diagnosis.
+    static readonly string[] CodeSearches = ["typ", "ess", "anx", "ast", "hyp", "dia", "dep", "alc", "low", "mig"];
 
     // UC 2 (Tahseen Arnan): the same requests to the cloud app, with the on-site session's cookies, during an outage. Its
     // audit queue goes in a folder of its own, deleted at the end.

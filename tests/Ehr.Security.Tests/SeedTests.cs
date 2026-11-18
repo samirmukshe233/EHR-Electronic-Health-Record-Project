@@ -98,6 +98,9 @@ static class Seeded
                 $"{table}: row-level security isn't forced");
             Assert.Equal("O", await ScalarAsync<string>(database,
                 $"SELECT tgenabled::text FROM pg_trigger WHERE tgrelid = 'ehr.{table}'::regclass AND tgname = '{table}_audit'"));
+            // Nor any other trigger of the table's own left off, such as a chart list's history or guard trigger.
+            Assert.Equal(0L, await ScalarAsync<long>(database,
+                $"SELECT count(*) FROM pg_trigger WHERE tgrelid = 'ehr.{table}'::regclass AND NOT tgisinternal AND tgenabled <> 'O'"));
         }
     }
 

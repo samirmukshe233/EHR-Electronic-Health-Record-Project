@@ -214,7 +214,7 @@ public class DesktopSignInTests(WebApps apps) : IClassFixture<WebApps>
         return client.GetAsync(path, Cancel);
     }
 
-    static Task<HttpResponseMessage> PostAsync(WebApplicationFactory<Program> app, string path, string token)
+    internal static Task<HttpResponseMessage> PostAsync(WebApplicationFactory<Program> app, string path, string token)
     {
         var client = CreateClient(app);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);

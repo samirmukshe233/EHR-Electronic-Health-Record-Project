@@ -51,6 +51,23 @@
     <p class="sc-notice sc-notice--success" role="status"><span class="sc-notice__state">Order signed:</span> <strong>@signed.Display</strong>, @signed.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
 }
 
+@* Sensitive diagnoses and medications aren't sent with the chart until the clinician asks, and the asking is recorded. *@
+@{
+    var sensitiveRoute = Model.Search.RouteData();
+    sensitiveRoute["id"] = Model.Patient.Id.ToString();
+    var historyRoute = new Dictionary<string, string>(sensitiveRoute);
+}
+@if (Model.Chart.SensitiveShown)
+{
+    <p class="sc-notice sc-notice--info" data-sensitive="shown"><span class="sc-notice__state">Sensitive items shown:</span> your view of them is recorded. <a asp-page="Chart" asp-all-route-data="sensitiveRoute">Hide sensitive items</a></p>
+}
+else if (Model.Chart.SensitiveHidden > 0)
+{
+    sensitiveRoute["sensitive"] = "true";
+    <p class="sc-notice sc-notice--info" data-sensitive="hidden"><span class="sc-notice__state">Sensitive items hidden:</span> @Model.Chart.SensitiveHidden @(Model.Chart.SensitiveHidden == 1 ? "diagnosis or medication is" : "diagnoses or medications are") not shown. <a asp-page="Chart" asp-all-route-data="sensitiveRoute">Show sensitive items</a></p>
+}
+<p><a asp-page="Lists/History" asp-all-route-data="historyRoute">History of allergies, medications and diagnoses</a></p>
+
 <div class="sc-chart">
     <section class="sc-panel" aria-labelledby="chart-notes">
         <h2 class="sc-panel__title" id="chart-notes">Clinical notes</h2>
@@ -167,9 +184,11 @@
         <p><a asp-page="Orders/Discontinued" asp-all-route-data="discontinuedRoute">Discontinued orders</a></p>
     </section>
 
-    @* Read only for now: nothing here is edited yet. *@
+    @* Allergies, medications and diagnoses: added and changed for a patient on the clinician's panel while the clinic's
+       server can be reached (Lists/Entry). Nothing is deleted; an entry that no longer applies gets another status. *@
     <section class="sc-panel" aria-labelledby="chart-allergies">
         <h2 class="sc-panel__title" id="chart-allergies">Allergies</h2>
+        @{ AddLink("allergies", "Add allergy"); }
         @if (Model.KnownAllergies.Count > 0)
         {
             <ul class="sc-list">
@@ -181,6 +200,7 @@
                         {
                             <span class="sc-tag sc-tag--danger">High risk</span>
                         }
+                        @{ EditLink("allergies", allergy.Id, allergy.Display); }
                     </li>
                 }
             </ul>
@@ -197,12 +217,20 @@
 
     <section class="sc-panel" aria-labelledby="chart-medications">
         <h2 class="sc-panel__title" id="chart-medications">Medications</h2>
+        @{ AddLink("medications", "Add medication"); }
         @if (Model.Chart.Medications.Count > 0)
         {
             <ul class="sc-list">
                 @foreach (var medication in Model.Chart.Medications)
                 {
-                    <li><strong>@medication.Display</strong>@if (medication.Dosage is { } dosage) { <text>: @dosage</text> }</li>
+                    <li>
+                        <strong>@medication.Display</strong>@if (medication.Dosage is { } dosage) { <text>: @dosage</text> }
+                        @if (medication.Sensitive)
+                        {
+                            <span class="sc-tag sc-tag--warning">Sensitive</span>
+                        }
+                        @{ EditLink("medications", medication.Id, medication.Display); }
+                    </li>
                 }
             </ul>
         }
@@ -214,6 +242,7 @@
 
     <section class="sc-panel" aria-labelledby="chart-diagnoses">
         <h2 class="sc-panel__title" id="chart-diagnoses">Diagnoses</h2>
+        @{ AddLink("diagnoses", "Add diagnosis"); }
         @if (Model.Chart.Conditions.Count > 0)
         {
             <ul class="sc-list">
@@ -222,7 +251,12 @@
                     <li>
                         <strong>@condition.Display</strong>
                         @if (condition.Code is { } diagnosisCode) { <text>(@diagnosisCode)</text> }
-                        @if (condition.OnsetDate is { } onset) { <text>since @onset.ToString("yyyy-MM-dd")</text> }
+                        @if (condition.OnsetDate is { } onset) { <text> since @onset.ToString("yyyy-MM-dd")</text> }
+                        @if (condition.Sensitive)
+                        {
+                            <span class="sc-tag sc-tag--warning">Sensitive</span>
+                        }
+                        @{ EditLink("diagnoses", condition.Id, condition.Display); }
                     </li>
                 }
             </ul>
@@ -288,3 +322,34 @@
         }
     </section>
 </div>
+
+@functions {
+    // "Add ..." above a list, for a patient on the clinician's panel; off-site with the clinic's server down, a
+    // sentence in its place.
+    void AddLink(string list, string label)
+    {
+        if (Model.OnPanel && OnPrem.IsReachable)
+        {
+            // A plain link: a method like this one can't hold a tag helper.
+            var route = Model.Search.ChartRouteValues(Model.Patient.Id);
+            route["list"] = list;
+            <p class="sc-actions"><a href="@Url.Page("Lists/Entry", route)" class="sc-btn sc-btn--compact" data-add-entry="@list">@label</a></p>
+        }
+        else if (Model.OnPanel)
+        {
+            <p class="sc-muted">Changes to @list need the clinic's server.</p>
+        }
+    }
+
+    // "Change" after an entry: a plain link, so Tab reaches it and Enter follows it.
+    void EditLink(string list, Guid entry, string display)
+    {
+        if (Model.OnPanel && OnPrem.IsReachable)
+        {
+            var route = Model.Search.ChartRouteValues(Model.Patient.Id);
+            route["list"] = list;
+            route["entryId"] = entry;
+            <span class="sc-list__actions"><a href="@Url.Page("Lists/Entry", route)" aria-label="Change: @display" data-change-entry="@list">Change</a></span>
+        }
+    }
+}

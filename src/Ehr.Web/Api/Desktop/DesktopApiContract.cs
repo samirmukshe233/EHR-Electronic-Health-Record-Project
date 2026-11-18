@@ -16,7 +16,9 @@ public sealed record OfflineAccess(Guid ClinicianId, long ExpiresUnixSeconds);
 public sealed record CachedChart(
     Guid Id, string Name, string Mrn, DateOnly BirthDate, string Gender,
     IReadOnlyList<CachedAllergy> Allergies, IReadOnlyList<CachedMedication> Medications,
-    IReadOnlyList<CachedCondition> Conditions, IReadOnlyList<CachedVisit> Visits);
+    IReadOnlyList<CachedCondition> Conditions, IReadOnlyList<CachedVisit> Visits,
+    // How many sensitive diagnoses and medications the chart has that aren't in this copy: they are never kept offline.
+    int SensitiveNotKept = 0);
 
 public sealed record CachedAllergy(string Display, string? Reaction, string? Criticality);
 

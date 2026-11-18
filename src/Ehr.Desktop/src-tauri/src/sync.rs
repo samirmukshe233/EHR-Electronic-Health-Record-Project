@@ -1227,6 +1227,7 @@ mod tests {
                     medications: vec![],
                     conditions: vec![],
                     visits: vec![],
+                    sensitive_not_kept: 0,
                 }],
             )
             .unwrap();

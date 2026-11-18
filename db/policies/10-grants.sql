@@ -60,9 +60,19 @@ GRANT SELECT, INSERT ON ehr.break_glass_accesses TO ehr_app;
 GRANT SELECT ON ehr.break_glass_accesses TO ehr_read;
 
 -- The rest of the chart: allergies, medications, diagnoses (conditions) and visits (encounters). PHI, like patients:
--- row-level security and the write-audit trigger follow. Read only for now: the chart shows them and no page changes
--- them yet, so neither role may write them. The on-prem app reads them as ehr_app, the cloud app as ehr_read.
+-- row-level security and the write-audit trigger follow. The on-prem app reads them as ehr_app, the cloud app as
+-- ehr_read. Clinicians add and change allergies, medications and diagnoses, and mark them inactive: INSERT and UPDATE
+-- for ehr_app, and never DELETE. Visits are still read only.
 GRANT SELECT ON ehr.allergy_intolerances, ehr.medication_statements, ehr.conditions, ehr.encounters TO ehr_app, ehr_read;
+GRANT INSERT, UPDATE ON ehr.allergy_intolerances, ehr.medication_statements, ehr.conditions TO ehr_app;
+
+-- The history of changes to those three lists. PHI: row-level security and the write-audit trigger follow. Read only
+-- for both roles: its rows are written by the database's own trigger, which runs as its owner (65-chart-lists.sql).
+GRANT SELECT ON ehr.chart_history TO ehr_app, ehr_read;
+
+-- The codes a chart entry can be picked from (ICD-10-CM, RxNorm, UNII). Not PHI: grants only. Read by both apps;
+-- nothing at runtime changes it. Its rows are db/reference/*.sql, applied as ehr_owner after these files.
+GRANT SELECT ON ehr.clinical_codes TO ehr_app, ehr_read;
 
 -- Test results (observations). PHI, like the chart: row-level security and the write-audit trigger follow. Read only:
 -- results will come from the lab interface, and no page changes them. The portal reads them on either server.

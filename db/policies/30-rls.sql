@@ -100,8 +100,11 @@ CREATE POLICY break_glass_accesses_own_insert ON ehr.break_glass_accesses FOR IN
     WITH CHECK ((SELECT ehr.is_clinician()) AND clinician_id = (SELECT ehr.current_user_id()));
 
 -- The rest of the chart (PHI): allergies, medications, diagnoses and visits, each row one patient's. Clinicians read
--- every patient's; a patient reads their own. There are no write policies: nothing at runtime writes these tables yet
+-- every patient's; a patient reads their own. Visits have no write policies: nothing at runtime writes them yet
 -- (10-grants.sql), and with row-level security forced a write that got past the grants would still be refused.
+-- Allergies, medications and diagnoses are added and changed by a clinician for a patient on their active panel, the
+-- rule for signing an order; an update can't move an entry to a patient off the panel either (WITH CHECK). Nothing
+-- deletes one, so there is no policy for it.
 ALTER TABLE ehr.allergy_intolerances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ehr.allergy_intolerances FORCE ROW LEVEL SECURITY;
 
@@ -111,6 +114,35 @@ CREATE POLICY allergy_intolerances_clinician_select ON ehr.allergy_intolerances 
 DROP POLICY IF EXISTS allergy_intolerances_own_select ON ehr.allergy_intolerances;
 CREATE POLICY allergy_intolerances_own_select ON ehr.allergy_intolerances FOR SELECT
     USING (patient_id = (SELECT ehr.current_patient_id()));
+
+DROP POLICY IF EXISTS allergy_intolerances_panel_insert ON ehr.allergy_intolerances;
+CREATE POLICY allergy_intolerances_panel_insert ON ehr.allergy_intolerances FOR INSERT
+    WITH CHECK (
+        (SELECT ehr.is_clinician())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = allergy_intolerances.patient_id AND a.ended_at IS NULL
+        )
+    );
+DROP POLICY IF EXISTS allergy_intolerances_panel_update ON ehr.allergy_intolerances;
+CREATE POLICY allergy_intolerances_panel_update ON ehr.allergy_intolerances FOR UPDATE
+    USING (
+        (SELECT ehr.is_clinician())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = allergy_intolerances.patient_id AND a.ended_at IS NULL
+        )
+    )
+    WITH CHECK (
+        (SELECT ehr.is_clinician())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = allergy_intolerances.patient_id AND a.ended_at IS NULL
+        )
+    );
 
 ALTER TABLE ehr.medication_statements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ehr.medication_statements FORCE ROW LEVEL SECURITY;
@@ -122,6 +154,35 @@ DROP POLICY IF EXISTS medication_statements_own_select ON ehr.medication_stateme
 CREATE POLICY medication_statements_own_select ON ehr.medication_statements FOR SELECT
     USING (patient_id = (SELECT ehr.current_patient_id()));
 
+DROP POLICY IF EXISTS medication_statements_panel_insert ON ehr.medication_statements;
+CREATE POLICY medication_statements_panel_insert ON ehr.medication_statements FOR INSERT
+    WITH CHECK (
+        (SELECT ehr.is_clinician())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = medication_statements.patient_id AND a.ended_at IS NULL
+        )
+    );
+DROP POLICY IF EXISTS medication_statements_panel_update ON ehr.medication_statements;
+CREATE POLICY medication_statements_panel_update ON ehr.medication_statements FOR UPDATE
+    USING (
+        (SELECT ehr.is_clinician())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = medication_statements.patient_id AND a.ended_at IS NULL
+        )
+    )
+    WITH CHECK (
+        (SELECT ehr.is_clinician())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = medication_statements.patient_id AND a.ended_at IS NULL
+        )
+    );
+
 ALTER TABLE ehr.conditions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ehr.conditions FORCE ROW LEVEL SECURITY;
 
@@ -131,6 +192,48 @@ CREATE POLICY conditions_clinician_select ON ehr.conditions FOR SELECT USING ((S
 DROP POLICY IF EXISTS conditions_own_select ON ehr.conditions;
 CREATE POLICY conditions_own_select ON ehr.conditions FOR SELECT
     USING (patient_id = (SELECT ehr.current_patient_id()));
+
+DROP POLICY IF EXISTS conditions_panel_insert ON ehr.conditions;
+CREATE POLICY conditions_panel_insert ON ehr.conditions FOR INSERT
+    WITH CHECK (
+        (SELECT ehr.is_clinician())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = conditions.patient_id AND a.ended_at IS NULL
+        )
+    );
+DROP POLICY IF EXISTS conditions_panel_update ON ehr.conditions;
+CREATE POLICY conditions_panel_update ON ehr.conditions FOR UPDATE
+    USING (
+        (SELECT ehr.is_clinician())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = conditions.patient_id AND a.ended_at IS NULL
+        )
+    )
+    WITH CHECK (
+        (SELECT ehr.is_clinician())
+        AND EXISTS (
+            SELECT 1 FROM ehr.patient_assignments a
+            WHERE a.clinician_id = (SELECT ehr.current_user_id())
+              AND a.patient_id = conditions.patient_id AND a.ended_at IS NULL
+        )
+    );
+
+-- The history of changes to allergies, medications and diagnoses (PHI). Clinicians read every patient's, as they read
+-- the lists themselves. Patients don't: the portal shows the lists as they are. No write policies and no write grants:
+-- its rows come from the database's own trigger (65-chart-lists.sql).
+ALTER TABLE ehr.chart_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ehr.chart_history FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS chart_history_clinician_select ON ehr.chart_history;
+CREATE POLICY chart_history_clinician_select ON ehr.chart_history FOR SELECT USING ((SELECT ehr.is_clinician()));
+-- Forced row-level security binds the table's owner too, and the history trigger writes as the owner: this lets it,
+-- and only it. The runtime roles have no INSERT grant, and the policy isn't theirs either.
+DROP POLICY IF EXISTS chart_history_owner_insert ON ehr.chart_history;
+CREATE POLICY chart_history_owner_insert ON ehr.chart_history FOR INSERT TO ehr_owner WITH CHECK (true);
 
 ALTER TABLE ehr.encounters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ehr.encounters FORCE ROW LEVEL SECURITY;

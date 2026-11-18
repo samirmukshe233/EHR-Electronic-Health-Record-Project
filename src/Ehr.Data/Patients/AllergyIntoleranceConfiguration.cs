@@ -14,6 +14,7 @@ public sealed class AllergyIntoleranceConfiguration : IEntityTypeConfiguration<A
             table.HasCheckConstraint("ck_allergy_intolerances_clinical_status", $"clinical_status IN ({Codes.List(AllergyClinicalStatus.All)})");
             table.HasCheckConstraint("ck_allergy_intolerances_category", $"category IN ({Codes.List(AllergyCategory.All)})");
             table.HasCheckConstraint("ck_allergy_intolerances_criticality", $"criticality IN ({Codes.List(AllergyCriticality.All)})");
+            table.HasCheckConstraint("ck_allergy_intolerances_severity", $"severity IN ({Codes.List(AllergySeverity.All)})");
         });
 
         allergy.Property(a => a.Code).HasMaxLength(20);
@@ -21,7 +22,9 @@ public sealed class AllergyIntoleranceConfiguration : IEntityTypeConfiguration<A
         allergy.Property(a => a.ClinicalStatus).HasMaxLength(20);
         allergy.Property(a => a.Category).HasMaxLength(20);
         allergy.Property(a => a.Criticality).HasMaxLength(20);
+        allergy.Property(a => a.CodeSystem).HasMaxLength(20);
         allergy.Property(a => a.Reaction).HasMaxLength(200);
+        allergy.Property(a => a.Severity).HasMaxLength(20);
         // Read by patient, for the chart.
         allergy.HasOne<Patient>().WithMany().HasForeignKey(a => a.PatientId).OnDelete(DeleteBehavior.Restrict);
     }

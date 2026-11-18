@@ -6,6 +6,10 @@ public static class AuditActions
     // A PHI read, recorded by the PHI reader.
     public const string Read = "read";
 
+    // A read that showed a patient's sensitive items (diagnoses and medications marked sensitive), which a chart
+    // leaves out until asked: recorded by the PHI reader in place of the plain read, so one view is one event.
+    public const string ReadSensitive = "read_sensitive";
+
     // Writes to a PHI table, recorded by its trigger.
     public const string Insert = "insert";
 
@@ -71,7 +75,7 @@ public static class AuditActions
     // Every action, for the audit page's filter.
     public static readonly string[] All =
     [
-        Read, Insert, Update, Delete, SignNote, AiReviewStaged, AiFieldReviewed, AiReviewCompleted, SignIn, SignInFailed, SignOut, BreakGlass, BootstrapAdmin, PasswordChanged,
+        Read, ReadSensitive, Insert, Update, Delete, SignNote, AiReviewStaged, AiFieldReviewed, AiReviewCompleted, SignIn, SignInFailed, SignOut, BreakGlass, BootstrapAdmin, PasswordChanged,
         PasswordResetRequested, PasswordReset, AuthenticatorReset, AccountDisabled, AccountEnabled, MfaEnrolled,
         RecoveryCodeUsed, StaffInvited, EnrollmentIssued, PatientRegistered, EmailConfirmed, ConfirmationResent,
         RegistrationReplaced,
