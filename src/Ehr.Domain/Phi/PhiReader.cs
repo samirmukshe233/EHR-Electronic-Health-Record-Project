@@ -33,7 +33,8 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
     // visits, up to `visits`, newest first. It is one view of one patient, so it is one recorded read of the patient,
     // however many rows the sections hold: the same event a list of patients records for each. Draft and signed-note
     // reads have their own table/row events, also accepted by the cloud audit queue (CloudAuditEvents).
-    public async Task<PatientChart?> ChartAsync(Guid id, int visits, CancellationToken cancellationToken, Guid? discontinued = null)
+    public async Task<PatientChart?> ChartAsync(
+        Guid id, int visits, CancellationToken cancellationToken, Guid? discontinued = null, bool sensitive = false)
     {
         var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (patient is null)
@@ -42,6 +43,8 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         }
 
         var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
+        // Sensitive medications and diagnoses are read either way, and left out below unless asked for: the chart
+        // says how many it left out, without another query.
         var medications = await db.MedicationStatements.AsNoTracking()
             .Where(m => m.PatientId == id && m.Status == MedicationStatementStatus.Active)
             .OrderBy(m => m.Display).ThenBy(m => m.Id)
@@ -60,9 +63,114 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         var confirmed = discontinued is not null && await db.Orders.AsNoTracking()
             .AnyAsync(order => order.Id == discontinued && order.PatientId == id && order.Status == OrderStatus.Revoked, cancellationToken);
 
+        var hidden = 0;
+        if (!sensitive)
+        {
+            hidden = medications.RemoveAll(m => m.Sensitive) + conditions.RemoveAll(c => c.Sensitive);
+        }
+
+        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+        if (sensitive)
+        {
+            audit.Record(AuditActions.ReadSensitive, patient.Id, PatientsTable, patient.Id);
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return new PatientChart(patient, allergies, medications, conditions, encounters, orders)
+        {
+            ConfirmsDiscontinued = confirmed,
+            SensitiveHidden = hidden,
+            SensitiveShown = sensitive,
+        };
+    }
+
+    // A patient and their current allergies, for the banner of a patient page that isn't the chart (a note, dictation):
+    // one recorded read of the patient, as PatientAsync is.
+    public async Task<PatientHeader?> HeaderAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient is null)
+        {
+            return null;
+        }
+
+        var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
         audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
         await db.SaveChangesAsync(cancellationToken);
-        return new PatientChart(patient, allergies, medications, conditions, encounters, orders) { ConfirmsDiscontinued = confirmed };
+        return new PatientHeader(patient, allergies);
+    }
+
+    // The form for one entry of a chart list: the patient, their allergies for the banner and, when changing an entry,
+    // that entry, which must be this patient's. One recorded read of the patient; and, when the entry is sensitive, a
+    // recorded read of sensitive items too, since the form shows it.
+    public async Task<ChartEntryForm?> ChartEntryAsync(Guid id, string? table, Guid? entry, CancellationToken cancellationToken)
+    {
+        var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient is null)
+        {
+            return null;
+        }
+
+        var form = new ChartEntryForm(patient, await CurrentAllergies(id).ToListAsync(cancellationToken));
+        if (entry is not null)
+        {
+            form = table switch
+            {
+                "allergy_intolerances" => form with { Allergy = await db.AllergyIntolerances.AsNoTracking().SingleOrDefaultAsync(a => a.Id == entry && a.PatientId == id, cancellationToken) },
+                "medication_statements" => form with { Medication = await db.MedicationStatements.AsNoTracking().SingleOrDefaultAsync(m => m.Id == entry && m.PatientId == id, cancellationToken) },
+                "conditions" => form with { Condition = await db.Conditions.AsNoTracking().SingleOrDefaultAsync(c => c.Id == entry && c.PatientId == id, cancellationToken) },
+                _ => form,
+            };
+        }
+
+        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+        if (form.Medication?.Sensitive == true || form.Condition?.Sensitive == true)
+        {
+            audit.Record(AuditActions.ReadSensitive, patient.Id, PatientsTable, patient.Id);
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return form;
+    }
+
+    // The history of changes to a patient's allergies, medications and diagnoses, newest first, with who made each.
+    // Changes to sensitive entries are left out unless asked for, which is recorded, as on the chart.
+    public async Task<ChartHistory?> ChartHistoryAsync(Guid id, int limit, bool sensitive, CancellationToken cancellationToken)
+    {
+        var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient is null)
+        {
+            return null;
+        }
+
+        var changes = await (
+            from change in db.ChartHistory.AsNoTracking()
+            join staff in db.StaffUsers on change.ChangedById equals staff.Id into changers
+            from staff in changers.DefaultIfEmpty()
+            where change.PatientId == id
+            orderby change.ChangedAt descending, change.Id descending
+            select new ChartChange(change.TableName, change.RowId, change.ChangedAt, staff == null ? null : staff.DisplayName, change.Before, change.After))
+            .Take(limit + 1).ToListAsync(cancellationToken);
+        var more = changes.Count > limit;
+        changes = [.. changes.Take(limit)];
+        var hidden = 0;
+        if (!sensitive)
+        {
+            hidden = changes.RemoveAll(change => IsSensitive(change.After) || IsSensitive(change.Before));
+        }
+
+        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+        if (sensitive)
+        {
+            audit.Record(AuditActions.ReadSensitive, patient.Id, PatientsTable, patient.Id);
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return new ChartHistory(patient, changes, more, hidden, sensitive);
+
+        static bool IsSensitive(string? row) =>
+            row is not null && System.Text.Json.JsonDocument.Parse(row).RootElement.TryGetProperty("sensitive", out var flag)
+            && flag.ValueKind == System.Text.Json.JsonValueKind.True;
     }
 
     // UC 1 (Tahseen Arnan): the order form's view of a patient (OrderForm). One view of one patient, so one recorded read

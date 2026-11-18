@@ -1,0 +1,114 @@
+using Ehr.Data;
+using Ehr.Data.Patients;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+
+namespace Ehr.Domain.Patients;
+
+// Adding to and changing a patient's allergies, medications and diagnoses (the expansion plan's step 2), and the
+// reference codes their entries are picked from. Called inside the page's database transaction
+// (DatabaseTransactionFilter). The reference codes aren't PHI, so they are read here; the patient and the entry being
+// changed are read through PhiReader. Who may write is the page's rule and the database's (a clinician, for a patient
+// on their panel: db/policies/30-rls.sql); the database also keeps the history of every change, marks a diagnosis in a
+// sensitive range sensitive whatever is sent, and records the write (65-chart-lists.sql, 40-audit.sql). Nothing
+// deletes an entry: it is marked inactive, resolved or stopped.
+public sealed class ChartLists(EhrDbContext db)
+{
+    // How many names the search offers as a clinician types.
+    public const int Suggestions = 20;
+
+    public const int MaximumLength = 200;
+
+    // What a patient can have when exposed, offered as the clinician types; anything else can be typed.
+    public static readonly string[] Reactions =
+    [
+        "Anaphylaxis", "Contact dermatitis", "Diarrhea", "Hives", "Itching", "Nausea", "Rash", "Shortness of breath", "Sneezing",
+        "Stomach cramps", "Swelling of the lips", "Vomiting", "Wheezing",
+    ];
+
+    // Names of one kind that match what was typed: first those that start with it, then those with a word that does,
+    // then a diagnosis whose code starts with it. Nothing for fewer than two characters.
+    public async Task<IReadOnlyList<ClinicalCode>> SearchAsync(string kind, string? typed, CancellationToken cancellationToken)
+    {
+        var key = typed?.Trim().ToLowerInvariant() ?? "";
+        if (key.Length < 2 || !ClinicalCodeKind.All.Contains(kind))
+        {
+            return [];
+        }
+
+        var pattern = Like(key);
+        return await db.ClinicalCodes.AsNoTracking()
+            .Where(c => c.Kind == kind && (EF.Functions.Like(c.DisplayKey, pattern + "%") || EF.Functions.Like(c.DisplayKey, "% " + pattern + "%")
+                || EF.Functions.ILike(c.Code, pattern + "%")))
+            .OrderBy(c => EF.Functions.Like(c.DisplayKey, pattern + "%") ? 0 : 1).ThenBy(c => c.DisplayKey).ThenBy(c => c.Code)
+            .Take(Suggestions)
+            .ToListAsync(cancellationToken);
+    }
+
+    // The code whose name is exactly what was picked or typed, in any case.
+    public Task<ClinicalCode?> FindAsync(string kind, string? display, CancellationToken cancellationToken)
+    {
+        var key = display?.Trim().ToLowerInvariant() ?? "";
+        return db.ClinicalCodes.AsNoTracking().Where(c => c.Kind == kind && c.DisplayKey == key).OrderBy(c => c.System).ThenBy(c => c.Code)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    // Adds the entry, or, when it has an ID already, saves every field of it a form can change. False when the database
+    // refused: the patient isn't on the clinician's panel, or the entry isn't theirs to change. Nothing is saved then.
+    public Task<bool> SaveAsync(AllergyIntolerance allergy, bool isNew, CancellationToken cancellationToken) =>
+        SaveAsync(allergy, isNew, cancellationToken, nameof(AllergyIntolerance.Code), nameof(AllergyIntolerance.CodeSystem),
+            nameof(AllergyIntolerance.Display), nameof(AllergyIntolerance.ClinicalStatus), nameof(AllergyIntolerance.Category),
+            nameof(AllergyIntolerance.Criticality), nameof(AllergyIntolerance.Reaction), nameof(AllergyIntolerance.Severity));
+
+    public Task<bool> SaveAsync(MedicationStatement medication, bool isNew, CancellationToken cancellationToken) =>
+        SaveAsync(medication, isNew, cancellationToken, nameof(MedicationStatement.Code), nameof(MedicationStatement.Display),
+            nameof(MedicationStatement.Dosage), nameof(MedicationStatement.Status), nameof(MedicationStatement.EffectiveStart),
+            nameof(MedicationStatement.EffectiveEnd), nameof(MedicationStatement.Sensitive));
+
+    public Task<bool> SaveAsync(Condition condition, bool isNew, CancellationToken cancellationToken) =>
+        SaveAsync(condition, isNew, cancellationToken, nameof(Condition.Code), nameof(Condition.Display), nameof(Condition.ClinicalStatus),
+            nameof(Condition.OnsetDate), nameof(Condition.Sensitive));
+
+    // An insert, or an update of the named columns of the row with the entry's ID. Reads nothing: the page read the
+    // entry as this patient's through PhiReader, and row-level security decides whether the write may happen.
+    async Task<bool> SaveAsync(object entry, bool isNew, CancellationToken cancellationToken, params string[] changed)
+    {
+        const string savepoint = "chart_entry";
+        var transaction = db.Database.CurrentTransaction!;
+        await transaction.CreateSavepointAsync(savepoint, cancellationToken);
+        var tracked = isNew ? db.Add(entry) : db.Attach(entry);
+        if (!isNew)
+        {
+            foreach (var property in changed)
+            {
+                tracked.Property(property).IsModified = true;
+            }
+        }
+
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.ReleaseSavepointAsync(savepoint, cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // No row: not an entry this clinician may change.
+            await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
+            return false;
+        }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.InsufficientPrivilege })
+        {
+            await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
+            return false;
+        }
+        finally
+        {
+            tracked.State = EntityState.Detached;
+        }
+    }
+
+    // What was typed, with LIKE's own characters taken literally.
+    static string Like(string text) => text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal)
+        .Replace("_", "\\_", StringComparison.Ordinal);
+}

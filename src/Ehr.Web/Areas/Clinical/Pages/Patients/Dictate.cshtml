@@ -21,7 +21,7 @@
 }
 @* The patient, in the banner under the app bar. This page reads no allergies, so the banner shows none. *@
 @section Banner {
-    <partial name="_PatientBanner" model="new PatientBanner(Model.Patient)" />
+    <partial name="_PatientBanner" model="new PatientBanner(Model.Patient, Model.Allergies)" />
 }
 <div class="sc-pagehead">
     <p><a asp-page="Chart" asp-all-route-data="chartRoute">Back to the chart</a></p>

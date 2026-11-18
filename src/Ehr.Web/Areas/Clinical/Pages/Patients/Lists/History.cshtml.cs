@@ -1,0 +1,93 @@
+using System.Text.Json;
+using Ehr.Domain.Patients;
+using Ehr.Domain.Phi;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+
+namespace Ehr.Web.Areas.Clinical.Pages.Patients.Lists;
+
+// The history of a patient's allergies, medications and diagnoses: every entry added and every change, newest first,
+// with who made it and when, from ehr.chart_history, which only the database writes. Read-only, so it works off-site
+// like the chart, and open to whoever the chart is open to. One recorded read of the patient. Changes to sensitive
+// entries are left out until asked for, which is recorded, as on the chart.
+public class HistoryModel(PhiReader phi, PatientAssignments assignments, BreakGlass breakGlass) : PageModel
+{
+    public const int Limit = 200;
+
+    [BindProperty(SupportsGet = true)]
+    public SearchQuery Search { get; set; } = SearchQuery.None;
+
+    [BindProperty(SupportsGet = true)]
+    public bool Sensitive { get; set; }
+
+    public ChartHistory History { get; private set; } = null!;
+
+    public static readonly IReadOnlyDictionary<string, string> ListNames = new Dictionary<string, string>
+    {
+        ["allergy_intolerances"] = "Allergy",
+        ["medication_statements"] = "Medication",
+        ["conditions"] = "Diagnosis",
+    };
+
+    // The fields a change is described by, with the words the forms use for them.
+    static readonly (string Column, string Label)[] Fields =
+    [
+        ("display", "Name"), ("clinical_status", "Status"), ("status", "Status"), ("reaction", "Reaction"), ("severity", "Severity"),
+        ("criticality", "Risk"), ("dosage", "How it is taken"), ("effective_start", "Started"), ("effective_end", "Stopped"),
+        ("onset_date", "Onset"), ("sensitive", "Sensitive"),
+    ];
+
+    public Dictionary<string, string> Route(bool sensitive)
+    {
+        var route = Search.RouteData();
+        route["id"] = History.Patient.Id.ToString();
+        if (sensitive)
+        {
+            route["sensitive"] = "true";
+        }
+
+        return route;
+    }
+
+    public static string Name(ChartChange change) => JsonDocument.Parse(change.After).RootElement.GetProperty("display").GetString() ?? "";
+
+    // What the change did, in words: "Added", or each field that changed, from its old value to its new one.
+    public static IReadOnlyList<string> Describe(ChartChange change)
+    {
+        var after = JsonDocument.Parse(change.After).RootElement;
+        if (change.Before is null)
+        {
+            return ["Added"];
+        }
+
+        var before = JsonDocument.Parse(change.Before).RootElement;
+        return [.. Fields.Where(field => after.TryGetProperty(field.Column, out var now) && before.TryGetProperty(field.Column, out var was) && Text(now) != Text(was))
+            .Select(field => $"{field.Label}: {Text(before.GetProperty(field.Column))} → {Text(after.GetProperty(field.Column))}")];
+
+        static string Text(JsonElement value) => value.ValueKind switch
+        {
+            JsonValueKind.Null => "not recorded",
+            JsonValueKind.True => "yes",
+            JsonValueKind.False => "no",
+            _ => value.ToString(),
+        };
+    }
+
+    public async Task<IActionResult> OnGetAsync(Guid id)
+    {
+        Response.Headers.CacheControl = "no-store";
+        if (!await assignments.IsOnPanelAsync(id, HttpContext.RequestAborted)
+            && await breakGlass.ActiveUntilAsync(id, HttpContext.RequestAborted) is null)
+        {
+            return RedirectToPage("/Patients/Reason", Search.ChartRouteValues(id));
+        }
+
+        if (await phi.ChartHistoryAsync(id, Limit, Sensitive, HttpContext.RequestAborted) is not { } history)
+        {
+            return NotFound();
+        }
+
+        History = history;
+        return Page();
+    }
+}

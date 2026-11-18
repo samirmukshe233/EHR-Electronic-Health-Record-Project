@@ -1,0 +1,66 @@
+@page "/patients/{id:guid}/chart-history"
+@model Ehr.Web.Areas.Clinical.Pages.Patients.Lists.HistoryModel
+@{
+    // The address carries the patient. Without htmx, nothing keeps it in the browser's sessionStorage history.
+    ViewData["UseHtmx"] = false;
+    var patient = Model.History.Patient;
+    ViewData["Title"] = $"History of allergies, medications and diagnoses: {patient.FamilyName}, {patient.GivenName}";
+}
+@section Banner {
+    <partial name="_PatientBanner" model="new PatientBanner(patient)" />
+}
+<div class="sc-pagehead">
+    <p><a asp-page="/Patients/Chart" asp-all-route-data="Model.Route(sensitive: false)">Back to the chart</a></p>
+</div>
+<h1>History of allergies, medications and diagnoses: @patient.FamilyName, @patient.GivenName</h1>
+
+@if (Model.History.SensitiveShown)
+{
+    <p class="sc-notice sc-notice--info" data-sensitive="shown"><span class="sc-notice__state">Sensitive items shown:</span> your view of them is recorded. <a asp-page="History" asp-all-route-data="Model.Route(sensitive: false)">Hide sensitive items</a></p>
+}
+else if (Model.History.SensitiveHidden > 0)
+{
+    <p class="sc-notice sc-notice--info" data-sensitive="hidden"><span class="sc-notice__state">Sensitive items hidden:</span> @Model.History.SensitiveHidden @(Model.History.SensitiveHidden == 1 ? "change is" : "changes are") not shown. <a asp-page="History" asp-all-route-data="Model.Route(sensitive: true)">Show sensitive items</a></p>
+}
+
+@if (Model.History.Changes.Count == 0)
+{
+    <p class="sc-muted">No changes recorded.</p>
+}
+else
+{
+    <div class="sc-table-wrap">
+        <table class="sc-table">
+            <thead>
+                <tr>
+                    <th scope="col">When</th>
+                    <th scope="col">By</th>
+                    <th scope="col">List</th>
+                    <th scope="col">Entry</th>
+                    <th scope="col">Change</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var change in Model.History.Changes)
+                {
+                    <tr>
+                        <td class="sc-table__mono">@change.ChangedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC</td>
+                        <td>@(change.ChangedBy ?? "The system")</td>
+                        <td>@HistoryModel.ListNames.GetValueOrDefault(change.TableName, change.TableName)</td>
+                        <td><strong>@HistoryModel.Name(change)</strong></td>
+                        <td>
+                            @foreach (var line in HistoryModel.Describe(change))
+                            {
+                                <div>@line</div>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (Model.History.More)
+    {
+        <p class="sc-muted">Showing the @HistoryModel.Limit most recent changes.</p>
+    }
+}

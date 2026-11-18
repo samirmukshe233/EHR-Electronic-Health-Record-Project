@@ -42,6 +42,11 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
     [BindProperty(SupportsGet = true)]
     public Guid? Discontinued { get; set; }
 
+    // Whether to show the patient's sensitive diagnoses and medications, which the chart otherwise leaves out. Asking
+    // is recorded (PhiReader.ChartAsync).
+    [BindProperty(SupportsGet = true)]
+    public bool Sensitive { get; set; }
+
     public IReadOnlyList<ClinicalDraft> Drafts { get; private set; } = [];
     public IReadOnlyList<ClinicalNote> Notes { get; private set; } = [];
 
@@ -116,7 +121,7 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
             }
         }
 
-        var chart = await phi.ChartAsync(id, RecentVisits, HttpContext.RequestAborted, Discontinued);
+        var chart = await phi.ChartAsync(id, RecentVisits, HttpContext.RequestAborted, Discontinued, Sensitive);
         if (chart is null)
         {
             return NotFound();

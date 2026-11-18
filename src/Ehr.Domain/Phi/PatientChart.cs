@@ -17,7 +17,27 @@ public sealed record PatientChart(
     // UC 1: set when the chart was asked to confirm a discontinuation and that order is this patient's and
     // discontinued. Part of the same recorded read.
     public bool ConfirmsDiscontinued { get; init; }
+
+    // Sensitive diagnoses and medications are left out unless asked for: how many were left out, and whether they
+    // were asked for (and so are in the lists, and the asking was recorded).
+    public int SensitiveHidden { get; init; }
+
+    public bool SensitiveShown { get; init; }
 }
+
+// A patient with their current allergies, for the banner of a page that isn't the chart. One recorded read.
+public sealed record PatientHeader(Patient Patient, IReadOnlyList<AllergyIntolerance> Allergies);
+
+// The form that adds or changes one entry of a patient's allergies, medications or diagnoses, already recorded as one
+// read of the patient: the banner's patient and allergies, and the entry being changed, when there is one.
+public sealed record ChartEntryForm(
+    Patient Patient, IReadOnlyList<AllergyIntolerance> Allergies, AllergyIntolerance? Allergy = null, MedicationStatement? Medication = null,
+    Condition? Condition = null);
+
+// One change to a patient's allergies, medications or diagnoses, as the history page lists it.
+public sealed record ChartChange(string TableName, Guid RowId, DateTimeOffset ChangedAt, string? ChangedBy, string? Before, string After);
+
+public sealed record ChartHistory(Patient Patient, IReadOnlyList<ChartChange> Changes, bool More, int SensitiveHidden, bool SensitiveShown);
 
 // UC 1 (Tahseen Arnan): a patient as the order form shows them, already recorded as one read of the patient: the
 // banner's name and allergies, and, once an item is picked, the patient's active orders for it, for the duplicate warning.
