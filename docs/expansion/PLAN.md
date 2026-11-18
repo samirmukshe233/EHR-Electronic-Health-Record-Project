@@ -13,7 +13,7 @@ Under each step, "In the repo" says what the step touches as the code stood when
 | 0 | This plan | done | expansion/step-00-plan | expansion-step-00 | [44257188518](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44257188518) | |
 | 1 | Change and discontinue orders | done | expansion/step-01-order-changes | expansion-step-01 | [44263160924](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44263160924) | UC 1 (Tahseen). Touches `db/policies` |
 | 2 | Editable allergies, medications, diagnoses | done | expansion/step-02-chart-lists | expansion-step-02 | [44271858512](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44271858512) | UC 4 (Diego), UC 7 (Sara), and the banner on UC 9, 13 and 14's pages (Samir, Satwik). Touches `db/policies`. Notes can't be marked sensitive yet: see the log |
-| 2a | Reference data and a coherent synthetic seed | not started | | | | |
+| 2a | Reference data and a coherent synthetic seed | blocked | expansion/step-02a-reference-data | | | Waiting for Tahseen: a loinc.org account for LOINC; which drug-class source (MED-RT, or FDA classes through RxClass); which interaction list. Nothing built yet on the branch |
 | 3 | Clinician inbox | not started | | | | |
 | 4 | Appointments | not started | | | | |
 | 5 | Secure messaging | not started | | | | |
