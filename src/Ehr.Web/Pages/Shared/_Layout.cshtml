@@ -91,7 +91,13 @@
                         <a asp-area="Clinical" asp-page="/Patients/Index" class="sc-appbar__link" data-search-shortcut aria-keyshortcuts="/" aria-current="@current("/Patients/")">Patients <kbd class="sc-kbd" aria-hidden="true">/</kbd></a>
                     }
                     @* The inbox, with how many items need action when any do (InboxCountFilter). *@
-                    <a asp-area="Clinical" asp-page="/Inbox/Index" class="sc-appbar__link" aria-current="@current("/Inbox/")">Inbox@if (waiting > 0) {<text> <span class="sc-appbar__count" data-inbox-count><span class="sc-visually-hidden">, </span>@waiting<span class="sc-visually-hidden"> to do</span></span></text>}</a>
+                    <a asp-area="Clinical" asp-page="/Inbox/Index" class="sc-appbar__link" aria-current="@current("/Inbox/")">
+                        Inbox
+                        @if (waiting > 0)
+                        {
+                            <span class="sc-appbar__count" data-inbox-count><span class="sc-visually-hidden">, </span>@waiting<span class="sc-visually-hidden"> to do</span></span>
+                        }
+                    </a>
                     <a asp-area="Clinical" asp-page="/QuickTexts/Index" class="sc-appbar__link" aria-current="@current("/QuickTexts/")">Quick text</a>
                     @if (User.IsInRole(StaffRoles.Admin))
                     {

@@ -26,6 +26,8 @@ Early foundation, with the first EHR feature: finding a patient and opening thei
 
 - Editable allergies, medications and diagnoses, with standard codes. From the chart, a clinician with the patient on their panel adds and changes entries, picking each from ICD-10-CM, RxNorm or FDA UNII codes as they type; nothing is deleted, an entry gets another status, and a page lists the history of every change. Mental-health, substance-use and some other diagnoses are sensitive by their code, and a clinician can mark any diagnosis or medication sensitive: sensitive items are left out of the chart until asked for, and asking is recorded. An admin's audit page shows that a sensitive item changed and who changed it, never its values. The allergy list says whether nothing is recorded, there are no known allergies, or what the allergies are. The codes are the full ICD-10-CM and RxNorm lists, loaded from pinned source files by a script, never at runtime, beside LOINC lab orders and results, FDA drug classes and DDInter's interactions, which later steps use. See `docs/UC4.md` and `docs/expansion/reference-data.md`.
 
+- A staff inbox (`/inbox`): what needs each clinician's or admin's action, with a count in the app bar, each item linking to its patient, and "Mark done". It starts empty; later features put their items in it. See `docs/UC15.md`.
+
 **Not built yet:** editing visits, the clinical workflows beyond finding patients, opening charts, orders and writing/signing notes, the portal's appointments, messages and proxy access, and completing an order with its result. `docs/expansion/PLAN.md` is the plan for these and the rest.
 
 ## Layout

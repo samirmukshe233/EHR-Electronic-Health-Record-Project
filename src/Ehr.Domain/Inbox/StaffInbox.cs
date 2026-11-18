@@ -13,6 +13,12 @@ public sealed class StaffInbox(EhrDbContext db)
     // False when the item isn't this person's, or was done already; nothing is saved then.
     public async Task<bool> CompleteAsync(Guid id, CancellationToken cancellationToken)
     {
+        // No such item. (A stand-in with an empty key would be taken for a new row.)
+        if (id == Guid.Empty)
+        {
+            return false;
+        }
+
         const string savepoint = "inbox_item";
         var transaction = db.Database.CurrentTransaction!;
         await transaction.CreateSavepointAsync(savepoint, cancellationToken);
