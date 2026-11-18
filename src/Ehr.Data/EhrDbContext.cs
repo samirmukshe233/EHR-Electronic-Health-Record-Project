@@ -51,6 +51,11 @@ public class EhrDbContext(DbContextOptions<EhrDbContext> options) : DbContext(op
 
     public DbSet<Condition> Conditions => Set<Condition>();
 
+    // Reference codes for chart entries (not PHI), and the history of changes to them (PHI).
+    public DbSet<ClinicalCode> ClinicalCodes => Set<ClinicalCode>();
+
+    public DbSet<ChartHistoryEntry> ChartHistory => Set<ChartHistoryEntry>();
+
     public DbSet<Encounter> Encounters => Set<Encounter>();
 
     public DbSet<ClinicalDraft> ClinicalDrafts => Set<ClinicalDraft>();

@@ -46,11 +46,16 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
         [("ehr_read", "patient_assignments")] = ["SELECT"],
         [("ehr_app", "break_glass_accesses")] = ["SELECT", "INSERT"],
         [("ehr_read", "break_glass_accesses")] = ["SELECT"],
-        [("ehr_app", "allergy_intolerances")] = ["SELECT"],
+        // Chart lists: clinicians add and change entries, and nothing deletes one. Their history is the database's to write.
+        [("ehr_app", "allergy_intolerances")] = ["SELECT", "INSERT", "UPDATE"],
+        [("ehr_app", "chart_history")] = ["SELECT"],
+        [("ehr_read", "chart_history")] = ["SELECT"],
+        [("ehr_app", "clinical_codes")] = ["SELECT"],
+        [("ehr_read", "clinical_codes")] = ["SELECT"],
         [("ehr_read", "allergy_intolerances")] = ["SELECT"],
-        [("ehr_app", "medication_statements")] = ["SELECT"],
+        [("ehr_app", "medication_statements")] = ["SELECT", "INSERT", "UPDATE"],
         [("ehr_read", "medication_statements")] = ["SELECT"],
-        [("ehr_app", "conditions")] = ["SELECT"],
+        [("ehr_app", "conditions")] = ["SELECT", "INSERT", "UPDATE"],
         [("ehr_read", "conditions")] = ["SELECT"],
         [("ehr_app", "ai_note_reviews")] = ["SELECT", "INSERT", "UPDATE"],
         [("ehr_read", "ai_note_reviews")] = ["SELECT"],
@@ -164,7 +169,16 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.patients")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.staff_users")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "INSERT INTO ehr.allergy_intolerances (id, patient_id, display, clinical_status, recorded_at) VALUES (gen_random_uuid(), gen_random_uuid(), 'x', 'active', now())")]
-    [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.medication_statements SET display = 'changed'")]
+    // Chart lists are added to and changed (ChartListSecurityTests), never deleted; their history and the reference
+    // codes are never written at runtime.
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.medication_statements")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.allergy_intolerances")]
+    [InlineData("ehr_read", MigratedDatabase.ReadPassword, "UPDATE ehr.medication_statements SET display = 'changed'")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.chart_history SET after = '{}'")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.chart_history")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "INSERT INTO ehr.chart_history (id, patient_id, table_name, row_id, changed_at, after) VALUES (gen_random_uuid(), gen_random_uuid(), 'conditions', gen_random_uuid(), now(), '{}')")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.clinical_codes SET display = 'changed'")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.clinical_codes")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.conditions")]
     [InlineData("ehr_read", MigratedDatabase.ReadPassword, "INSERT INTO ehr.encounters (id, patient_id, status, class_code, period_start) VALUES (gen_random_uuid(), gen_random_uuid(), 'finished', 'AMB', now())")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.observations SET status = 'cancelled'")]

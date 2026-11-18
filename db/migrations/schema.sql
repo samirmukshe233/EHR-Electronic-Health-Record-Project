@@ -734,3 +734,63 @@ VALUES ('20261118072929_OrderChanges', '10.0.13');
 
 COMMIT;
 
+START TRANSACTION;
+ALTER TABLE ehr.medication_statements ADD sensitive boolean NOT NULL DEFAULT FALSE;
+
+ALTER TABLE ehr.conditions ADD sensitive boolean NOT NULL DEFAULT FALSE;
+
+ALTER TABLE ehr.allergy_intolerances ADD code_system character varying(20);
+
+ALTER TABLE ehr.allergy_intolerances ADD severity character varying(20);
+
+CREATE TABLE ehr.chart_history (
+    id uuid NOT NULL,
+    patient_id uuid NOT NULL,
+    table_name character varying(63) NOT NULL,
+    row_id uuid NOT NULL,
+    changed_at timestamp with time zone NOT NULL,
+    changed_by_id uuid,
+    before jsonb,
+    after jsonb NOT NULL,
+    CONSTRAINT pk_chart_history PRIMARY KEY (id),
+    CONSTRAINT fk_chart_history_patients_patient_id FOREIGN KEY (patient_id) REFERENCES ehr.patients (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_chart_history_staff_users_changed_by_id FOREIGN KEY (changed_by_id) REFERENCES ehr.staff_users (id) ON DELETE RESTRICT
+);
+
+CREATE TABLE ehr.clinical_codes (
+    kind character varying(20) NOT NULL,
+    system character varying(20) NOT NULL,
+    code character varying(20) NOT NULL,
+    display character varying(300) NOT NULL,
+    display_key character varying(300) GENERATED ALWAYS AS (lower(display)) STORED NOT NULL,
+    category character varying(20),
+    sensitive boolean NOT NULL,
+    CONSTRAINT pk_clinical_codes PRIMARY KEY (kind, system, code),
+    CONSTRAINT ck_clinical_codes_category CHECK (category IN ('food', 'medication', 'environment', 'biologic')),
+    CONSTRAINT ck_clinical_codes_kind CHECK (kind IN ('condition', 'medication', 'allergen')),
+    CONSTRAINT ck_clinical_codes_system CHECK (system IN ('icd-10-cm', 'rxnorm', 'unii'))
+);
+
+ALTER TABLE ehr.allergy_intolerances NO FORCE ROW LEVEL SECURITY;
+UPDATE ehr.allergy_intolerances SET code = 'no-known-allergy' WHERE code = '716186003';
+DO $$
+BEGIN
+    IF (SELECT relrowsecurity FROM pg_class WHERE oid = 'ehr.allergy_intolerances'::regclass) THEN
+        ALTER TABLE ehr.allergy_intolerances FORCE ROW LEVEL SECURITY;
+    END IF;
+END
+$$;
+
+ALTER TABLE ehr.allergy_intolerances ADD CONSTRAINT ck_allergy_intolerances_severity CHECK (severity IN ('mild', 'moderate', 'severe'));
+
+CREATE INDEX ix_chart_history_changed_by_id ON ehr.chart_history (changed_by_id);
+
+CREATE INDEX ix_chart_history_patient_id_table_name_changed_at ON ehr.chart_history (patient_id, table_name, changed_at);
+
+CREATE INDEX ix_clinical_codes_kind_display_key ON ehr.clinical_codes (kind, display_key text_pattern_ops);
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261118081856_ChartLists', '10.0.13');
+
+COMMIT;
+

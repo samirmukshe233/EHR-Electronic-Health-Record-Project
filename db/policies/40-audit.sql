@@ -90,6 +90,10 @@ CREATE OR REPLACE TRIGGER ai_field_proposals_audit
     AFTER INSERT OR UPDATE OR DELETE ON ehr.ai_field_proposals
     FOR EACH ROW EXECUTE FUNCTION ehr.record_write();
 
+CREATE OR REPLACE TRIGGER chart_history_audit
+    AFTER INSERT OR UPDATE OR DELETE ON ehr.chart_history
+    FOR EACH ROW EXECUTE FUNCTION ehr.record_write();
+
 CREATE OR REPLACE TRIGGER orders_audit
     AFTER INSERT OR UPDATE OR DELETE ON ehr.orders
     FOR EACH ROW EXECUTE FUNCTION ehr.record_write();

@@ -19,6 +19,9 @@ public static class Seeder
     // The tables the seed fills, in the order it fills them, patients first.
     public static readonly string[] Tables = ["patients", "allergy_intolerances", "medication_statements", "conditions", "encounters", "observations"];
 
+    // The ones whose changes are kept as history (ehr.chart_history), by a trigger the seed also turns off while it loads.
+    static readonly string[] HistoryTables = ["allergy_intolerances", "medication_statements", "conditions"];
+
     // Loads the clinic, and returns how many rows went into each table.
     public static async Task<IReadOnlyDictionary<string, ulong>> LoadAsync(string connectionString, SyntheticClinic clinic, CancellationToken cancellationToken)
     {
@@ -31,6 +34,12 @@ public static class Seeder
             foreach (var table in Tables)
             {
                 await ExecuteAsync(connection, $"ALTER TABLE ehr.{table} NO FORCE ROW LEVEL SECURITY; ALTER TABLE ehr.{table} DISABLE TRIGGER {table}_audit", cancellationToken);
+            }
+
+            // Seeded entries have no history either: they were never changed.
+            foreach (var table in HistoryTables)
+            {
+                await ExecuteAsync(connection, $"ALTER TABLE ehr.{table} DISABLE TRIGGER {table}_history", cancellationToken);
             }
 
             // Only now does the owner see every row.
@@ -148,6 +157,11 @@ public static class Seeder
                 await ExecuteAsync(connection, $"ALTER TABLE ehr.{table} ENABLE TRIGGER {table}_audit; ALTER TABLE ehr.{table} FORCE ROW LEVEL SECURITY", cancellationToken);
             }
 
+            foreach (var table in HistoryTables)
+            {
+                await ExecuteAsync(connection, $"ALTER TABLE ehr.{table} ENABLE TRIGGER {table}_history", cancellationToken);
+            }
+
             await transaction.CommitAsync(cancellationToken);
         }
 
@@ -167,6 +181,8 @@ public static class Seeder
             LEFT JOIN pg_trigger t ON t.tgrelid = c.oid AND t.tgname = c.relname || '_audit'
             WHERE n.nspname = 'ehr' AND c.relname = ANY(@tables)
               AND c.relrowsecurity AND c.relforcerowsecurity AND t.tgenabled = 'O'
+              -- and no other trigger of its own left off, such as a chart list's history trigger
+              AND NOT EXISTS (SELECT 1 FROM pg_trigger off WHERE off.tgrelid = c.oid AND NOT off.tgisinternal AND off.tgenabled <> 'O')
             """,
             connection);
         command.Parameters.AddWithValue("tables", Tables);
