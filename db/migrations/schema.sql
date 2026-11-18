@@ -988,3 +988,32 @@ VALUES ('20261118105915_ReferenceTables', '10.0.13');
 
 COMMIT;
 
+START TRANSACTION;
+CREATE TABLE ehr.inbox_items (
+    id uuid NOT NULL,
+    recipient_id uuid NOT NULL,
+    kind character varying(40) NOT NULL,
+    patient_id uuid,
+    source_table character varying(63),
+    source_id uuid,
+    summary character varying(300) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    done_at timestamp with time zone,
+    CONSTRAINT pk_inbox_items PRIMARY KEY (id),
+    CONSTRAINT ck_inbox_items_kind CHECK (kind IN ('message', 'result', 'refill-request', 'emergency-access-review')),
+    CONSTRAINT ck_inbox_items_source CHECK ((source_table IS NULL) = (source_id IS NULL)),
+    CONSTRAINT fk_inbox_items_patients_patient_id FOREIGN KEY (patient_id) REFERENCES ehr.patients (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_inbox_items_staff_users_recipient_id FOREIGN KEY (recipient_id) REFERENCES ehr.staff_users (id) ON DELETE RESTRICT
+);
+
+CREATE INDEX ix_inbox_items_patient_id ON ehr.inbox_items (patient_id);
+
+CREATE INDEX ix_inbox_items_recipient_id_created_at ON ehr.inbox_items (recipient_id, created_at) WHERE done_at IS NULL;
+
+CREATE INDEX ix_inbox_items_recipient_id_done_at ON ehr.inbox_items (recipient_id, done_at) WHERE done_at IS NOT NULL;
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261118120345_InboxItems', '10.0.13');
+
+COMMIT;
+

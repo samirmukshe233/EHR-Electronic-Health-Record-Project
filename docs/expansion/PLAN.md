@@ -15,7 +15,7 @@ Under each step, "In the repo" says what the step touches as the code stood when
 | 2 | Editable allergies, medications, diagnoses | done | expansion/step-02-chart-lists | expansion-step-02 | [44271858512](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44271858512) | UC 4 (Diego), UC 7 (Sara), and the banner on UC 9, 13 and 14's pages (Samir, Satwik). Touches `db/policies`. Notes can't be marked sensitive yet: see the log |
 | 2b | Sensitive-item and allergy-status fixes | done | expansion/step-02b-sensitive-fixes | expansion-step-02b | [44286735927](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44286735927) | Inserted by Tahseen on 2026-11-18. UC 4 (Diego), UC 7 (Sara), UC 12 (Luke). Touches `db/policies` |
 | 2a | Reference data and a coherent synthetic seed | done | expansion/step-02a-reference-data | expansion-step-02a | [44297723824](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44297723824) | LOINC loaded from Tahseen's download. CVX not loaded (optional). Open questions for Tahseen in the log |
-| 3 | Clinician inbox | not started | | | | |
+| 3 | Clinician inbox | done | expansion/step-03-inbox | expansion-step-03 | [44304586912](https://github.com/tarnan3751/EHR-Electronic-Health-Record-Project/actions/runs/44304586912) | New UC 15 (proposed). Admins have an inbox too. Touches `db/policies` |
 | 4 | Appointments | not started | | | | |
 | 5 | Secure messaging | not started | | | | |
 | 6 | Proxy access | not started | | | | |
@@ -398,6 +398,7 @@ New FR IDs (FR-37 onward) and use cases (UC 15 onward), as each step defines the
 | --- | --- | --- |
 | FR-37 | 1 | The system shall let clinicians discontinue a signed order with a reason, and change one by signing a replacement, without ever editing or deleting the signed order; it shall keep who, when and why. (Extends UC 1; test cases TC-UC1-07 to TC-UC1-12.) |
 | FR-38 | 2 | The system shall let clinicians add and change a patient's allergies, medications and diagnoses, each picked from a standard code list, never deleting an entry and keeping the history of every change. (Extends UC 4; test cases TC-UC4-07 to TC-UC4-12.) |
+| UC 15, FR-41 | 3 | Work through the inbox. The system shall give each staff member one list of the items that need their action, show how many on every clinical page, link each item to its patient, and record when each is done. (Test cases TC-UC15-01 to TC-UC15-06.) |
 | FR-40 | 2b | The system shall show an administrator reviewing the audit log that a sensitive item changed and who changed it, and never the item's values. |
 | FR-39 | 2 | The system shall treat mental-health, substance-use and other designated diagnoses, and any item a clinician marks, as sensitive: left out of a chart until asked for, with each such view recorded. |
 
@@ -471,6 +472,11 @@ One entry per decision: date, step, the decision, and why.
   - *Not planned unless Tahseen asks:* CVX (the plan calls it optional).
 - **2026-11-18, step 2a, as built.** Parts A to F of the design above are done as written, with these choices. The code and catalog searches use PostgreSQL's own text search for words inside a name: no extension to install. The order catalog keeps the 29 common items, which the form lists, and finds the 13,490 standard ones by search. Reference ranges are this clinic's own, labeled as such and as not validated. A drug class is kept when four in five of an ingredient's single-ingredient labels carry it; classes are stored by name, never by MED-RT's code. The cross-reactivity table has two rows, both from the 2022 drug allergy practice parameter. Synthea is the seed's model, not its generator. The review agent wasn't run: the only protected-path change is one read-only grant.
 - **2026-11-18, step 2a, open for Tahseen.** (1) DDInter's download files hold two drug names and a level, and no management advice: step 8 can show severity only, unless he chooses otherwise. (2) No license text was found on DDInter's download page; `db/reference/ddinter/LICENSE.md` records CC BY-NC-SA 4.0 as his decision, to be confirmed. (3) Only 81,610 of DDInter's 222,383 rows are usable (the rest are of unknown level or name a drug that isn't a RxNorm ingredient). (4) 3,941 of RxNorm's 5,886 ingredients have no FDA class, so get no class check.
+- **2026-11-18, step 3. The inbox is every staff member's, not only clinicians'.** Step 18 puts emergency-access reviews in admins' inboxes, so the table, the policies and the page take any staff account. An admin's items show a patient by ID only and record no read, as the audit page does; so an item's summary must stay free of clinical detail.
+- **2026-11-18, step 3. No runtime role can create an inbox item yet.** Each later step (5, 7, 13d, 18) adds the narrowest grant or trigger for its own kind. The four kinds are already in the table's check constraint.
+- **2026-11-18, step 3. Marking done is a column grant on `done_at` with a trigger,** the pattern of step 1: once, at the database's time, nothing else changes, nothing reopens. Items are never deleted.
+- **2026-11-18, step 3. The app bar's count is one index lookup made by a page filter inside the page's transaction,** on full clinical GET pages only. It isn't an audited read: it says nothing about a patient. `LayoutTests.cs`, which the plan named, wasn't changed: the UC 15 test cases cover the link and the count.
+- **2026-11-18, step 3. Not in the desktop app.** Nothing creates items yet, and an offline inbox would need its own sync; revisit with step 5.
 
 ## Log
 
@@ -503,3 +509,8 @@ One entry per session or step: date, step, what was done, measurements (p99, pag
   - *Not checked on the stack:* no screenshots this step; the one UI change is the order form's suggestions, covered by a test.
   - *Heads-up:* none beyond UC 1 (Tahseen).
   - *Resume at step 3,* the clinician inbox.
+- **2026-11-18, step 3. Clinician inbox (new UC 15, proposed FR-41).** Migration `InboxItems`; `db/policies` 10, 30, 40 and the new `70-inbox.sql`; `StaffInbox`, `PhiReader.InboxAsync` and `InboxCountAsync`, `InboxCountFilter`, the page at `/inbox` (needs action, done), the app bar link with its count (`sc-appbar__count`, noted in the brand guide). Tests: 721, 701 passed, 20 skipped (performance cases); 6 in `InboxSecurityTests`, TC-UC15-01 to 06 (the last a keyboard-only browser test). `docs/UC15.md`, README. Looked at the inbox, its focus ring and the count in light and dark, and at 640px, on the stack, where two synthetic items were added by hand for the test clinician (they are still there).
+  - *Review.* The review agent passed it with minor points; three are fixed (an index-friendly filter, the count on the page a refused "Mark done" returns, truer wording for that notice). Left as they are: the count also runs on GETs that only redirect, and `/codes` is skipped by its path.
+  - *Measurements* (this Mac, 50,000 patients; p99 whole request / excluding the commit, ms). On-site: inbox with 40 items 3.9 / 3.6; chart 6.6 / 5.6, panel 10.4 / 10.0, order form 4.1 / 3.6, each now counting the inbox. Off-site: inbox 12.1 / 6.8, chart 14.1 / 9.8. `--assert` passed. The inbox page loads no script of its own; first contentful paint not measured.
+  - *Heads-up:* everyone, lightly: every clinical page's app bar gained an "Inbox" link.
+  - *Resume at step 4,* appointments.

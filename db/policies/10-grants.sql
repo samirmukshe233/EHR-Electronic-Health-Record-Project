@@ -119,6 +119,13 @@ GRANT SELECT, INSERT ON ehr.orders TO ehr_app;
 GRANT UPDATE (status, discontinue_reason, replaced_by_order_id) ON ehr.orders TO ehr_app;
 GRANT SELECT ON ehr.orders TO ehr_read;
 
+-- The staff inbox: what needs a staff member's action. PHI: row-level security and the write-audit trigger follow.
+-- Read by its recipient. The one change is marking an item done: UPDATE on that column alone, and a trigger sets the
+-- time and refuses anything else (70-inbox.sql). No INSERT yet: each kind of item gets its grant, or its trigger, with
+-- the feature that creates it. Never DELETE.
+GRANT SELECT ON ehr.inbox_items TO ehr_app, ehr_read;
+GRANT UPDATE (done_at) ON ehr.inbox_items TO ehr_app;
+
 -- UC 13: private, auditable proposals and decisions; replica reads use identical forced ownership RLS.
 GRANT SELECT, INSERT, UPDATE ON ehr.ai_note_reviews, ehr.ai_field_proposals TO ehr_app;
 GRANT SELECT ON ehr.ai_note_reviews, ehr.ai_field_proposals TO ehr_read;
