@@ -84,7 +84,9 @@ internal static partial class RenderBenchmark
                 Console.WriteLine($"Starting PostgreSQL 18 and seeding {patients:N0} synthetic patients...");
                 database = MigratedDatabase.Durable();
                 await database.InitializeAsync();
-                await Seeder.LoadAsync(database.OwnerConnectionString, new SyntheticClinic(patients), CancellationToken.None);
+                var seeding = Stopwatch.StartNew();
+                var seeded = await Seeder.LoadAsync(database.OwnerConnectionString, new SyntheticClinic(patients), CancellationToken.None);
+                Console.WriteLine($"Seeded in {seeding.Elapsed.TotalSeconds:F1} s: {string.Join(", ", seeded.Select(table => $"{table.Value:N0} {table.Key}"))}");
                 connectionString = database.ConnectionStringFor("ehr_app", MigratedDatabase.AppPassword);
             }
 
