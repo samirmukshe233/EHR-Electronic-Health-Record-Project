@@ -90,8 +90,18 @@ else
     @if (Model.List != "allergies")
     {
         <div class="sc-field">
-            <label class="sc-check" for="entry-sensitive"><input type="checkbox" id="entry-sensitive" name="Sensitive" value="true" checked="@Model.Sensitive" aria-describedby="entry-sensitive-hint"> Sensitive</label>
-            <p class="sc-field__hint" id="entry-sensitive-hint">A sensitive @Model.About.One is left off the chart until someone asks to see sensitive items, which is recorded.@(Model.List == "diagnoses" ? " Mental health, substance use and some other diagnoses are always sensitive." : "")</p>
+            @if (Model.SensitiveByCode)
+            {
+                @* Marked by the rule, so it can't be cleared (docs/brand: Sensitive items). A disabled box isn't posted;
+                   the page and the database keep the diagnosis sensitive either way. *@
+                <label class="sc-check" for="entry-sensitive"><input type="checkbox" id="entry-sensitive" checked disabled aria-describedby="entry-sensitive-hint"> Sensitive</label>
+                <p class="sc-field__hint" id="entry-sensitive-hint">Sensitive by its code. A sensitive diagnosis is left off the chart until someone asks to see sensitive items, which is recorded.</p>
+            }
+            else
+            {
+                <label class="sc-check" for="entry-sensitive"><input type="checkbox" id="entry-sensitive" name="Sensitive" value="true" checked="@Model.Sensitive" aria-describedby="entry-sensitive-hint"> Sensitive</label>
+                <p class="sc-field__hint" id="entry-sensitive-hint">A sensitive @Model.About.One is left off the chart until someone asks to see sensitive items, which is recorded.@(Model.List == "diagnoses" ? " Mental health, substance use and some other diagnoses are always sensitive." : "")</p>
+            }
         </div>
     }
     <div class="sc-actions">

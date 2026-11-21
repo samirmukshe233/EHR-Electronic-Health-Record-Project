@@ -292,6 +292,34 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Equal(["no-known-allergy active"], await RowsAsync(apps, "allergy_intolerances", patient, "code || ' ' || clinical_status"));
     }
 
+    // A diagnosis sensitive by its code has its "Sensitive" box checked and fixed, with a hint that says why, and
+    // stays sensitive whatever is posted; any other diagnosis's box can be checked and cleared.
+    [Fact]
+    public async Task A_diagnosis_sensitive_by_its_code_has_its_sensitive_box_fixed()
+    {
+        var (_, patient, session) = await OnPanelAsync(apps, "Fixed box");
+        using var anxiety = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Generalized anxiety disorder"), ("Status", "active"));
+        using var hypertension = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Essential (primary) hypertension"), ("Status", "active"));
+        var ids = (await RowsAsync(apps, "conditions", patient, "id::text", "display")).Select(Guid.Parse).ToList();
+        var (anxietyId, hypertensionId) = (ids[1], ids[0]);
+        const string fixedBox = "<input type=\"checkbox\" id=\"entry-sensitive\" checked disabled aria-describedby=\"entry-sensitive-hint\">";
+
+        var byCode = await session.Client.GetStringAsync(EntryPath(patient, "diagnoses", anxietyId), Cancel);
+        Assert.Contains(fixedBox, byCode);
+        Assert.Contains("Sensitive by its code.", Words(byCode));
+        var other = await session.Client.GetStringAsync(EntryPath(patient, "diagnoses", hypertensionId), Cancel);
+        Assert.DoesNotContain("disabled", other);
+        Assert.Contains("name=\"Sensitive\" value=\"true\"", other);
+
+        // Posted without the box, as a disabled box is: still sensitive. And a form shown again after a mistake keeps it fixed.
+        using var changed = await SaveAsync(session.Client, patient, "diagnoses", anxietyId, ("Name", "Generalized anxiety disorder"), ("Status", "remission"));
+        Assert.Equal(["Essential (primary) hypertension false", "Generalized anxiety disorder true"],
+            await RowsAsync(apps, "conditions", patient, "display || ' ' || sensitive"));
+        using var mistake = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Generalized anxiety disorder"), ("Status", "active"), ("Onset", "2999-01-01"));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, mistake.StatusCode);
+        Assert.Contains(fixedBox, await mistake.Content.ReadAsStringAsync(Cancel));
+    }
+
     // The entry form is never kept by the browser, opened to add or to change, and a sensitive entry's form included:
     // the page says so itself, whatever else on it would.
     [Fact]

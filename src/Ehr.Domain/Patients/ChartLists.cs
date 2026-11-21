@@ -48,6 +48,14 @@ public sealed class ChartLists(EhrDbContext db)
             .ToListAsync(cancellationToken);
     }
 
+    // Whether a diagnosis's ICD-10-CM code is sensitive by the rule (ehr.icd10cm_is_sensitive), as the loaded reference
+    // codes record it: the entry form shows such a diagnosis's "Sensitive" box checked and fixed. The database marks it
+    // whatever the form sends, so a code missing from the reference list is still marked; the form just can't say so.
+    public Task<bool> IsSensitiveDiagnosisAsync(string? code, CancellationToken cancellationToken) =>
+        code is null
+            ? Task.FromResult(false)
+            : db.ClinicalCodes.AsNoTracking().AnyAsync(c => c.Kind == ClinicalCodeKind.Condition && c.Code == code && c.Sensitive, cancellationToken);
+
     // The code whose name is exactly what was picked or typed, in any case.
     public Task<ClinicalCode?> FindAsync(string kind, string? display, CancellationToken cancellationToken)
     {

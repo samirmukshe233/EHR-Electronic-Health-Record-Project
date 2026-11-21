@@ -80,6 +80,9 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
     // which reads nothing about the patient.
     public ChartEntryForm Form { get; private set; } = null!;
 
+    // A diagnosis whose code is in a sensitive range: its "Sensitive" box is shown checked and can't be cleared.
+    public bool SensitiveByCode { get; private set; }
+
     // Set when the post came from a clinician who no longer has the patient on their panel.
     public bool OffPanel { get; private set; }
 
@@ -129,6 +132,7 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
         else if (Form.Condition is { } condition)
         {
             (Name, Status, Onset, Sensitive) = (condition.Display, condition.ClinicalStatus, Date(condition.OnsetDate), condition.Sensitive);
+            SensitiveByCode = await lists.IsSensitiveDiagnosisAsync(condition.Code, HttpContext.RequestAborted);
         }
         else
         {
@@ -189,6 +193,14 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
         if (started is not null && stopped is not null && stopped < started)
         {
             errors[nameof(Stopped)] = "The stop date is before the start date.";
+        }
+
+        // A diagnosis sensitive by its code stays sensitive whatever was posted (its box is fixed, and a disabled box
+        // isn't sent); the database holds the same rule.
+        if (List == "diagnoses")
+        {
+            SensitiveByCode = code?.Sensitive ?? (kept && await lists.IsSensitiveDiagnosisAsync(Form.Condition?.Code, HttpContext.RequestAborted));
+            Sensitive |= SensitiveByCode;
         }
 
         if (errors.Count > 0)

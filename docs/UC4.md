@@ -24,7 +24,7 @@ Open a patient on your panel. Each of **Allergies**, **Medications** and **Diagn
 
 ### Sensitive items
 
-Mental-health, substance-use and some other diagnoses are sensitive by their code (`docs/expansion/reference-data.md` has the ranges), and you can mark any diagnosis or medication sensitive. The chart leaves sensitive items out and says how many it left out. **Show sensitive items** reloads the chart with them, each tagged "Sensitive", and that view is recorded in the audit log as `read_sensitive`. The history page follows the same rule, and so does opening a sensitive entry's form. Sensitive items are never in the patient banner, and the desktop app doesn't keep them offline.
+Mental-health, substance-use and some other diagnoses are sensitive by their code (`docs/expansion/reference-data.md` has the ranges), and you can mark any diagnosis or medication sensitive. On the form, a diagnosis sensitive by its code has its **Sensitive** box checked and fixed, with the hint "Sensitive by its code". (A new diagnosis is checked once it's saved or the form comes back, since the code isn't known while you type; the database marks it either way.) The chart leaves sensitive items out and says how many it left out. **Show sensitive items** reloads the chart with them, each tagged "Sensitive", and that view is recorded in the audit log as `read_sensitive`. The history page follows the same rule, and so does opening a sensitive entry's form. Sensitive items are never in the patient banner, and the desktop app doesn't keep them offline.
 
 ## Decisions
 
