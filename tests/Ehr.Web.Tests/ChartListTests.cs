@@ -209,6 +209,28 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
         }
     }
 
+    // The search the clinician came from travels through the form and back to the chart, and the entry's own name
+    // never becomes a search criterion: it would put the name, a sensitive diagnosis's too, in the chart's address.
+    [Fact]
+    public async Task Saving_an_entry_keeps_the_search_and_never_puts_the_entrys_name_in_the_address()
+    {
+        var (_, patient, session) = await OnPanelAsync(apps, "Addressed");
+        var form = $"{EntryPath(patient, "diagnoses")}?name=Addressed";
+
+        using var saved = await PostFormAsync(session.Client, form, form, ("Name", "Generalized anxiety disorder"), ("Status", "active"));
+
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        var address = saved.RequestMessage!.RequestUri!;
+        Assert.Equal($"/patients/{patient}", address.AbsolutePath);
+        Assert.Contains("name=Addressed", address.Query);
+        Assert.DoesNotContain("anxiety", Uri.UnescapeDataString(address.Query), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("anxiety", await saved.Content.ReadAsStringAsync(Cancel), StringComparison.OrdinalIgnoreCase);
+
+        // Without a search, nothing at all is added for one.
+        using var plain = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Essential (primary) hypertension"), ("Status", "active"));
+        Assert.DoesNotContain("name=", plain.RequestMessage!.RequestUri!.Query);
+    }
+
     // Off-site, a saved entry is forwarded to the on-site server; the history is read from the cloud copy.
     [Fact]
     public async Task Off_site_a_saved_entry_is_forwarded_and_saved_on_site()

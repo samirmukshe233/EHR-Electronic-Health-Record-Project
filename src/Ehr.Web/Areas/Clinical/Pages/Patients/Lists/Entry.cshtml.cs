@@ -30,7 +30,10 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
             ["diagnoses"] = ("conditions", ClinicalCodeKind.Condition, "diagnosis", "Diagnosis"),
         };
 
+    // The search the clinician came from, from the address only: the form's own Name field is the entry's name, and
+    // bound as a search criterion it would put the entry's name, a sensitive diagnosis's too, into the chart's address.
     [BindProperty(SupportsGet = true)]
+    [FromQuery]
     public SearchQuery Search { get; set; } = SearchQuery.None;
 
     [BindProperty(SupportsGet = true)]
