@@ -137,7 +137,6 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
 
     public async Task<IActionResult> OnPostAsync(Guid id)
     {
-        Response.Headers.CacheControl = "no-store";
         if (await LoadAsync(id) is { } refused)
         {
             return refused;
@@ -265,9 +264,11 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
         return null;
     }
 
-    // The gate, then the one recorded read. Null when the form may be shown.
+    // The gate, then the one recorded read. Null when the form may be shown. Never cached, opened or posted, as the
+    // chart isn't: the form can show a sensitive entry, and it shouldn't stay on a shared computer's disk.
     async Task<IActionResult?> LoadAsync(Guid id)
     {
+        Response.Headers.CacheControl = "no-store";
         if (!Lists.ContainsKey(List))
         {
             return NotFound();

@@ -192,6 +192,23 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Contains("<strong>Peanut</strong>: Anaphylaxis", await ReadAsync(created));
     }
 
+    // The entry form is never kept by the browser, opened to add or to change, and a sensitive entry's form included:
+    // the page says so itself, whatever else on it would.
+    [Fact]
+    public async Task The_entry_form_is_never_cached()
+    {
+        var (_, patient, session) = await OnPanelAsync(apps, "Uncached");
+        using var added = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Generalized anxiety disorder"), ("Status", "active"));
+        var entry = await IdAsync(apps, "conditions", patient);
+
+        foreach (var path in new[] { EntryPath(patient, "diagnoses"), EntryPath(patient, "medications"), EntryPath(patient, "allergies"), EntryPath(patient, "diagnoses", entry) })
+        {
+            using var form = await session.Client.GetAsync(path, Cancel);
+            Assert.Equal(HttpStatusCode.OK, form.StatusCode);
+            Assert.True(form.Headers.CacheControl?.NoStore, $"{path} may be cached: {form.Headers.CacheControl}");
+        }
+    }
+
     // Off-site, a saved entry is forwarded to the on-site server; the history is read from the cloud copy.
     [Fact]
     public async Task Off_site_a_saved_entry_is_forwarded_and_saved_on_site()
