@@ -12,7 +12,11 @@
 --   X71-X83           intentional self-harm
 --   T14.91            suicide attempt
 --   R45.851           suicidal ideations
+--   R45.88            nonsuicidal self-harm
 --   Z91.51, Z91.52    personal history of suicidal behavior, and of nonsuicidal self-harm
+--   T71.1x2, T71.2x2  asphyxiation, intentional self-harm: the T71.1 and T71.2 codes whose sixth character is 2
+--                     (T71.162A). Checked against the fiscal year 2027 code file: exactly its 24 "intentional
+--                     self-harm" codes in T71, and no others.
 --   T36-T65, intent 2 poisoning by drugs and toxic effects of other substances, intentional self-harm: the codes whose
 --                     sixth character is 2 (T39.012A), and those of a four-character subcategory, where the 2 is
 --                     the fifth and an X fills the sixth (T36.92XA). Checked against the fiscal year 2027 code file:
@@ -28,9 +32,10 @@ AS $$
     SELECT coalesce(
         c ~ '^F[0-9][0-9A-Z]'
         OR (c ~ '^A[0-9]{2}' AND substr(c, 1, 3) BETWEEN 'A50' AND 'A64')
-        OR c ~ '^(B20|Z21|O04|Z332|T74|T76|R45851|T1491|Z9151|Z9152)'
+        OR c ~ '^(B20|Z21|O04|Z332|T74|T76|R45851|R4588|T1491|Z9151|Z9152)'
         OR (c ~ '^X[0-9]{2}' AND substr(c, 1, 3) BETWEEN 'X71' AND 'X83')
-        OR (c ~ '^T[0-9]{2}' AND substr(c, 1, 3) BETWEEN 'T36' AND 'T65' AND (substr(c, 6, 1) = '2' OR substr(c, 5, 2) = '2X')),
+        OR (c ~ '^T[0-9]{2}' AND substr(c, 1, 3) BETWEEN 'T36' AND 'T65' AND (substr(c, 6, 1) = '2' OR substr(c, 5, 2) = '2X'))
+        OR c ~ '^T71[12][0-9]2',
         false)
     FROM (SELECT upper(replace(btrim(code), '.', '')) AS c) AS normalized
 $$;
