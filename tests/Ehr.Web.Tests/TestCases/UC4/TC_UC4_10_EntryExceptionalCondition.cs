@@ -33,7 +33,7 @@ namespace Ehr.Web.Tests.TestCases.UC4;
 //   diagnosis, offers no "Add" or "Change", and says "Changes to diagnoses need the clinic's server." In step 3 the
 //   post is answered 503 with "Nothing was saved, because the clinic's server can't be reached." and the typed name
 //   shown again. The patient still has exactly one diagnosis.
-// Creator: Tahseen Arnan
+// Creator: Tahseen Arnan (expansion step 2), UC 4 owner Diego Valenzuela
 public class TC_UC4_10_EntryExceptionalCondition(WebApps apps) : IClassFixture<WebApps>
 {
     static CancellationToken Cancel => TestContext.Current.CancellationToken;

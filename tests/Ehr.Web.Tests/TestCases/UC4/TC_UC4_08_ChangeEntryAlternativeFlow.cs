@@ -28,7 +28,7 @@ namespace Ehr.Web.Tests.TestCases.UC4;
 //   with no code, and shows "Rash". No row was deleted. The history shows, in the form's words, "Status: Active →
 //   Stopped", "Stopped: not recorded → 2026-10-01", "Reaction: not recorded → Rash", "Risk: not recorded → High
 //   risk" and "Severity: not recorded → Moderate".
-// Creator: Tahseen Arnan
+// Creator: Tahseen Arnan (expansion step 2), UC 4 owner Diego Valenzuela
 public class TC_UC4_08_ChangeEntryAlternativeFlow(WebApps apps) : IClassFixture<WebApps>
 {
     static CancellationToken Cancel => TestContext.Current.CancellationToken;

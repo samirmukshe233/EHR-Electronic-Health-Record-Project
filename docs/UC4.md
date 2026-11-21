@@ -50,13 +50,14 @@ One file each, in `tests/Ehr.Web.Tests/TestCases/UC4/`, continuing UC 4's number
 |---|---|---|
 | TC-UC4-07, successful flow | A coded diagnosis, medication and allergy are added; the chart, history and audit show them | `TC_UC4_07_AddEntrySuccessfulFlow.cs` |
 | TC-UC4-08, alternative flow | An entry is changed or stopped, never deleted; an uncoded entry keeps its name | `TC_UC4_08_ChangeEntryAlternativeFlow.cs` |
-| TC-UC4-09, invalid input | A name that isn't a code, a bad date or status is highlighted and nothing is saved | `TC_UC4_09_EntryInvalidInput.cs` |
+| TC-UC4-09, invalid input | A name that isn't a code, a bad date or status, and an allergy's bad severity, risk or over-long reaction are highlighted and nothing is saved | `TC_UC4_09_EntryInvalidInput.cs` |
 | TC-UC4-10, exceptional condition | Off the panel, or off-site with the server down, nothing is changed | `TC_UC4_10_EntryExceptionalCondition.cs` |
 | TC-UC4-11, NFR-01 | The entry form, code search, history and chart with sensitive items: p99 under 15 ms at 50,000 patients | `TC_UC4_11_Nfr01_ListPagesOnSite.cs` |
 | TC-UC4-12, NFR-12 | In a real browser, adding a coded diagnosis with the keyboard only | `TC_UC4_12_Nfr12_EntryKeyboardFirst.cs` |
 | TC-UC4-13, alternative flow | The allergy list's three states on the chart, the banner and the offline copy; "No known allergies" recorded, and cleared by adding an allergy | `TC_UC4_13_AllergyStatus.cs` |
+| TC-UC4-32, alternative flow | Sensitive items left out of the chart, banner, history and offline copy until asked for; each view that shows them recorded as `read_sensitive` (proposed FR-39). Numbered 32 so it stays unique when merged with the later steps' TC-UC4-14 to 31 | `TC_UC4_32_SensitiveItems.cs` |
 
-Extra coverage in `tests/Ehr.Web.Tests/ChartListTests.cs`: the code search and who may use it; sensitive items left out until asked for, with the audit action, on-site and off-site; allergies in the banner on the note and dictation pages; a save forwarded from off-site.
+Extra coverage in `tests/Ehr.Web.Tests/ChartListTests.cs`: the code search and who may use it; sensitive items left out until asked for, with the audit action, on-site and off-site, and kept shown through the history and the forms; allergies in the banner on the note, dictation, history and discontinued orders pages; a save forwarded from off-site; the "Saved:" and "Not saved:" notices, a patient taken off the panel mid-save, and "No known allergies" after a colleague's allergy; a form posted twice; the fixed "Sensitive" box; a diagnosis saved by its typed code; the first field to fix taking the focus; the search criteria never taking the entry's name; the form never cached.
 
 In `tests/Ehr.Security.Tests/ChartListSecurityTests.cs`, against the database directly: who may add and change entries; nothing deletes or moves one; the history and the audit record each change; the sensitive ranges; a sensitive code can't be unmarked; who reads the history; the reference codes are loaded.
 

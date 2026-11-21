@@ -29,7 +29,7 @@ namespace Ehr.Web.Tests.TestCases.UC4;
 //   list offers "Essential (primary) hypertension". Step 4 saves and returns to the
 //   chart, which lists the diagnosis with its code I10, with the focus on "Saved: Essential (primary) hypertension is
 //   listed under Diagnoses." Every focused control shows the focus ring, and the page reports no script errors.
-// Creator: Tahseen Arnan
+// Creator: Tahseen Arnan (expansion step 2), UC 4 owner Diego Valenzuela
 //
 // In the browser tests' collection, which doesn't run beside the others (AiReviewBrowserTests says why).
 [Collection(BrowserTests.Collection)]
