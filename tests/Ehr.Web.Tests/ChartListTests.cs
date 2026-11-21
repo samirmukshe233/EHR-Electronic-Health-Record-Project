@@ -384,6 +384,64 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Empty(await RowsAsync(apps, "allergy_intolerances", other, "display"));
     }
 
+    // With sensitive items shown, the way from the chart to the history or a form, and back, keeps them shown: each
+    // such view is recorded as one, as asked for. Without, nothing adds them.
+    [Fact]
+    public async Task Sensitive_items_shown_stay_shown_through_the_history_and_the_entry_form()
+    {
+        var (_, patient, session) = await OnPanelAsync(apps, "Kept shown");
+        using var anxiety = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Generalized anxiety disorder"), ("Status", "active"));
+        var entry = await IdAsync(apps, "conditions", patient);
+
+        var shown = await session.Client.GetStringAsync($"/patients/{patient}?sensitive=true", Cancel);
+        Assert.Contains($"href=\"/patients/{patient}/chart-history?sensitive=true\"", shown);
+        Assert.Contains($"href=\"{EntryPath(patient, "diagnoses", entry)}?showSensitive=true\"", shown);
+        Assert.Contains($"href=\"{EntryPath(patient, "medications")}?showSensitive=true\"", shown);
+        var history = await session.Client.GetStringAsync($"/patients/{patient}/chart-history?sensitive=true", Cancel);
+        Assert.Contains($"href=\"/patients/{patient}?sensitive=true\">Back to the chart", history);
+        var form = await session.Client.GetStringAsync($"{EntryPath(patient, "diagnoses", entry)}?showSensitive=true", Cancel);
+        Assert.Contains($"href=\"/patients/{patient}?sensitive=true\">Back to the chart", form);
+
+        var path = $"{EntryPath(patient, "diagnoses", entry)}?showSensitive=true";
+        using var saved = await PostFormAsync(session.Client, path, path, ("Name", "Generalized anxiety disorder"), ("Status", "active"), ("Onset", "2024-01-02"));
+        Assert.Contains("sensitive=true", saved.RequestMessage!.RequestUri!.Query);
+        var back = await ReadAsync(saved);
+        Assert.Contains("Saved: Generalized anxiety disorder is listed under Diagnoses.", Words(back));
+        Assert.Contains("Sensitive items shown:", Words(back));
+
+        // Hidden, nothing carries them.
+        var hidden = await session.Client.GetStringAsync($"/patients/{patient}", Cancel);
+        Assert.DoesNotContain("showSensitive", hidden);
+        Assert.Contains($"href=\"/patients/{patient}/chart-history\"", hidden);
+    }
+
+    // The history and the discontinued orders show the banner with the patient's allergies, read in the page's one
+    // recorded read, and, under emergency access, its tag with the time it ends.
+    [Fact]
+    public async Task The_history_and_discontinued_orders_show_the_allergy_banner_and_emergency_access()
+    {
+        var (clinician, patient, session) = await OnPanelAsync(apps, "Bannered pages");
+        using var peanut = await SaveAsync(session.Client, patient, "allergies", null, ("Name", "Peanut"), ("Reaction", "Hives"), ("Criticality", "high"), ("Status", "active"));
+
+        foreach (var path in new[] { $"/patients/{patient}/chart-history", $"/patients/{patient}/orders/discontinued" })
+        {
+            var reads = await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient);
+            var page = await session.Client.GetStringAsync(path, Cancel);
+            Assert.Matches("<section class=\"sc-banner\"[\\s\\S]*High risk: <strong>Peanut</strong>: Hives[\\s\\S]*</section>", page);
+            Assert.Contains("<span class=\"sc-tag\">Yours</span>", page);
+            Assert.Equal(reads + 1, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient));
+        }
+
+        var covering = await SignInAsync(apps.OnPrem, await apps.CreateStaffAsync("Dr. Covering Banner", StaffRoles.Clinician));
+        using var opened = await PostFormAsync(covering.Client, $"/patients/{patient}/reason", $"/patients/{patient}/reason", ("Reason", "Covering the night shift"));
+        foreach (var path in new[] { $"/patients/{patient}/chart-history", $"/patients/{patient}/orders/discontinued" })
+        {
+            var page = Words(await covering.Client.GetStringAsync(path, Cancel));
+            Assert.Contains("Emergency access until", page);
+            Assert.Contains("High risk: Peanut: Hives", page);
+        }
+    }
+
     // The entry form is never kept by the browser, opened to add or to change, and a sensitive entry's form included:
     // the page says so itself, whatever else on it would.
     [Fact]

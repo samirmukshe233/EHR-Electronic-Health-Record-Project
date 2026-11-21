@@ -15,8 +15,14 @@ public sealed record PatientChart(
     IReadOnlyList<ActiveOrder> Orders)
 {
     // UC 1: set when the chart was asked to confirm a discontinuation and that order is this patient's and
-    // discontinued. Part of the same recorded read.
-    public bool ConfirmsDiscontinued { get; init; }
+    // discontinued: the order's name. Part of the same recorded read.
+    public string? DiscontinuedName { get; init; }
+
+    public bool ConfirmsDiscontinued => DiscontinuedName is not null;
+
+    // UC 1: set when the chart was asked to confirm an order just signed that replaced another (a change): the name
+    // of the order it replaced. Part of the same recorded read.
+    public string? ReplacedName { get; init; }
 
     // Sensitive diagnoses and medications are left out unless asked for: how many were left out, and whether they
     // were asked for (and so are in the lists, and the asking was recorded).
@@ -46,13 +52,15 @@ public sealed record ChartEntryForm(
 // One change to a patient's allergies, medications or diagnoses, as the history page lists it.
 public sealed record ChartChange(string TableName, Guid RowId, DateTimeOffset ChangedAt, string? ChangedBy, string? Before, string After);
 
-public sealed record ChartHistory(Patient Patient, IReadOnlyList<ChartChange> Changes, bool More, int SensitiveHidden, bool SensitiveShown);
+// The history page: with the banner's allergies, read in the same recorded read.
+public sealed record ChartHistory(
+    Patient Patient, IReadOnlyList<AllergyIntolerance> Allergies, IReadOnlyList<ChartChange> Changes, bool More, int SensitiveHidden, bool SensitiveShown);
 
 // UC 1 (Tahseen Arnan): a patient as the order form shows them, already recorded as one read of the patient: the
 // banner's name and allergies, and, once an item is picked, the patient's active orders for it, for the duplicate warning.
 // Replaced is the active order a change replaces, or the one being discontinued; it is never among the duplicates.
 public sealed record OrderForm(Patient Patient, IReadOnlyList<AllergyIntolerance> Allergies, IReadOnlyList<ActiveOrder> Duplicates, ActiveOrder? Replaced);
 
-// UC 1: a patient's discontinued orders as their page lists them, already recorded as one read of the patient. More is
-// set when there are more than the page asked for.
-public sealed record DiscontinuedOrders(Patient Patient, IReadOnlyList<DiscontinuedOrder> Orders, bool More);
+// UC 1: a patient's discontinued orders as their page lists them, with the banner's allergies, already recorded as one
+// read of the patient. More is set when there are more than the page asked for.
+public sealed record DiscontinuedOrders(Patient Patient, IReadOnlyList<AllergyIntolerance> Allergies, IReadOnlyList<DiscontinuedOrder> Orders, bool More);

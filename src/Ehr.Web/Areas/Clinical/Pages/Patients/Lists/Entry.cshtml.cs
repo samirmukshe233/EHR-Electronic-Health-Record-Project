@@ -42,6 +42,12 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
     [BindProperty(SupportsGet = true)]
     public Guid? EntryId { get; set; }
 
+    // Set when the clinician came from the chart with sensitive items shown: the way back shows them again. From the
+    // address only, never the form: "Sensitive" is the entry's own box.
+    [BindProperty(SupportsGet = true, Name = "showSensitive")]
+    [FromQuery]
+    public bool ShowSensitive { get; set; }
+
     // For a new entry: its ID, chosen when the form is opened and posted with it, so posting the same form twice (a
     // double click) saves one entry, not two (ChartLists.SaveAsync). A post without one gets a new ID.
     [BindProperty]
@@ -116,12 +122,18 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
         [.. new (string Label, string? Text)[] { (About.Label, Name), ("Reaction", Reaction), ("How it is taken", Dosage) }
             .Where(typed => !string.IsNullOrWhiteSpace(typed.Text)).Select(typed => (typed.Label, typed.Text!))];
 
+    // The way back to the chart: with the search, and with sensitive items shown when they were.
     public Dictionary<string, string> ChartLink
     {
         get
         {
             var route = Search.RouteData();
             route["id"] = Form.Patient.Id.ToString();
+            if (ShowSensitive)
+            {
+                route["sensitive"] = "true";
+            }
+
             return route;
         }
     }
@@ -283,6 +295,11 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
         var chart = Search.ChartRouteValues(id);
         chart["saved"] = entryId;
         chart["savedList"] = List;
+        if (ShowSensitive)
+        {
+            chart["sensitive"] = "true";
+        }
+
         return RedirectToPage("/Patients/Chart", chart);
     }
 

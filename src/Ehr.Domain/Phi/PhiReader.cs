@@ -36,7 +36,7 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
     // reads have their own table/row events, also accepted by the cloud audit queue (CloudAuditEvents).
     public async Task<PatientChart?> ChartAsync(
         Guid id, int visits, CancellationToken cancellationToken, Guid? discontinued = null, bool sensitive = false,
-        (string Table, Guid Id)? saved = null)
+        (string Table, Guid Id)? saved = null, Guid? ordered = null)
     {
         var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (patient is null)
@@ -61,9 +61,21 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             .Take(visits)
             .ToListAsync(cancellationToken);
         var orders = await ActiveOrders(id, catalogCode: null).ToListAsync(cancellationToken);
-        // Only when the discontinue page sent the clinician here: whether that order is this patient's, and discontinued.
-        var confirmed = discontinued is not null && await db.Orders.AsNoTracking()
-            .AnyAsync(order => order.Id == discontinued && order.PatientId == id && order.Status == OrderStatus.Revoked, cancellationToken);
+        // Only when the discontinue page sent the clinician here: that order's name, when it is this patient's and
+        // discontinued.
+        var discontinuedName = discontinued is null ? null : await (
+            from order in db.Orders.AsNoTracking()
+            join item in db.OrderCatalogItems on order.CatalogCode equals item.Code
+            where order.Id == discontinued && order.PatientId == id && order.Status == OrderStatus.Revoked
+            select item.Display).FirstOrDefaultAsync(cancellationToken);
+        // Only when the order form sent the clinician here: when the order just signed replaced one (a change), the
+        // name of the order it replaced, when both are this patient's.
+        var replacedName = ordered is null ? null : await (
+            from order in db.Orders.AsNoTracking()
+            join old in db.Orders on order.ReplacesOrderId equals (Guid?)old.Id
+            join item in db.OrderCatalogItems on old.CatalogCode equals item.Code
+            where order.Id == ordered && order.PatientId == id && old.PatientId == id
+            select item.Display).FirstOrDefaultAsync(cancellationToken);
 
         // Only when the entry form sent the clinician here: the entry just saved, when it is this patient's. Found among
         // the lists already read when it is current, sensitive ones included (they are left out below); otherwise, as an
@@ -82,7 +94,8 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         await db.SaveChangesAsync(cancellationToken);
         return new PatientChart(patient, allergies, medications, conditions, encounters, orders)
         {
-            ConfirmsDiscontinued = confirmed,
+            DiscontinuedName = discontinuedName,
+            ReplacedName = replacedName,
             SensitiveHidden = hidden,
             SensitiveShown = sensitive,
             Saved = savedEntry,
@@ -169,6 +182,9 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             return null;
         }
 
+        // The banner's allergies, in the same recorded read.
+        var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
+
         // An entry that is sensitive now is sensitive throughout its history, whatever it was when a change was made:
         // a medication added unmarked and marked later doesn't stay readable here. So the entries are asked about, not
         // the old rows, and their changes are left out in the query itself, before the limit.
@@ -195,7 +211,7 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         // One event for one view: a read, or a read that showed sensitive items.
         audit.Record(sensitive ? AuditActions.ReadSensitive : AuditActions.Read, patient.Id, PatientsTable, patient.Id);
         await db.SaveChangesAsync(cancellationToken);
-        return new ChartHistory(patient, changes, more, hidden, sensitive);
+        return new ChartHistory(patient, allergies, changes, more, hidden, sensitive);
     }
 
     // UC 1 (Tahseen Arnan): the order form's view of a patient (OrderForm). One view of one patient, so one recorded read
@@ -230,6 +246,9 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             return null;
         }
 
+        // The banner's allergies, in the same recorded read.
+        var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
+
         var orders = await (
             from order in db.Orders.AsNoTracking()
             join item in db.OrderCatalogItems on order.CatalogCode equals item.Code
@@ -242,7 +261,7 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
 
         audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
         await db.SaveChangesAsync(cancellationToken);
-        return new DiscontinuedOrders(patient, [.. orders.Take(limit)], orders.Count > limit);
+        return new DiscontinuedOrders(patient, allergies, [.. orders.Take(limit)], orders.Count > limit);
     }
 
     // The allergies a patient has now, the high-risk ones first.

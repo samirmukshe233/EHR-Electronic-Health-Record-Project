@@ -76,6 +76,18 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
         _ => null,
     };
 
+    // The search's criteria, and the sensitive items while they are shown: for a form on the chart that comes back to it.
+    public Dictionary<string, string> SensitiveRouteData()
+    {
+        var route = Search.RouteData();
+        if (Chart.SensitiveShown)
+        {
+            route["sensitive"] = "true";
+        }
+
+        return route;
+    }
+
     // The "Saved:" notice's sentence after the name, for an entry that is shown: where it is, or why it isn't listed.
     public static string SavedWhere(SavedEntry saved) => saved.Listed
         ? $" is listed under {ChartListWords.Lists[saved.Table].Heading}."
@@ -124,6 +136,11 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
         };
         var route = Search.ChartRouteValues(id);
         route["noKnownAllergies"] = outcome;
+        if (Sensitive)
+        {
+            route["sensitive"] = "true";
+        }
+
         return RedirectToPage(route);
     }
 
@@ -179,7 +196,7 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
         (string, Guid)? saved = Saved is { } entry && SavedList is not null && Lists.EntryModel.Lists.TryGetValue(SavedList, out var list)
             ? (list.Table, entry)
             : null;
-        var chart = await phi.ChartAsync(id, RecentVisits, HttpContext.RequestAborted, Discontinued, Sensitive, saved);
+        var chart = await phi.ChartAsync(id, RecentVisits, HttpContext.RequestAborted, Discontinued, Sensitive, saved, Ordered);
         if (chart is null)
         {
             return NotFound();
