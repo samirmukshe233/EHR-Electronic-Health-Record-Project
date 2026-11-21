@@ -66,6 +66,7 @@ Copy already in the apps that sets the tone:
 Rules:
 
 - **A notice about a state starts with the state**, then a colon: "Read-only:", "Emergency access:". The word carries the meaning; the color only supports it.
+- **A notice that answers an action takes the focus** when its page opens ("Saved:", "Not saved:", "Order signed:"): `tabindex="-1"` and `data-focus-on-load`, which the clinical pages' script follows, so the keyboard and a screen reader start from what just happened. A form that comes back with mistakes puts the cursor in the first field to fix instead.
 - **Dictation proposes; the clinician decides.** Say "proposed" and "awaiting your review", never "diagnosed", "decided" or "filled in for you". Say what was not carried over and why ("dictation never places orders or changes the allergy list").
 - **Clinician screens can be terse**, using MRN and standard clinical abbreviations. **The portal is for patients**: spell labels out ("Medical record number", "Date of birth"), explain results in plain language, and never show internal IDs or audit details.
 - **Dates** in clinician views and tables are `YYYY-MM-DD`, with 24-hour times (`2026-11-15 14:05`). The portal writes a result's date out for patients ("Nov 2, 2026"). Say "UTC" when a time is in UTC.

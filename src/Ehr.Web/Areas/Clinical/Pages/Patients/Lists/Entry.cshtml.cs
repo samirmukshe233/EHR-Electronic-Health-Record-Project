@@ -91,6 +91,14 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
 
     public IReadOnlyDictionary<string, string> Errors { get; private set; } = new Dictionary<string, string>();
 
+    // The fields in the order the form shows them.
+    static readonly string[] FieldOrder =
+        [nameof(Name), nameof(Reaction), nameof(Severity), nameof(Criticality), nameof(Dosage), nameof(Started), nameof(Stopped), nameof(Onset), nameof(Status)];
+
+    // The field that takes the focus: the first with an error; the name on a form with none. None when the database
+    // refused the save: its notice takes the focus instead (data-focus-on-load).
+    public string? Focused => Refused ? null : FieldOrder.FirstOrDefault(Errors.ContainsKey) ?? (Errors.Count == 0 ? nameof(Name) : null);
+
     public (string Table, string Kind, string One, string Label) About => Lists[List];
 
     public bool IsNew => EntryId is null;

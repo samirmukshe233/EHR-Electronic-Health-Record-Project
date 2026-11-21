@@ -320,6 +320,30 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Contains(fixedBox, await mistake.Content.ReadAsStringAsync(Cancel));
     }
 
+    // The form comes back with the cursor in the first field to fix, in the form's order, whichever it is; and the
+    // chart's notice after a save is the one thing marked to take the focus.
+    [Fact]
+    public async Task The_first_field_with_an_error_takes_the_focus()
+    {
+        var (_, patient, session) = await OnPanelAsync(apps, "Focused");
+        static string Focused(string html) =>
+            string.Join(" ", System.Text.RegularExpressions.Regex.Matches(html, "<(?:input|select)[^>]*\\sautofocus=\"autofocus\"[^>]*\\sid=\"([^\"]+)\"|<(?:input|select)[^>]*\\sid=\"([^\"]+)\"[^>]*\\sautofocus=\"autofocus\"")
+                .Select(match => match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value));
+
+        using var onset = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Essential (primary) hypertension"), ("Status", "active"), ("Onset", "2999-01-01"));
+        Assert.Equal("entry-onset", Focused(await onset.Content.ReadAsStringAsync(Cancel)));
+        using var both = await SaveAsync(session.Client, patient, "medications", null, ("Name", "lisinopril 10 MG Oral Tablet"), ("Status", "deleted"), ("Started", "2024-02-30"));
+        Assert.Equal("entry-started", Focused(await both.Content.ReadAsStringAsync(Cancel)));
+        using var allergy = await SaveAsync(session.Client, patient, "allergies", null, ("Name", "Peanut"), ("Status", "active"), ("Criticality", "extreme"));
+        Assert.Equal("entry-criticality", Focused(await allergy.Content.ReadAsStringAsync(Cancel)));
+        Assert.Equal("entry-name", Focused(await session.Client.GetStringAsync(EntryPath(patient, "diagnoses"), Cancel)));
+
+        using var saved = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Essential (primary) hypertension"), ("Status", "active"));
+        var chart = await ReadAsync(saved);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(chart, "data-focus-on-load"));
+        Assert.Matches("<p class=\"sc-notice sc-notice--success\" role=\"status\" tabindex=\"-1\" data-focus-on-load data-saved>", chart);
+    }
+
     // The entry form is never kept by the browser, opened to add or to change, and a sensitive entry's form included:
     // the page says so itself, whatever else on it would.
     [Fact]

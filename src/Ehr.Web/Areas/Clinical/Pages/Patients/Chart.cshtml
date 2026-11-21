@@ -42,33 +42,35 @@
 {
     <p class="sc-notice sc-notice--danger"><span class="sc-notice__state">Emergency access:</span> this patient is not on your panel. Your access and the reason you gave are recorded for review. It lasts until @until.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
 }
+@* The notices after an action take the focus (data-focus-on-load, js/patient-search.js), so the keyboard and a
+   screen reader start from what just happened. *@
 @if (Model.Chart.ConfirmsDiscontinued)
 {
-    <p class="sc-notice sc-notice--success" role="status"><span class="sc-notice__state">Order discontinued:</span> it is listed under this chart's discontinued orders.</p>
+    <p class="sc-notice sc-notice--success" role="status" tabindex="-1" data-focus-on-load><span class="sc-notice__state">Order discontinued:</span> it is listed under this chart's discontinued orders.</p>
 }
 @if (Model.SignedOrder is { } signed)
 {
-    <p class="sc-notice sc-notice--success" role="status"><span class="sc-notice__state">Order signed:</span> <strong>@signed.Display</strong>, @signed.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
+    <p class="sc-notice sc-notice--success" role="status" tabindex="-1" data-focus-on-load><span class="sc-notice__state">Order signed:</span> <strong>@signed.Display</strong>, @signed.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
 }
 @* After the entry form saved an entry. A sensitive one the chart leaves out isn't named: the notice says where it is. *@
 @if (Model.Chart.Saved is { Hidden: true } hiddenSave)
 {
-    <p class="sc-notice sc-notice--success" role="status" data-saved><span class="sc-notice__state">Saved:</span> the @Ehr.Domain.Patients.ChartListWords.Lists[hiddenSave.Table].One is sensitive, so it is kept with the sensitive items.</p>
+    <p class="sc-notice sc-notice--success" role="status" tabindex="-1" data-focus-on-load data-saved><span class="sc-notice__state">Saved:</span> the @Ehr.Domain.Patients.ChartListWords.Lists[hiddenSave.Table].One is sensitive, so it is kept with the sensitive items.</p>
 }
 else if (Model.Chart.Saved is { } saved)
 {
-    <p class="sc-notice sc-notice--success" role="status" data-saved><span class="sc-notice__state">Saved:</span> <strong>@saved.Display</strong>@ChartModel.SavedWhere(saved)</p>
+    <p class="sc-notice sc-notice--success" role="status" tabindex="-1" data-focus-on-load data-saved><span class="sc-notice__state">Saved:</span> <strong>@saved.Display</strong>@ChartModel.SavedWhere(saved)</p>
 }
 @switch (Model.NoKnownAllergiesNotice)
 {
     case "saved":
-        <p class="sc-notice sc-notice--success" role="status" data-saved><span class="sc-notice__state">Saved:</span> no known allergies recorded for this patient.</p>
+        <p class="sc-notice sc-notice--success" role="status" tabindex="-1" data-focus-on-load data-saved><span class="sc-notice__state">Saved:</span> no known allergies recorded for this patient.</p>
         break;
     case "allergy-recorded":
-        <p class="sc-notice sc-notice--danger" role="alert" data-not-saved><span class="sc-notice__state">Not saved:</span> an allergy is recorded for this patient, so "No known allergies" wasn't recorded. Their allergies are listed below.</p>
+        <p class="sc-notice sc-notice--danger" role="alert" tabindex="-1" data-focus-on-load data-not-saved><span class="sc-notice__state">Not saved:</span> an allergy is recorded for this patient, so "No known allergies" wasn't recorded. Their allergies are listed below.</p>
         break;
     case "refused":
-        <p class="sc-notice sc-notice--danger" role="alert" data-not-saved><span class="sc-notice__state">Not saved:</span> you can't change this patient's allergies now, so nothing was recorded.</p>
+        <p class="sc-notice sc-notice--danger" role="alert" tabindex="-1" data-focus-on-load data-not-saved><span class="sc-notice__state">Not saved:</span> you can't change this patient's allergies now, so nothing was recorded.</p>
         break;
 }
 
