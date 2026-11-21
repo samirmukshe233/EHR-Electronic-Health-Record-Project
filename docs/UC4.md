@@ -8,14 +8,14 @@ This page covers what the expansion added to the chart: editing allergies, medic
 
 Open a patient on your panel. Each of **Allergies**, **Medications** and **Diagnoses** has an **Add** button and, after each entry, a **Change** link, while the clinic's server can be reached.
 
-- **Add** opens a form with the patient's banner. Type two letters or more of the name and pick from the list: diagnoses are ICD-10-CM (a code can be typed too), medications are RxNorm clinical drugs, and allergens are RxNorm ingredients or FDA substances. The form refuses a name that isn't one of them.
-- **Change** opens the same form filled in. Nothing is deleted: give the entry another status (inactive, resolved, stopped, entered in error). The chart lists what the patient has now.
+- **Add** opens a form with the patient's banner. Type two letters or more of the name and pick from the list: diagnoses are ICD-10-CM (a code can be typed too, as "I10" or "e119", and saving it saves that diagnosis), medications are RxNorm clinical drugs, and allergens are RxNorm ingredients or FDA substances. The form refuses a name that isn't one of them. Under the field, the search says "No matches." when nothing matches, and "Signed out: …" if your session has ended.
+- **Change** opens the same form filled in. Nothing is deleted: give the entry another status: an allergy inactive or resolved, a medication on hold, stopped, completed or entered in error, a diagnosis in remission, inactive or resolved. The chart lists what the patient has now.
 - An entry recorded before there were codes keeps its name until you change it.
 - **After saving,** the chart says so: "Saved: Essential (primary) hypertension is listed under Diagnoses.", or, for an entry given a status that takes it off the chart, "… is now stopped, so it is no longer listed." A sensitive entry the chart is leaving out isn't named: "Saved: the diagnosis is sensitive, so it is kept with the sensitive items."
 - **Posting a form twice saves one entry.** An "Add" form carries its new entry's ID from when it opened, so a double click, or going back and saving again, changes that entry rather than adding a second. (Two people changing the same entry at once still isn't warned about: the later save wins.)
 - **The keyboard follows what happened:** after a save the chart's notice has the focus, and a form that comes back with mistakes has the cursor in the first field to fix.
 - **When a save can't happen,** nothing is lost. If the database refuses it, the form comes back with what you entered and "Not saved: the database refused the change …". If the patient left your panel after you opened the form, a page says "Not saved: this patient isn't on your panel, so nothing was changed." and shows what you typed, to copy, without anything about the patient.
-- **Allergies are in one of three states.** "No allergy information recorded" means nobody has asked. **Record no known allergies** records that someone asked and there are none, and the chart confirms it ("Saved: no known allergies recorded for this patient."). If a colleague recorded an allergy since you opened the chart, it isn't recorded, and the chart says why. Adding an allergy clears "No known allergies" by itself. The chart, the patient banner and the desktop app's offline copy each show the state.
+- **Allergies are in one of three states.** "No allergy information recorded" means nobody has asked. **Record no known allergies** records that someone asked and there are none, shown as "No known allergies (recorded <date> by <name>)", and the chart confirms it ("Saved: no known allergies recorded for this patient."). If a colleague recorded an allergy since you opened the chart, it isn't recorded, and the chart says why. Adding an allergy clears "No known allergies" by itself. The chart, the patient banner and the desktop app's offline copy each show the state.
 - **History of allergies, medications and diagnoses**, above the lists, shows every entry added and every change, newest first, with who and when, in the form's words ("Status: Active → On hold", "Risk: not recorded → High risk").
 
 | List | Fields |
@@ -73,6 +73,7 @@ These need line-by-line review (AGENTS.md):
 
 - Notes can't be marked sensitive yet (the plan's step 10).
 - "No known allergies" is cleared by adding an allergy; there is no button to take it back on its own.
+- Allergies and diagnoses can't be marked entered in error yet; a mistaken one is made inactive. (Medications can.)
 - A medication isn't sensitive by rule; that waits for drug-class data.
 - The reference codes are a subset until step 2a.
 - The suggestions are the browser's own list, which differs a little between browsers.

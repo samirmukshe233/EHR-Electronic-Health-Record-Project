@@ -23,11 +23,11 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
 
     public Patient Patient => Chart.Patient;
 
-    // The allergies to list: every active one but a "No known allergy" entry.
+    // The allergies to list: every active one but a "No known allergies" entry.
     public IReadOnlyList<AllergyIntolerance> KnownAllergies =>
         [.. Chart.Allergies.Where(a => a.Code != AllergyIntolerance.NoKnownAllergy)];
 
-    // The "No known allergy" entry when nothing else is recorded: not the same as no allergy information at all.
+    // The "No known allergies" entry when nothing else is recorded: not the same as no allergy information at all.
     public AllergyIntolerance? NoKnownAllergies =>
         KnownAllergies.Count == 0 ? Chart.Allergies.FirstOrDefault(a => a.Code == AllergyIntolerance.NoKnownAllergy) : null;
 

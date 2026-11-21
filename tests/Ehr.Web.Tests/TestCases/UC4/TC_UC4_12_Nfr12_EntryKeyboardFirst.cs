@@ -23,8 +23,9 @@ namespace Ehr.Web.Tests.TestCases.UC4;
 //   2. Type "zzqq", press Tab until "Save diagnosis" has the focus, and press Enter.
 //   3. Clear the field, type "essen" and wait for the suggestions; type the rest of the suggested name.
 //   4. Press Tab until "Save diagnosis" has the focus, and press Enter.
-// Expected result: Step 1 opens the form with the cursor in the diagnosis field. Step 2 brings the form back with
-//   "Choose a diagnosis from the list." and the cursor in the diagnosis field, marked invalid. In step 3 the field's
+// Expected result: Step 1 opens the form with the cursor in the diagnosis field. In step 2 the search says "No
+//   matches.", and saving brings the form back with "Choose a diagnosis from the list." and the cursor in the
+//   diagnosis field, marked invalid. In step 3 the field's
 //   list offers "Essential (primary) hypertension". Step 4 saves and returns to the
 //   chart, which lists the diagnosis with its code I10, with the focus on "Saved: Essential (primary) hypertension is
 //   listed under Diagnoses." Every focused control shows the focus ring, and the page reports no script errors.
@@ -57,6 +58,8 @@ public class TC_UC4_12_Nfr12_EntryKeyboardFirst(WebApps apps) : IClassFixture<We
 
         // A name that isn't a code: the form comes back with the cursor in the field, marked invalid.
         await page.Keyboard.TypeAsync("zzqq");
+        // The search says so, in the field's live region, when nothing matches.
+        await page.WaitForFunctionAsync("document.querySelector('[data-code-search-status]').textContent.includes('No matches.')");
         await AiReviewBrowserTests.TabToAsync(page, "form.sc-form button[type=submit]");
         await page.Keyboard.PressAsync("Enter");
         await page.WaitForSelectorAsync("#entry-name-error");

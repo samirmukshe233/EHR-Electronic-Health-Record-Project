@@ -17,7 +17,12 @@ public sealed class ChartLists(EhrDbContext db)
     // How many names the search offers as a clinician types.
     public const int Suggestions = 20;
 
+    // The longest name, reaction or dosage the form takes: the width of those columns in all three tables
+    // (AllergyIntoleranceConfiguration, MedicationStatementConfiguration, ConditionConfiguration).
     public const int MaximumLength = 200;
+
+    // What "No known allergies" is called, stored and shown: one wording everywhere.
+    public const string NoKnownAllergies = AllergyIntolerance.NoKnownAllergyDisplay;
 
     // What a patient can have when exposed, offered as the clinician types; anything else can be typed.
     public static readonly string[] Reactions =
@@ -26,8 +31,10 @@ public sealed class ChartLists(EhrDbContext db)
         "Stomach cramps", "Swelling of the lips", "Vomiting", "Wheezing",
     ];
 
-    // What the chart calls an allergy entry.
-    public static string DisplayOf(AllergyIntolerance allergy) => allergy.Display;
+    // What the chart calls an allergy entry: "No known allergies" for that entry, whatever name it was stored with.
+    public static string DisplayOf(AllergyIntolerance allergy) => DisplayOf(allergy.Code, allergy.Display);
+
+    public static string DisplayOf(string? code, string display) => code == AllergyIntolerance.NoKnownAllergy ? NoKnownAllergies : display;
 
     // Names of one kind that match what was typed: first those that start with it, then those with a word that does,
     // then a diagnosis whose code starts with it. Nothing for fewer than two characters.
@@ -56,12 +63,33 @@ public sealed class ChartLists(EhrDbContext db)
             ? Task.FromResult(false)
             : db.ClinicalCodes.AsNoTracking().AnyAsync(c => c.Kind == ClinicalCodeKind.Condition && c.Code == code && c.Sensitive, cancellationToken);
 
-    // The code whose name is exactly what was picked or typed, in any case.
-    public Task<ClinicalCode?> FindAsync(string kind, string? display, CancellationToken cancellationToken)
+    // The code whose name is exactly what was picked or typed, in any case; or, for a diagnosis, the ICD-10-CM code
+    // itself, typed in any case, with or without its dot ("i10", "E11.9", "e119"), as the form's hint offers.
+    public async Task<ClinicalCode?> FindAsync(string kind, string? display, CancellationToken cancellationToken)
     {
-        var key = display?.Trim().ToLowerInvariant() ?? "";
-        return db.ClinicalCodes.AsNoTracking().Where(c => c.Kind == kind && c.DisplayKey == key).OrderBy(c => c.System).ThenBy(c => c.Code)
+        var typed = display?.Trim() ?? "";
+        var key = typed.ToLowerInvariant();
+        var named = await db.ClinicalCodes.AsNoTracking().Where(c => c.Kind == kind && c.DisplayKey == key).OrderBy(c => c.System).ThenBy(c => c.Code)
             .FirstOrDefaultAsync(cancellationToken);
+        if (named is not null || kind != ClinicalCodeKind.Condition || IcdCode(typed) is not { } code)
+        {
+            return named;
+        }
+
+        return await db.ClinicalCodes.AsNoTracking().FirstOrDefaultAsync(c => c.Kind == kind && c.Code == code, cancellationToken);
+    }
+
+    // What was typed as an ICD-10-CM code, written as the list writes it (upper case, the dot after the third
+    // character), or null when it can't be one: a letter, two characters, then up to four more.
+    static string? IcdCode(string typed)
+    {
+        var bare = typed.Replace(".", "", StringComparison.Ordinal).ToUpperInvariant();
+        if (bare.Length is < 3 or > 7 || !char.IsAsciiLetter(bare[0]) || !bare.All(char.IsAsciiLetterOrDigit))
+        {
+            return null;
+        }
+
+        return bare.Length == 3 ? bare : $"{bare[..3]}.{bare[3..]}";
     }
 
     // Adds the entry, or, when it has an ID already, saves every field of it a form can change. Refused when the
@@ -90,7 +118,7 @@ public sealed class ChartLists(EhrDbContext db)
             Id = Guid.CreateVersion7(),
             PatientId = patient,
             Code = AllergyIntolerance.NoKnownAllergy,
-            Display = "No known allergy",
+            Display = NoKnownAllergies,
             ClinicalStatus = AllergyClinicalStatus.Active,
             RecordedAt = DateTimeOffset.UtcNow,
         }, isNew: true, cancellationToken);

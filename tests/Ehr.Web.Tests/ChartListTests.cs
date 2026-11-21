@@ -442,6 +442,26 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
         }
     }
 
+    // A diagnosis can be saved by its ICD-10-CM code, typed in any case and with or without the dot, as the form's
+    // hint offers: it saves that code's diagnosis. Something code-like that isn't one is still refused.
+    [Fact]
+    public async Task A_diagnosis_can_be_saved_by_its_typed_code()
+    {
+        var (_, patient, session) = await OnPanelAsync(apps, "Typed code");
+
+        using var byCode = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", " i10 "), ("Status", "active"));
+        using var noDot = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "e119"), ("Status", "active"));
+        Assert.Contains("Saved: Type 2 diabetes mellitus without complications is listed under Diagnoses.", Words(await ReadAsync(noDot)));
+        using var notACode = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Z99.999"), ("Status", "active"));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, notACode.StatusCode);
+        // Codes are for diagnoses only: a medication's isn't looked up that way.
+        using var medication = await SaveAsync(session.Client, patient, "medications", null, ("Name", "314076"), ("Status", "active"));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, medication.StatusCode);
+
+        Assert.Equal(["Essential (primary) hypertension I10", "Type 2 diabetes mellitus without complications E11.9"],
+            await RowsAsync(apps, "conditions", patient, "concat_ws(' ', display, code)"));
+    }
+
     // The entry form is never kept by the browser, opened to add or to change, and a sensitive entry's form included:
     // the page says so itself, whatever else on it would.
     [Fact]

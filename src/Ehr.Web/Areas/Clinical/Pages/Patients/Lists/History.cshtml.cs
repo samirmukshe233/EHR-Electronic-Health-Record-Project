@@ -54,7 +54,13 @@ public class HistoryModel(PhiReader phi, PatientAssignments assignments, BreakGl
         return route;
     }
 
-    public static string Name(ChartChange change) => JsonDocument.Parse(change.After).RootElement.GetProperty("display").GetString() ?? "";
+    // The entry's name as the chart calls it: "No known allergies" for that entry, whatever name it was stored with.
+    public static string Name(ChartChange change)
+    {
+        var after = JsonDocument.Parse(change.After).RootElement;
+        var code = after.TryGetProperty("code", out var value) ? value.GetString() : null;
+        return ChartLists.DisplayOf(code, after.GetProperty("display").GetString() ?? "");
+    }
 
     // What the change did, in words: "Added", or each field that changed, from its old value to its new one.
     public static IReadOnlyList<string> Describe(ChartChange change)

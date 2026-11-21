@@ -82,6 +82,15 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         // entry given another status, by one more query.
         var savedEntry = saved is { } wanted ? await SavedEntryAsync(id, wanted.Table, wanted.Id, allergies, medications, conditions, sensitive, cancellationToken) : null;
 
+        // Only when "No known allergies" is the list's state: who recorded it, from its history's first row. Seeded
+        // entries have no history, and say only when.
+        var noneKnown = allergies.Count > 0 && allergies.All(a => a.Code == AllergyIntolerance.NoKnownAllergy) ? allergies[0] : null;
+        var noneKnownBy = noneKnown is null ? null : await (
+            from change in db.ChartHistory.AsNoTracking()
+            join staff in db.StaffUsers on change.ChangedById equals staff.Id
+            where change.PatientId == id && change.RowId == noneKnown.Id && change.Before == null
+            select staff.DisplayName).FirstOrDefaultAsync(cancellationToken);
+
         var hidden = 0;
         if (!sensitive)
         {
@@ -99,6 +108,7 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             SensitiveHidden = hidden,
             SensitiveShown = sensitive,
             Saved = savedEntry,
+            NoKnownAllergiesRecordedBy = noneKnownBy,
         };
     }
 

@@ -59,7 +59,7 @@ else
     @{ var nameError = Model.Errors.GetValueOrDefault("Name"); }
     <div class="sc-field">
         <label for="entry-name">@Model.About.Label <span>(required)</span></label>
-        <input id="entry-name" class="sc-field__input" name="Name" value="@Model.Name" list="entry-codes" maxlength="300" autocomplete="off" required
+        <input id="entry-name" class="sc-field__input" name="Name" value="@Model.Name" list="entry-codes" maxlength="@ChartLists.MaximumLength" autocomplete="off" required
                autofocus="@(Model.Focused == "Name")" data-code-search="@Model.About.Kind"
                aria-invalid="@(nameError is null ? null : "true")" aria-describedby="@(nameError is null ? "entry-name-hint" : "entry-name-error entry-name-hint")">
         <datalist id="entry-codes"></datalist>
@@ -67,7 +67,8 @@ else
         {
             <p class="sc-field__error" id="entry-name-error">@nameError</p>
         }
-        <p class="sc-field__hint" id="entry-name-hint">Type two letters or more, then pick from the list@(Model.List == "diagnoses" ? ", or type an ICD-10-CM code" : "").</p>
+        @* The search says, politely, when nothing matches or the session has ended (js/code-search.js). *@
+        <p class="sc-field__hint" id="entry-name-hint">Type two letters or more, then pick from the list@(Model.List == "diagnoses" ? ", or type an ICD-10-CM code" : "").<span aria-live="polite" data-code-search-status></span></p>
     </div>
     @if (Model.List == "allergies")
     {

@@ -26,7 +26,7 @@ namespace Ehr.Web.Tests.TestCases.UC4;
 //   4. As the second clinician, open the chart with a reason, and post "Record no known allergies".
 // Expected result: Step 1: the chart and banner say "No allergy information recorded", the chart offers "Record no
 //   known allergies", and the offline copy says "not-recorded" with no allergies. Step 2: the chart says "No known
-//   allergies (recorded <date>)", the banner "No known allergies", the button is gone, the offline copy says
+//   allergies (recorded <date> by Dr. Allergy Status)", the banner "No known allergies", the button is gone, the offline copy says
 //   "none-known" with no allergies, and the write audit has an insert by the clinician. Step 3: the chart and banner
 //   list Peanut, "No known allergies" is gone and its row is inactive, and the offline copy says "listed" with Peanut
 //   only. Step 4: the second clinician is offered no button, and their post changes nothing.
@@ -60,23 +60,23 @@ public class TC_UC4_13_AllergyStatus(WebApps apps) : IClassFixture<WebApps>
         var inserts = await apps.AuditEventsAsync(AuditActions.Insert, clinician.Id, patient);
         using var recorded = await PostFormAsync(session.Client, $"/patients/{patient}?handler=NoKnownAllergies", $"/patients/{patient}");
         var none = await ReadAsync(recorded);
-        Assert.Matches(@"<p>No known allergies \(recorded \d{4}-\d{2}-\d{2}\)\.</p>", none);
+        Assert.Matches(@"<p>No known allergies \(recorded \d{4}-\d{2}-\d{2} by Dr\. Allergy Status\)\.</p>", none);
         Assert.Contains("<span class=\"sc-allergy\">No known allergies</span>", none);
         Assert.DoesNotContain("data-no-known-allergies", none);
-        Assert.Equal(["No known allergy no-known-allergy active"], await RowsAsync(apps, "allergy_intolerances", patient, "concat_ws(' ', display, code, clinical_status)"));
+        Assert.Equal(["No known allergies no-known-allergy active"], await RowsAsync(apps, "allergy_intolerances", patient, "concat_ws(' ', display, code, clinical_status)"));
         // The write audit: the entry, and its copy in the lists' history.
         Assert.Equal(inserts + 2, await apps.AuditEventsAsync(AuditActions.Insert, clinician.Id, patient));
         offline = await OfflineAsync();
         Assert.Contains("\"allergies\":[]", offline);
         Assert.Contains("\"allergyStatus\":\"none-known\"", offline);
-        Assert.Contains("No known allergy", Words(await session.Client.GetStringAsync($"/patients/{patient}/chart-history", Cancel)));
+        Assert.Contains("No known allergies", Words(await session.Client.GetStringAsync($"/patients/{patient}/chart-history", Cancel)));
 
         using var added = await SaveAsync(session.Client, patient, "allergies", null, ("Name", "Peanut"), ("Reaction", "Hives"), ("Status", "active"));
         var listed = await ReadAsync(added);
         Assert.Contains("<strong>Peanut</strong>: Hives", listed);
         Assert.DoesNotContain("No known allergies", listed);
         Assert.DoesNotContain("No allergy information recorded", listed);
-        Assert.Equal(["No known allergy inactive", "Peanut active"], await RowsAsync(apps, "allergy_intolerances", patient, "concat_ws(' ', display, clinical_status)"));
+        Assert.Equal(["No known allergies inactive", "Peanut active"], await RowsAsync(apps, "allergy_intolerances", patient, "concat_ws(' ', display, clinical_status)"));
         offline = await OfflineAsync();
         Assert.Contains("\"allergyStatus\":\"listed\"", offline);
         Assert.Contains("\"display\":\"Peanut\"", offline);

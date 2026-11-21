@@ -239,7 +239,7 @@ else if (Model.Chart.SensitiveHidden > 0)
         }
         else if (Model.NoKnownAllergies is { } none)
         {
-            <p>No known allergies (recorded @none.RecordedAt.UtcDateTime.ToString("yyyy-MM-dd")).</p>
+            <p>No known allergies (recorded @none.RecordedAt.UtcDateTime.ToString("yyyy-MM-dd")@(Model.Chart.NoKnownAllergiesRecordedBy is { } recorder ? $" by {recorder}" : "")).</p>
         }
         else
         {

@@ -33,6 +33,10 @@ public sealed record PatientChart(
     // Set when the entry form sent the clinician here after saving an entry, and that entry is this patient's: what
     // the chart's "Saved:" notice says about it. Part of the same recorded read.
     public SavedEntry? Saved { get; init; }
+
+    // When "No known allergies" is the allergy list's state: who recorded it, when the history knows (seeded entries
+    // have none). Part of the same recorded read.
+    public string? NoKnownAllergiesRecordedBy { get; init; }
 }
 
 // An entry of one of the chart's lists just saved, as the chart's notice describes it: its list (by table), name,

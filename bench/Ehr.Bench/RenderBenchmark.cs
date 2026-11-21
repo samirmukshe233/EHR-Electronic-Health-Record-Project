@@ -234,8 +234,9 @@ internal static partial class RenderBenchmark
                 return $"/patients/{patient}/orders/{labOrders[patient]}/discontinue";
             }),
             // Editing the chart's lists (the expansion plan's step 2): the chart with its sensitive diagnoses and
-            // medications shown, which records a second audit event; the form that adds a diagnosis; the search of the
-            // reference codes as a clinician types, which reads nothing about a patient; and the lists' history.
+            // medications shown, which records its one audit event as read_sensitive in place of read; the form that adds
+            // a diagnosis; the search of the reference codes as a clinician types, which reads nothing about a patient;
+            // and the lists' history.
             await MeasureAsync(client, times, prefix + "Chart with sensitive items, a patient on the panel", typing: false,
                 () => $"/patients/{panel[random.Next(panel.Count)]}?sensitive=true"),
             await MeasureAsync(client, times, prefix + "Chart entry form, a patient on the panel", typing: false,
