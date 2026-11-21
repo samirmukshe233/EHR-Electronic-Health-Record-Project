@@ -802,3 +802,26 @@ VALUES ('20261118095004_AuditSensitive', '10.0.13');
 
 COMMIT;
 
+START TRANSACTION;
+ALTER TABLE ehr.allergy_intolerances NO FORCE ROW LEVEL SECURITY;
+UPDATE ehr.allergy_intolerances SET clinical_status = 'inactive'
+WHERE code = 'no-known-allergy' AND clinical_status = 'active'
+  AND id NOT IN (
+      SELECT DISTINCT ON (patient_id) id FROM ehr.allergy_intolerances
+      WHERE code = 'no-known-allergy' AND clinical_status = 'active'
+      ORDER BY patient_id, recorded_at, id);
+DO $$
+BEGIN
+    IF (SELECT relrowsecurity FROM pg_class WHERE oid = 'ehr.allergy_intolerances'::regclass) THEN
+        ALTER TABLE ehr.allergy_intolerances FORCE ROW LEVEL SECURITY;
+    END IF;
+END
+$$;
+
+CREATE UNIQUE INDEX ix_allergy_intolerances_one_no_known_allergy ON ehr.allergy_intolerances (patient_id) WHERE code = 'no-known-allergy' AND clinical_status = 'active';
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261121224028_OneNoKnownAllergy', '10.0.13');
+
+COMMIT;
+

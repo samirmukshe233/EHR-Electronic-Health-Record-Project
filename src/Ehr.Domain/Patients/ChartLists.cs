@@ -129,6 +129,16 @@ public sealed class ChartLists(EhrDbContext db)
             await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
             return ChartSave.AllergyRecorded;
         }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: AllergyIntoleranceConfiguration.OneNoKnownAllergyIndex,
+            }
+            && entry is AllergyIntolerance { Code: AllergyIntolerance.NoKnownAllergy })
+        {
+            // "No known allergies" is already recorded (a second click, or another tab): nothing more to save.
+            await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
+            return ChartSave.AlreadyRecorded;
+        }
         finally
         {
             tracked.State = EntityState.Detached;
@@ -150,4 +160,7 @@ public enum ChartSave
 
     // "No known allergies" only: refused because the patient has an active allergy recorded.
     AllergyRecorded,
+
+    // "No known allergies" only: it is already recorded, so nothing more was saved. As good as Saved to the clinician.
+    AlreadyRecorded,
 }

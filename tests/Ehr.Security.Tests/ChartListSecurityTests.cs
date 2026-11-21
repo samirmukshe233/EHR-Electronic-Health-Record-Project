@@ -262,6 +262,16 @@ public class ChartListSecurityTests(MigratedDatabase database) : IClassFixture<M
             "SELECT display || ' ' || clinical_status FROM ehr.allergy_intolerances WHERE patient_id = @patient ORDER BY recorded_at, display", ("patient", patient));
         Assert.Equal(["No known allergy active"], await ListAsync());
 
+        // A second one, while the first is active, is refused as a unique violation of the index that also holds it,
+        // so the app can tell it from the refusals below; and the index holds with the triggers off, as the seed has them.
+        var second = await Assert.ThrowsAsync<PostgresException>(() =>
+            Accounts.ExecuteAsync(App, clinician, none, ("id", Guid.CreateVersion7()), ("patient", patient)));
+        Assert.Equal((PostgresErrorCodes.UniqueViolation, "ix_allergy_intolerances_one_no_known_allergy"), (second.SqlState, second.ConstraintName));
+        var bypassed = await Assert.ThrowsAsync<PostgresException>(() => Accounts.ExecuteAsync(database.SuperuserConnectionString, null,
+            "SET LOCAL session_replication_role = replica; " + none, ("id", Guid.CreateVersion7()), ("patient", patient)));
+        Assert.Equal((PostgresErrorCodes.UniqueViolation, "ix_allergy_intolerances_one_no_known_allergy"), (bypassed.SqlState, bypassed.ConstraintName));
+        Assert.Equal(["No known allergy active"], await ListAsync());
+
         // Adding an allergy makes it inactive, in the same transaction, by the same clinician, and the history says so.
         var peanut = Guid.CreateVersion7();
         await Accounts.ExecuteAsync(App, clinician, Statements["allergy_intolerances"].Insert, ("id", peanut), ("patient", patient));
@@ -283,8 +293,8 @@ public class ChartListSecurityTests(MigratedDatabase database) : IClassFixture<M
         Assert.Equal(["No known allergy inactive", "Peanut inactive", "No known allergy active"], await ListAsync());
     }
 
-    // Recorded at the same moment, "No known allergies" and an allergy can't both stay active: each patient's allergy
-    // entries are written one at a time, so whichever comes second sees the first.
+    // Recorded at the same moment, "No known allergies" and an allergy can't both stay active, and no two "No known
+    // allergies" can: each patient's allergy entries are written one at a time, so whichever comes second sees the first.
     [Fact]
     public async Task No_known_allergies_and_an_allergy_recorded_at_once_never_both_stay_active()
     {
@@ -299,15 +309,16 @@ public class ChartListSecurityTests(MigratedDatabase database) : IClassFixture<M
                     await Accounts.ExecuteAsync(App, clinician, i % 2 == 0 ? none : Statements["allergy_intolerances"].Insert,
                         ("id", Guid.CreateVersion7()), ("patient", patient));
                 }
-                catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.CheckViolation)
+                catch (PostgresException e) when (e.SqlState is PostgresErrorCodes.CheckViolation or PostgresErrorCodes.UniqueViolation)
                 {
-                    // "No known allergies" arrived after an allergy: refused.
+                    // "No known allergies" arrived after an allergy, or after another "No known allergies": refused.
                 }
             }));
 
-            Assert.Equal(["false"], await AsSuperuserAsync(
+            Assert.Equal(["false false"], await AsSuperuserAsync(
                 """
                 SELECT (bool_or(code = 'no-known-allergy') AND bool_or(code <> 'no-known-allergy'))::text
+                    || ' ' || (count(*) FILTER (WHERE code = 'no-known-allergy') > 1)::text
                 FROM ehr.allergy_intolerances WHERE patient_id = @patient AND clinical_status = 'active'
                 """,
                 ("patient", patient)));

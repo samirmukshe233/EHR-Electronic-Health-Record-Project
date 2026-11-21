@@ -274,6 +274,24 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
         Assert.DoesNotContain("Saved:", Words(await session.Client.GetStringAsync($"/patients/{patient}?noKnownAllergies=saved", Cancel)));
     }
 
+    // "Record no known allergies" pressed twice, or from two tabs, records one: the second finds it recorded already,
+    // and the chart confirms it the same way.
+    [Fact]
+    public async Task No_known_allergies_posted_twice_is_recorded_once()
+    {
+        var (_, patient, session) = await OnPanelAsync(apps, "Double click");
+        using var chart = await session.Client.GetAsync($"/patients/{patient}", Cancel);
+        var token = Token(await chart.Content.ReadAsStringAsync(Cancel));
+
+        foreach (var _ in Enumerable.Range(0, 2))
+        {
+            using var posted = await session.Client.PostAsync($"/patients/{patient}?handler=NoKnownAllergies", Form(("__RequestVerificationToken", token)), Cancel);
+            Assert.Contains("Saved: no known allergies recorded for this patient.", Words(await ReadAsync(posted)));
+        }
+
+        Assert.Equal(["no-known-allergy active"], await RowsAsync(apps, "allergy_intolerances", patient, "code || ' ' || clinical_status"));
+    }
+
     // The entry form is never kept by the browser, opened to add or to change, and a sensitive entry's form included:
     // the page says so itself, whatever else on it would.
     [Fact]

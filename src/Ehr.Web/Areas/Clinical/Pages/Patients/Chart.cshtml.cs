@@ -117,7 +117,8 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
 
         var outcome = await lists.RecordNoKnownAllergiesAsync(id, HttpContext.RequestAborted) switch
         {
-            ChartSave.Saved => NoKnownAllergiesSaved,
+            // A second click finds it recorded already: the same confirmation as the first.
+            ChartSave.Saved or ChartSave.AlreadyRecorded => NoKnownAllergiesSaved,
             ChartSave.AllergyRecorded => NoKnownAllergiesAllergyRecorded,
             _ => NoKnownAllergiesRefused,
         };

@@ -46,6 +46,8 @@ GRANT EXECUTE ON FUNCTION ehr.icd10cm_is_sensitive(text) TO ehr_app, ehr_read;
 --   1. An entry never moves: not to another patient, and not to another ID.
 --   2. A diagnosis whose code is in a sensitive range is sensitive, whatever the client sent: the app can't clear it.
 --   3. "No known allergies" is refused for a patient who has an active allergy recorded: the list is one or the other.
+--   4. A second active "No known allergies" is refused, as a unique violation naming the index that also holds it
+--      (ix_allergy_intolerances_one_no_known_allergy), so the app treats it as already recorded.
 CREATE OR REPLACE FUNCTION ehr.guard_chart_entry() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = pg_catalog, pg_temp
@@ -73,6 +75,14 @@ BEGIN
                WHERE a.patient_id = NEW.patient_id AND a.clinical_status = 'active' AND a.code IS DISTINCT FROM 'no-known-allergy'
                  AND a.id <> NEW.id) THEN
             RAISE EXCEPTION 'A patient with an allergy recorded has no "No known allergies"' USING ERRCODE = '23514';
+        END IF;
+        -- After the lock, so a double click's second insert sees the first's row.
+        IF NEW.code = 'no-known-allergy' AND NEW.clinical_status = 'active'
+           AND EXISTS (
+               SELECT 1 FROM ehr.allergy_intolerances a
+               WHERE a.patient_id = NEW.patient_id AND a.clinical_status = 'active' AND a.code = 'no-known-allergy' AND a.id <> NEW.id) THEN
+            RAISE EXCEPTION '"No known allergies" is already recorded for this patient'
+                USING ERRCODE = '23505', CONSTRAINT = 'ix_allergy_intolerances_one_no_known_allergy';
         END IF;
     END IF;
 
