@@ -76,7 +76,15 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
     [BindProperty]
     public bool Sensitive { get; set; }
 
+    // Null only on the page that says a post wasn't saved because the patient left the clinician's panel (OffPanel),
+    // which reads nothing about the patient.
     public ChartEntryForm Form { get; private set; } = null!;
+
+    // Set when the post came from a clinician who no longer has the patient on their panel.
+    public bool OffPanel { get; private set; }
+
+    // Set when the database refused the write: the "Not saved:" notice above the form, which keeps what was entered.
+    public bool Refused { get; private set; }
 
     public IReadOnlyDictionary<string, string> Errors { get; private set; } = new Dictionary<string, string>();
 
@@ -85,20 +93,12 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
     public bool IsNew => EntryId is null;
 
     // The statuses a form offers, with the words the chart uses for them.
-    public IReadOnlyList<(string Code, string Name)> Statuses => List switch
-    {
-        "allergies" => [(AllergyClinicalStatus.Active, "Active"), (AllergyClinicalStatus.Inactive, "Inactive"), (AllergyClinicalStatus.Resolved, "Resolved")],
-        "medications" =>
-        [
-            (MedicationStatementStatus.Active, "Active"), (MedicationStatementStatus.OnHold, "On hold"), (MedicationStatementStatus.Stopped, "Stopped"),
-            (MedicationStatementStatus.Completed, "Completed"), (MedicationStatementStatus.EnteredInError, "Entered in error"),
-        ],
-        _ =>
-        [
-            (ConditionClinicalStatus.Active, "Active"), (ConditionClinicalStatus.Recurrence, "Recurrence"), (ConditionClinicalStatus.Remission, "Remission"),
-            (ConditionClinicalStatus.Inactive, "Inactive"), (ConditionClinicalStatus.Resolved, "Resolved"),
-        ],
-    };
+    public IReadOnlyList<(string Code, string Name)> Statuses => ChartListWords.Statuses(About.Table);
+
+    // What was typed into the free-text fields, for the page that says the post wasn't saved.
+    public IReadOnlyList<(string Field, string Value)> Typed =>
+        [.. new (string Label, string? Text)[] { (About.Label, Name), ("Reaction", Reaction), ("How it is taken", Dosage) }
+            .Where(typed => !string.IsNullOrWhiteSpace(typed.Text)).Select(typed => (typed.Label, typed.Text!))];
 
     public Dictionary<string, string> ChartLink
     {
@@ -238,12 +238,20 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
                 Sensitive = Sensitive,
             }, IsNew, HttpContext.RequestAborted),
         };
-        if (!saved)
+        if (saved != ChartSave.Saved)
         {
-            return RedirectToPage("/Patients/Chart", Search.ChartRouteValues(id));
+            // Refused by the database (row-level security, or the entry isn't this patient's): the form again, with
+            // what was entered, and a notice that says nothing was saved.
+            Refused = true;
+            Response.StatusCode = StatusCodes.Status409Conflict;
+            return Page();
         }
 
-        return Redirect(Url.Page("/Patients/Chart", Search.ChartRouteValues(id)) + $"#chart-{List}");
+        // The chart confirms it ("Saved:"), from the entry as the database now holds it.
+        var chart = Search.ChartRouteValues(id);
+        chart["saved"] = entryId;
+        chart["savedList"] = List;
+        return RedirectToPage("/Patients/Chart", chart);
     }
 
     static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -279,6 +287,15 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
 
         if (!await assignments.IsOnPanelAsync(id, HttpContext.RequestAborted))
         {
+            // A post from a form opened while the patient was on the panel: say it wasn't saved, and show what was
+            // typed, without reading anything about the patient. Anything else goes back to the chart.
+            if (HttpMethods.IsPost(Request.Method))
+            {
+                OffPanel = true;
+                Response.StatusCode = StatusCodes.Status409Conflict;
+                return Page();
+            }
+
             return RedirectToPage("/Patients/Chart", Search.ChartRouteValues(id));
         }
 

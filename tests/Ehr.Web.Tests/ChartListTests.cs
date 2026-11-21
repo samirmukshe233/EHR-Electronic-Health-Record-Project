@@ -192,6 +192,88 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Contains("<strong>Peanut</strong>: Anaphylaxis", await ReadAsync(created));
     }
 
+    // After a save the chart says what happened: the entry named and where it is listed; an entry given a status that
+    // takes it off the chart, and why it isn't listed; and a sensitive entry the chart leaves out, without its name.
+    [Fact]
+    public async Task After_a_save_the_chart_says_what_was_saved_without_naming_a_hidden_sensitive_entry()
+    {
+        var (_, patient, session) = await OnPanelAsync(apps, "Confirmed");
+
+        using var added = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Essential (primary) hypertension"), ("Status", "active"));
+        var chart = await ReadAsync(added);
+        Assert.Equal($"/patients/{patient}", PathOf(added));
+        Assert.Contains("Saved: Essential (primary) hypertension is listed under Diagnoses.", Words(chart));
+
+        using var medication = await SaveAsync(session.Client, patient, "medications", null, ("Name", "lisinopril 10 MG Oral Tablet"), ("Status", "active"));
+        var entry = await IdAsync(apps, "medication_statements", patient);
+        using var stopped = await SaveAsync(session.Client, patient, "medications", entry, ("Name", "lisinopril 10 MG Oral Tablet"), ("Status", "stopped"));
+        Assert.Contains("Saved: lisinopril 10 MG Oral Tablet is now stopped, so it is no longer listed.", Words(await ReadAsync(stopped)));
+
+        using var anxiety = await SaveAsync(session.Client, patient, "diagnoses", null, ("Name", "Generalized anxiety disorder"), ("Status", "active"));
+        var hidden = await ReadAsync(anxiety);
+        Assert.Contains("Saved: the diagnosis is sensitive, so it is kept with the sensitive items.", Words(hidden));
+        Assert.DoesNotContain("anxiety", hidden, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Sensitive items hidden: 1 diagnosis or medication is not shown.", Words(hidden));
+
+        // An address naming another patient's entry, or none that exists, confirms nothing.
+        var other = await apps.InsertPatientAsync("Synthetic", "Not confirmed");
+        await apps.AssignAsync(await apps.ClinicianAsync(), other);
+        var elsewhere = await session.Client.GetStringAsync($"/patients/{other}?saved={entry}&savedList=medications", Cancel);
+        Assert.DoesNotContain("Saved:", Words(elsewhere));
+        Assert.DoesNotContain("lisinopril", elsewhere);
+    }
+
+    // When the save can't happen, the clinician is told, and what they typed isn't lost. A patient taken off the panel
+    // between opening the form and saving it: a page that says so, with the typed name to copy, and nothing about the
+    // patient on it, since nothing about them may be read now.
+    [Fact]
+    public async Task A_save_for_a_patient_no_longer_on_the_panel_says_it_was_not_saved_and_keeps_what_was_typed()
+    {
+        var (clinician, patient, session) = await OnPanelAsync(apps, "Left the panel");
+        using var form = await session.Client.GetAsync(EntryPath(patient, "diagnoses"), Cancel);
+        await using (var db = await apps.OpenDatabaseAsync())
+        {
+            await using var end = new NpgsqlCommand("UPDATE ehr.patient_assignments SET ended_at = now() WHERE patient_id = @patient AND clinician_id = @clinician", db);
+            end.Parameters.AddWithValue("patient", patient);
+            end.Parameters.AddWithValue("clinician", clinician.Id);
+            Assert.Equal(1, await end.ExecuteNonQueryAsync(Cancel));
+        }
+
+        var reads = await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient);
+        using var posted = await PostFormAsync(session.Client, EntryPath(patient, "diagnoses"), form, ("Name", "Essential (primary) hypertension"), ("Status", "active"));
+
+        Assert.Equal(HttpStatusCode.Conflict, posted.StatusCode);
+        var page = await posted.Content.ReadAsStringAsync(Cancel);
+        Assert.Contains("Not saved: this patient isn't on your panel, so nothing was changed. What you entered is below, to copy.", Words(page));
+        Assert.Contains("Essential (primary) hypertension</textarea>", page);
+        Assert.DoesNotContain("Left the panel", page);
+        Assert.DoesNotContain("sc-banner", page);
+        Assert.Equal(reads, await apps.AuditEventsAsync(AuditActions.Read, clinician.Id, patient));
+        Assert.Empty(await RowsAsync(apps, "conditions", patient, "display"));
+    }
+
+    // "No known allergies" posted from a chart opened before a colleague recorded an allergy: the database refuses it,
+    // and the chart says so, with the allergy listed.
+    [Fact]
+    public async Task No_known_allergies_after_a_colleague_recorded_an_allergy_is_not_saved_and_the_chart_says_why()
+    {
+        var (_, patient, session) = await OnPanelAsync(apps, "Colleague recorded");
+        using var chart = await session.Client.GetAsync($"/patients/{patient}", Cancel);
+        var colleague = await apps.CreateStaffAsync("Dr. Colleague Allergy", StaffRoles.Clinician);
+        await apps.AssignAsync(colleague, patient);
+        var theirs = await SignInAsync(apps.OnPrem, colleague);
+        using var peanut = await SaveAsync(theirs.Client, patient, "allergies", null, ("Name", "Peanut"), ("Reaction", "Hives"), ("Status", "active"));
+
+        using var refused = await PostFormAsync(session.Client, $"/patients/{patient}?handler=NoKnownAllergies", chart);
+        var page = Words(await ReadAsync(refused));
+
+        Assert.Contains("Not saved: an allergy is recorded for this patient, so \"No known allergies\" wasn't recorded. Their allergies are listed below.", page);
+        Assert.Equal(["Peanut active"], await RowsAsync(apps, "allergy_intolerances", patient, "display || ' ' || clinical_status"));
+
+        // The notice can't be made to claim what isn't so: with an allergy listed, "saved" says nothing.
+        Assert.DoesNotContain("Saved:", Words(await session.Client.GetStringAsync($"/patients/{patient}?noKnownAllergies=saved", Cancel)));
+    }
+
     // The entry form is never kept by the browser, opened to add or to change, and a sensitive entry's form included:
     // the page says so itself, whatever else on it would.
     [Fact]

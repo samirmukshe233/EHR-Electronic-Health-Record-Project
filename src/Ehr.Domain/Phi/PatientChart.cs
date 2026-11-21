@@ -23,7 +23,16 @@ public sealed record PatientChart(
     public int SensitiveHidden { get; init; }
 
     public bool SensitiveShown { get; init; }
+
+    // Set when the entry form sent the clinician here after saving an entry, and that entry is this patient's: what
+    // the chart's "Saved:" notice says about it. Part of the same recorded read.
+    public SavedEntry? Saved { get; init; }
 }
+
+// An entry of one of the chart's lists just saved, as the chart's notice describes it: its list (by table), name,
+// status, whether it is among the lists the chart shows now (Listed), and whether the chart left it out as sensitive
+// (Hidden), in which case the notice doesn't name it.
+public sealed record SavedEntry(string Table, string Display, string Status, bool Listed, bool Hidden);
 
 // A patient with their current allergies, for the banner of a page that isn't the chart. One recorded read.
 public sealed record PatientHeader(Patient Patient, IReadOnlyList<AllergyIntolerance> Allergies);

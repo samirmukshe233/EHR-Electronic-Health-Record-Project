@@ -47,6 +47,40 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
     [BindProperty(SupportsGet = true)]
     public bool Sensitive { get; set; }
 
+    // Set by the entry form's redirect after a save: the entry and its list (Lists/Entry's name for it), for the
+    // chart's "Saved:" notice, which is shown only when that entry is this patient's (PatientChart.Saved).
+    [BindProperty(SupportsGet = true)]
+    public Guid? Saved { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? SavedList { get; set; }
+
+    // Set by this page's own redirect after "Record no known allergies": what happened, for the notice.
+    [BindProperty(SupportsGet = true, Name = "noKnownAllergies")]
+    public string? NoKnownAllergiesOutcome { get; set; }
+
+    public const string NoKnownAllergiesSaved = "saved";
+
+    public const string NoKnownAllergiesAllergyRecorded = "allergy-recorded";
+
+    public const string NoKnownAllergiesRefused = "refused";
+
+    // The notice after "Record no known allergies", checked against the list as read now, so the address alone can't
+    // make the chart claim what isn't so: "saved" only while "No known allergies" is the list's state, "allergy
+    // recorded" only while an allergy is.
+    public string? NoKnownAllergiesNotice => NoKnownAllergiesOutcome switch
+    {
+        NoKnownAllergiesSaved when NoKnownAllergies is not null => "saved",
+        NoKnownAllergiesAllergyRecorded when KnownAllergies.Count > 0 => "allergy-recorded",
+        NoKnownAllergiesRefused => "refused",
+        _ => null,
+    };
+
+    // The "Saved:" notice's sentence after the name, for an entry that is shown: where it is, or why it isn't listed.
+    public static string SavedWhere(SavedEntry saved) => saved.Listed
+        ? $" is listed under {ChartListWords.Lists[saved.Table].Heading}."
+        : $" is now {ChartListWords.Status(saved.Table, saved.Status).ToLowerInvariant()}, so it is no longer listed.";
+
     public IReadOnlyList<ClinicalDraft> Drafts { get; private set; } = [];
     public IReadOnlyList<ClinicalNote> Notes { get; private set; } = [];
 
@@ -73,7 +107,7 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
     }
 
     // Records "No known allergies" for a patient on the clinician's panel with no allergy recorded. The database refuses
-    // it otherwise, and the chart then shows the list as it is.
+    // it otherwise, and the chart then shows the list as it is, with a notice that says what happened.
     public async Task<IActionResult> OnPostNoKnownAllergiesAsync(Guid id)
     {
         if (!await assignments.IsOnPanelAsync(id, HttpContext.RequestAborted))
@@ -81,8 +115,15 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
             return RedirectToPage(Search.ChartRouteValues(id));
         }
 
-        await lists.RecordNoKnownAllergiesAsync(id, HttpContext.RequestAborted);
-        return Redirect(Url.Page("Chart", Search.ChartRouteValues(id)) + "#chart-allergies");
+        var outcome = await lists.RecordNoKnownAllergiesAsync(id, HttpContext.RequestAborted) switch
+        {
+            ChartSave.Saved => NoKnownAllergiesSaved,
+            ChartSave.AllergyRecorded => NoKnownAllergiesAllergyRecorded,
+            _ => NoKnownAllergiesRefused,
+        };
+        var route = Search.ChartRouteValues(id);
+        route["noKnownAllergies"] = outcome;
+        return RedirectToPage(route);
     }
 
     public async Task<IActionResult> OnPostAssignAsync(Guid id)
@@ -134,7 +175,10 @@ public class ChartModel(PhiReader phi, PatientAssignments assignments, BreakGlas
             }
         }
 
-        var chart = await phi.ChartAsync(id, RecentVisits, HttpContext.RequestAborted, Discontinued, Sensitive);
+        (string, Guid)? saved = Saved is { } entry && SavedList is not null && Lists.EntryModel.Lists.TryGetValue(SavedList, out var list)
+            ? (list.Table, entry)
+            : null;
+        var chart = await phi.ChartAsync(id, RecentVisits, HttpContext.RequestAborted, Discontinued, Sensitive, saved);
         if (chart is null)
         {
             return NotFound();

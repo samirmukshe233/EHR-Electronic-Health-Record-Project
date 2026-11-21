@@ -4,6 +4,7 @@ using Ehr.Data.Orders;
 using Ehr.Data.Patients;
 using Ehr.Domain.Audit;
 using Ehr.Domain.Orders;
+using Ehr.Domain.Patients;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ehr.Domain.Phi;
@@ -34,7 +35,8 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
     // however many rows the sections hold: the same event a list of patients records for each. Draft and signed-note
     // reads have their own table/row events, also accepted by the cloud audit queue (CloudAuditEvents).
     public async Task<PatientChart?> ChartAsync(
-        Guid id, int visits, CancellationToken cancellationToken, Guid? discontinued = null, bool sensitive = false)
+        Guid id, int visits, CancellationToken cancellationToken, Guid? discontinued = null, bool sensitive = false,
+        (string Table, Guid Id)? saved = null)
     {
         var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (patient is null)
@@ -63,6 +65,11 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         var confirmed = discontinued is not null && await db.Orders.AsNoTracking()
             .AnyAsync(order => order.Id == discontinued && order.PatientId == id && order.Status == OrderStatus.Revoked, cancellationToken);
 
+        // Only when the entry form sent the clinician here: the entry just saved, when it is this patient's. Found among
+        // the lists already read when it is current, sensitive ones included (they are left out below); otherwise, as an
+        // entry given another status, by one more query.
+        var savedEntry = saved is { } wanted ? await SavedEntryAsync(id, wanted.Table, wanted.Id, allergies, medications, conditions, sensitive, cancellationToken) : null;
+
         var hidden = 0;
         if (!sensitive)
         {
@@ -78,7 +85,32 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             ConfirmsDiscontinued = confirmed,
             SensitiveHidden = hidden,
             SensitiveShown = sensitive,
+            Saved = savedEntry,
         };
+    }
+
+    // The chart's view of an entry just saved (SavedEntry), or null when it isn't one of this patient's.
+    async Task<SavedEntry?> SavedEntryAsync(
+        Guid patient, string table, Guid entry, List<AllergyIntolerance> allergies, List<MedicationStatement> medications, List<Condition> conditions,
+        bool sensitive, CancellationToken cancellationToken)
+    {
+        switch (table)
+        {
+            case ChartListWords.Allergies:
+                var allergy = allergies.FirstOrDefault(a => a.Id == entry)
+                    ?? await db.AllergyIntolerances.AsNoTracking().SingleOrDefaultAsync(a => a.Id == entry && a.PatientId == patient, cancellationToken);
+                return allergy is null ? null : new SavedEntry(table, ChartLists.DisplayOf(allergy), allergy.ClinicalStatus, allergies.Contains(allergy), Hidden: false);
+            case ChartListWords.Medications:
+                var medication = medications.FirstOrDefault(m => m.Id == entry)
+                    ?? await db.MedicationStatements.AsNoTracking().SingleOrDefaultAsync(m => m.Id == entry && m.PatientId == patient, cancellationToken);
+                return medication is null ? null : new SavedEntry(table, medication.Display, medication.Status, medications.Contains(medication), medication.Sensitive && !sensitive);
+            case ChartListWords.Diagnoses:
+                var condition = conditions.FirstOrDefault(c => c.Id == entry)
+                    ?? await db.Conditions.AsNoTracking().SingleOrDefaultAsync(c => c.Id == entry && c.PatientId == patient, cancellationToken);
+                return condition is null ? null : new SavedEntry(table, condition.Display, condition.ClinicalStatus, conditions.Contains(condition), condition.Sensitive && !sensitive);
+            default:
+                return null;
+        }
     }
 
     // A patient and their current allergies, for the banner of a patient page that isn't the chart (a note, dictation):

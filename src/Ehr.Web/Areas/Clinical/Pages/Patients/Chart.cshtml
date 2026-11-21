@@ -50,6 +50,27 @@
 {
     <p class="sc-notice sc-notice--success" role="status"><span class="sc-notice__state">Order signed:</span> <strong>@signed.Display</strong>, @signed.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC.</p>
 }
+@* After the entry form saved an entry. A sensitive one the chart leaves out isn't named: the notice says where it is. *@
+@if (Model.Chart.Saved is { Hidden: true } hiddenSave)
+{
+    <p class="sc-notice sc-notice--success" role="status" data-saved><span class="sc-notice__state">Saved:</span> the @Ehr.Domain.Patients.ChartListWords.Lists[hiddenSave.Table].One is sensitive, so it is kept with the sensitive items.</p>
+}
+else if (Model.Chart.Saved is { } saved)
+{
+    <p class="sc-notice sc-notice--success" role="status" data-saved><span class="sc-notice__state">Saved:</span> <strong>@saved.Display</strong>@ChartModel.SavedWhere(saved)</p>
+}
+@switch (Model.NoKnownAllergiesNotice)
+{
+    case "saved":
+        <p class="sc-notice sc-notice--success" role="status" data-saved><span class="sc-notice__state">Saved:</span> no known allergies recorded for this patient.</p>
+        break;
+    case "allergy-recorded":
+        <p class="sc-notice sc-notice--danger" role="alert" data-not-saved><span class="sc-notice__state">Not saved:</span> an allergy is recorded for this patient, so "No known allergies" wasn't recorded. Their allergies are listed below.</p>
+        break;
+    case "refused":
+        <p class="sc-notice sc-notice--danger" role="alert" data-not-saved><span class="sc-notice__state">Not saved:</span> you can't change this patient's allergies now, so nothing was recorded.</p>
+        break;
+}
 
 @* Sensitive diagnoses and medications aren't sent with the chart until the clinician asks, and the asking is recorded. *@
 @{
