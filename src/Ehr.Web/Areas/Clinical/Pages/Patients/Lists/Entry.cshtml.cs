@@ -42,6 +42,11 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
     [BindProperty(SupportsGet = true)]
     public Guid? EntryId { get; set; }
 
+    // For a new entry: its ID, chosen when the form is opened and posted with it, so posting the same form twice (a
+    // double click) saves one entry, not two (ChartLists.SaveAsync). A post without one gets a new ID.
+    [BindProperty]
+    public Guid? NewEntryId { get; set; }
+
     [BindProperty]
     public string? Name { get; set; }
 
@@ -145,6 +150,7 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
         else
         {
             Status = Statuses[0].Code;
+            NewEntryId = Guid.CreateVersion7();
         }
 
         return Page();
@@ -155,6 +161,12 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
         if (await LoadAsync(id) is { } refused)
         {
             return refused;
+        }
+
+        // A new entry keeps the ID its form was opened with, through any mistakes, so a repeated post updates it.
+        if (IsNew && (NewEntryId is null || NewEntryId == Guid.Empty))
+        {
+            NewEntryId = Guid.CreateVersion7();
         }
 
         var errors = new Dictionary<string, string>();
@@ -218,7 +230,7 @@ public class EntryModel(PhiReader phi, PatientAssignments assignments, ChartList
             return Page();
         }
 
-        var entryId = EntryId ?? Guid.CreateVersion7();
+        var entryId = EntryId ?? NewEntryId!.Value;
         var saved = List switch
         {
             "allergies" => await lists.SaveAsync(new AllergyIntolerance

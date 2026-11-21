@@ -344,6 +344,46 @@ public class ChartListTests(WebApps apps) : IClassFixture<WebApps>
         Assert.Matches("<p class=\"sc-notice sc-notice--success\" role=\"status\" tabindex=\"-1\" data-focus-on-load data-saved>", chart);
     }
 
+    // An "Add" form posted twice (a double click, or Back and post again) saves one entry: its ID came with the form,
+    // so the second post updates the first's row. Two posts at the same moment do too. And an ID that is another
+    // patient's entry's can't be used to change that entry from this patient's form.
+    [Fact]
+    public async Task An_add_form_posted_twice_saves_one_entry()
+    {
+        var (clinician, patient, session) = await OnPanelAsync(apps, "Posted twice");
+        using var page = await session.Client.GetAsync(EntryPath(patient, "allergies"), Cancel);
+        var html = await page.Content.ReadAsStringAsync(Cancel);
+        var newId = Guid.Parse(System.Text.RegularExpressions.Regex.Match(html, "name=\"NewEntryId\" value=\"([^\"]+)\"").Groups[1].Value);
+        var token = Token(html);
+        Task<HttpResponseMessage> PostAsync(string reaction) => session.Client.PostAsync(EntryPath(patient, "allergies"),
+            Form(("__RequestVerificationToken", token), ("NewEntryId", newId), ("Name", "Peanut"), ("Reaction", reaction), ("Status", "active")), Cancel);
+
+        using (var first = await PostAsync("Hives"))
+        using (var second = await PostAsync("Rash"))
+        {
+            Assert.Contains("Saved: Peanut is listed under Allergies.", Words(await ReadAsync(second)));
+        }
+
+        Assert.Equal([$"{newId} Peanut Rash"], await RowsAsync(apps, "allergy_intolerances", patient, "concat_ws(' ', id, display, reaction)"));
+        // At once: still one.
+        var other = await apps.InsertPatientAsync("Synthetic", "Posted at once");
+        await apps.AssignAsync(clinician, other);
+        var form = await session.Client.GetStringAsync(EntryPath(other, "diagnoses"), Cancel);
+        var otherId = System.Text.RegularExpressions.Regex.Match(form, "name=\"NewEntryId\" value=\"([^\"]+)\"").Groups[1].Value;
+        var posts = await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => session.Client.PostAsync(EntryPath(other, "diagnoses"),
+            Form(("__RequestVerificationToken", Token(form)), ("NewEntryId", otherId), ("Name", "Essential (primary) hypertension"), ("Status", "active")), Cancel)));
+        Assert.All(posts, posted => Assert.Equal(HttpStatusCode.OK, posted.StatusCode));
+        Assert.Equal(["Essential (primary) hypertension"], await RowsAsync(apps, "conditions", other, "display"));
+
+        // Another patient's entry's ID, posted from this patient's form: refused, and that entry is unchanged.
+        using var crossed = await session.Client.PostAsync(EntryPath(other, "allergies"),
+            Form(("__RequestVerificationToken", token), ("NewEntryId", newId), ("Name", "Penicillin G"), ("Status", "active")), Cancel);
+        Assert.Equal(HttpStatusCode.Conflict, crossed.StatusCode);
+        Assert.Contains("Not saved: the database refused the change", Words(await crossed.Content.ReadAsStringAsync(Cancel)));
+        Assert.Equal([$"{newId} Peanut Rash"], await RowsAsync(apps, "allergy_intolerances", patient, "concat_ws(' ', id, display, reaction)"));
+        Assert.Empty(await RowsAsync(apps, "allergy_intolerances", other, "display"));
+    }
+
     // The entry form is never kept by the browser, opened to add or to change, and a sensitive entry's form included:
     // the page says so itself, whatever else on it would.
     [Fact]

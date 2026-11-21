@@ -43,6 +43,11 @@ else
 <h1>@heading: @patient.FamilyName, @patient.GivenName</h1>
 
 <form method="post" class="sc-form">
+    @if (Model.IsNew)
+    {
+        @* The new entry's ID, so posting this form twice saves one entry (ChartLists.SaveAsync). *@
+        <input type="hidden" name="NewEntryId" value="@Model.NewEntryId">
+    }
     @if (Model.Errors.Count > 0)
     {
         <p class="sc-notice sc-notice--danger" role="alert"><span class="sc-notice__state">Not saved:</span> fix the highlighted fields and save again.</p>

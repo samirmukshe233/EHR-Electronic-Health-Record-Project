@@ -97,7 +97,23 @@ public sealed class ChartLists(EhrDbContext db)
 
     // An insert, or an update of the named columns of the row with the entry's ID. Reads nothing: the page read the
     // entry as this patient's through PhiReader, and row-level security decides whether the write may happen.
+    //
+    // A new entry's ID comes with the form, chosen when it was opened, so a form posted twice (a double click, or
+    // Back and post again) finds its row there already: the insert then becomes an update of it, not a second entry.
+    // Updating one of the patient's entries by its ID is what changing it is, with the same policies; an ID that is
+    // another patient's entry's is refused, as moving an entry is (65-chart-lists.sql).
     async Task<ChartSave> SaveAsync(object entry, bool isNew, CancellationToken cancellationToken, params string[] changed)
+    {
+        var saved = await TrySaveAsync(entry, isNew, cancellationToken, changed);
+        // The update names the patient too: for another patient's row that would be a move, which the guard refuses,
+        // so a form can only ever write its own patient's entry.
+        return saved == RepeatedInsert ? await TrySaveAsync(entry, isNew: false, cancellationToken, [.. changed, "PatientId"]) : saved;
+    }
+
+    // An insert that found its ID taken: try it as an update. Never returned by SaveAsync.
+    const ChartSave RepeatedInsert = (ChartSave)(-1);
+
+    async Task<ChartSave> TrySaveAsync(object entry, bool isNew, CancellationToken cancellationToken, string[] changed)
     {
         const string savepoint = "chart_entry";
         var transaction = db.Database.CurrentTransaction!;
@@ -146,6 +162,13 @@ public sealed class ChartLists(EhrDbContext db)
             // "No known allergies" is already recorded (a second click, or another tab): nothing more to save.
             await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
             return ChartSave.AlreadyRecorded;
+        }
+        catch (DbUpdateException e) when (isNew && e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: { } key }
+            && key.StartsWith("pk_", StringComparison.Ordinal))
+        {
+            // The form was posted before: its entry exists.
+            await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
+            return RepeatedInsert;
         }
         finally
         {
