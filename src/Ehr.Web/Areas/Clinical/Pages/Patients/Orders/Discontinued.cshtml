@@ -1,0 +1,62 @@
+@page "/patients/{id:guid}/orders/discontinued"
+@using Ehr.Domain.Orders
+@model Ehr.Web.Areas.Clinical.Pages.Patients.Orders.DiscontinuedModel
+@{
+    // The address carries the patient. Without htmx, nothing keeps it in the browser's sessionStorage history.
+    ViewData["UseHtmx"] = false;
+    var patient = Model.Orders.Patient;
+    ViewData["Title"] = $"Discontinued orders: {patient.FamilyName}, {patient.GivenName}";
+}
+@section Banner {
+    <partial name="_PatientBanner" model="new PatientBanner(patient, Model.Orders.Allergies, Model.OnPanel, Model.EmergencyUntil)" />
+}
+<div class="sc-pagehead">
+    <p><a asp-page="/Patients/Chart" asp-all-route-data="Model.ChartLink">Back to the chart</a></p>
+</div>
+<h1>Discontinued orders: @patient.FamilyName, @patient.GivenName</h1>
+
+@if (Model.Orders.Orders.Count == 0)
+{
+    <p class="sc-muted">No discontinued orders.</p>
+}
+else
+{
+    <div class="sc-table-wrap">
+        <table class="sc-table">
+            <thead>
+                <tr>
+                    <th scope="col">Order</th>
+                    <th scope="col">Signed</th>
+                    <th scope="col">Discontinued</th>
+                    <th scope="col">By</th>
+                    <th scope="col">Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var order in Model.Orders.Orders)
+                {
+                    <tr>
+                        <td>
+                            <strong>@order.Display</strong> (@OrderForms.TypeNames[order.Type])
+                            <br>@OrderForms.Summary(order.Type, order.Details)
+                        </td>
+                        <td class="sc-table__mono">@order.SignedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC</td>
+                        <td class="sc-table__mono">@order.DiscontinuedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC</td>
+                        <td>@order.DiscontinuedBy</td>
+                        <td>
+                            @if (order.Replaced)
+                            {
+                                <span class="sc-tag">Changed</span>
+                            }
+                            @order.Reason
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (Model.Orders.More)
+    {
+        <p class="sc-muted">Showing the @DiscontinuedModel.Limit most recently discontinued orders.</p>
+    }
+}

@@ -86,6 +86,12 @@ public sealed class MigratedDatabase : IAsyncLifetime
         {
             await ExecuteAsync(owner, await File.ReadAllTextAsync(file));
         }
+
+        // The reference data (db/reference): the codes chart entries are picked from.
+        foreach (var file in Directory.GetFiles(RepositoryRoot.Combine("db/reference"), "*.sql").Order(StringComparer.Ordinal))
+        {
+            await ExecuteAsync(owner, await File.ReadAllTextAsync(file));
+        }
     }
 
     public static async Task ExecuteAsync(string connectionString, string sql)

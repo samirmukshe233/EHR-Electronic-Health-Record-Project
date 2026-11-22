@@ -384,10 +384,10 @@ async function loadPanel() {
   if (selectedPatient && !panel.some((patient) => patient.id === selectedPatient)) clearChart();
 }
 
-function chartSection(title, rows) {
+function chartSection(title, rows, none = 'None recorded.') {
   return el('section', {}, el('h4', { textContent: title }),
     rows.length ? el('ul', { className: 'sc-list' }, ...rows.map((text) => el('li', { textContent: text })))
-      : el('p', { className: 'sc-muted', textContent: 'None recorded.' }));
+      : el('p', { className: 'sc-muted', textContent: none }));
 }
 
 async function openChart(patient, reset = true) {
@@ -402,9 +402,15 @@ async function openChart(patient, reset = true) {
   byId('chart-demographics').textContent = `MRN ${chart.mrn} · Born ${chart.birthDate} · ${chart.gender}`;
   const details = (main, ...parts) => [main, ...parts.filter(Boolean)].join(' · ');
   byId('chart-sections').replaceChildren(
-    chartSection('Allergies', chart.allergies.map((a) => details(a.display, a.reaction, a.criticality))),
+    // "No known allergies" was asked and recorded; it isn't the same as nothing recorded.
+    chartSection('Allergies', chart.allergies.map((a) => details(a.display, a.reaction, a.criticality)),
+      chart.allergyStatus === 'none-known' ? 'No known allergies.' : 'No allergy information recorded.'),
     chartSection('Medications', chart.medications.map((m) => details(m.display, m.dosage))),
     chartSection('Conditions', chart.conditions.map((c) => details(c.display, c.onsetDate))),
+    // Sensitive diagnoses and medications are never kept on this device: say so, rather than look complete.
+    ...(chart.sensitiveNotKept
+      ? [el('p', { className: 'sc-muted', textContent: `Sensitive items not kept offline: ${chart.sensitiveNotKept}. Open the chart on the clinic's site to see them.` })]
+      : []),
     chartSection('Recent visits', chart.visits.map((v) => details(v.periodStart.slice(0, 10), v.reason,
       v.systolicMmHg != null && v.diastolicMmHg != null ? `${v.systolicMmHg}/${v.diastolicMmHg} mmHg` : '',
       v.heartRatePerMinute != null ? `${v.heartRatePerMinute} bpm` : ''))),

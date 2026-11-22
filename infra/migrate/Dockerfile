@@ -25,6 +25,7 @@ RUN case "$TARGETARCH" in amd64) rid=linux-x64 ;; arm64) rid=linux-arm64 ;; *) e
 FROM postgres:18
 COPY --from=build /out/efbundle /usr/local/bin/efbundle
 COPY db/policies/ /policies/
+COPY db/reference/ /reference/
 COPY infra/migrate/migrate.sh /usr/local/bin/migrate.sh
 USER postgres
 ENTRYPOINT ["/bin/sh", "/usr/local/bin/migrate.sh"]

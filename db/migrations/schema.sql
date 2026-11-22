@@ -700,3 +700,128 @@ VALUES ('20261116052725_AiFieldReviews', '10.0.13');
 
 COMMIT;
 
+START TRANSACTION;
+ALTER TABLE ehr.orders ADD discontinue_reason character varying(500);
+
+ALTER TABLE ehr.orders ADD discontinued_at timestamp with time zone;
+
+ALTER TABLE ehr.orders ADD discontinuer_id uuid;
+
+ALTER TABLE ehr.orders ADD replaced_by_order_id uuid;
+
+ALTER TABLE ehr.orders ADD replaces_order_id uuid;
+
+CREATE INDEX ix_orders_discontinuer_id ON ehr.orders (discontinuer_id);
+
+CREATE UNIQUE INDEX ix_orders_replaced_by_order_id ON ehr.orders (replaced_by_order_id);
+
+CREATE UNIQUE INDEX ix_orders_replaces_order_id ON ehr.orders (replaces_order_id);
+
+ALTER TABLE ehr.orders ADD CONSTRAINT ck_orders_discontinued CHECK ((status = 'revoked') = (discontinued_at IS NOT NULL) AND (discontinued_at IS NULL) = (discontinuer_id IS NULL) AND (discontinued_at IS NULL) = (discontinue_reason IS NULL));
+
+ALTER TABLE ehr.orders ADD CONSTRAINT ck_orders_replaced CHECK (replaced_by_order_id IS NULL OR status = 'revoked');
+
+ALTER TABLE ehr.orders ADD CONSTRAINT ck_orders_replaces_another CHECK (replaces_order_id <> id AND replaced_by_order_id <> id);
+
+ALTER TABLE ehr.orders ADD CONSTRAINT fk_orders_orders_replaced_by_order_id FOREIGN KEY (replaced_by_order_id) REFERENCES ehr.orders (id) ON DELETE RESTRICT;
+
+ALTER TABLE ehr.orders ADD CONSTRAINT fk_orders_orders_replaces_order_id FOREIGN KEY (replaces_order_id) REFERENCES ehr.orders (id) ON DELETE RESTRICT;
+
+ALTER TABLE ehr.orders ADD CONSTRAINT fk_orders_staff_users_discontinuer_id FOREIGN KEY (discontinuer_id) REFERENCES ehr.staff_users (id) ON DELETE RESTRICT;
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261118072929_OrderChanges', '10.0.13');
+
+COMMIT;
+
+START TRANSACTION;
+ALTER TABLE ehr.medication_statements ADD sensitive boolean NOT NULL DEFAULT FALSE;
+
+ALTER TABLE ehr.conditions ADD sensitive boolean NOT NULL DEFAULT FALSE;
+
+ALTER TABLE ehr.allergy_intolerances ADD code_system character varying(20);
+
+ALTER TABLE ehr.allergy_intolerances ADD severity character varying(20);
+
+CREATE TABLE ehr.chart_history (
+    id uuid NOT NULL,
+    patient_id uuid NOT NULL,
+    table_name character varying(63) NOT NULL,
+    row_id uuid NOT NULL,
+    changed_at timestamp with time zone NOT NULL,
+    changed_by_id uuid,
+    before jsonb,
+    after jsonb NOT NULL,
+    CONSTRAINT pk_chart_history PRIMARY KEY (id),
+    CONSTRAINT fk_chart_history_patients_patient_id FOREIGN KEY (patient_id) REFERENCES ehr.patients (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_chart_history_staff_users_changed_by_id FOREIGN KEY (changed_by_id) REFERENCES ehr.staff_users (id) ON DELETE RESTRICT
+);
+
+CREATE TABLE ehr.clinical_codes (
+    kind character varying(20) NOT NULL,
+    system character varying(20) NOT NULL,
+    code character varying(20) NOT NULL,
+    display character varying(300) NOT NULL,
+    display_key character varying(300) GENERATED ALWAYS AS (lower(display)) STORED NOT NULL,
+    category character varying(20),
+    sensitive boolean NOT NULL,
+    CONSTRAINT pk_clinical_codes PRIMARY KEY (kind, system, code),
+    CONSTRAINT ck_clinical_codes_category CHECK (category IN ('food', 'medication', 'environment', 'biologic')),
+    CONSTRAINT ck_clinical_codes_kind CHECK (kind IN ('condition', 'medication', 'allergen')),
+    CONSTRAINT ck_clinical_codes_system CHECK (system IN ('icd-10-cm', 'rxnorm', 'unii'))
+);
+
+ALTER TABLE ehr.allergy_intolerances NO FORCE ROW LEVEL SECURITY;
+UPDATE ehr.allergy_intolerances SET code = 'no-known-allergy' WHERE code = '716186003';
+DO $$
+BEGIN
+    IF (SELECT relrowsecurity FROM pg_class WHERE oid = 'ehr.allergy_intolerances'::regclass) THEN
+        ALTER TABLE ehr.allergy_intolerances FORCE ROW LEVEL SECURITY;
+    END IF;
+END
+$$;
+
+ALTER TABLE ehr.allergy_intolerances ADD CONSTRAINT ck_allergy_intolerances_severity CHECK (severity IN ('mild', 'moderate', 'severe'));
+
+CREATE INDEX ix_chart_history_changed_by_id ON ehr.chart_history (changed_by_id);
+
+CREATE INDEX ix_chart_history_patient_id_table_name_changed_at ON ehr.chart_history (patient_id, table_name, changed_at);
+
+CREATE INDEX ix_clinical_codes_kind_display_key ON ehr.clinical_codes (kind, display_key text_pattern_ops);
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261118081856_ChartLists', '10.0.13');
+
+COMMIT;
+
+START TRANSACTION;
+ALTER TABLE ehr.audit_events ADD sensitive boolean NOT NULL DEFAULT FALSE;
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261118095004_AuditSensitive', '10.0.13');
+
+COMMIT;
+
+START TRANSACTION;
+ALTER TABLE ehr.allergy_intolerances NO FORCE ROW LEVEL SECURITY;
+UPDATE ehr.allergy_intolerances SET clinical_status = 'inactive'
+WHERE code = 'no-known-allergy' AND clinical_status = 'active'
+  AND id NOT IN (
+      SELECT DISTINCT ON (patient_id) id FROM ehr.allergy_intolerances
+      WHERE code = 'no-known-allergy' AND clinical_status = 'active'
+      ORDER BY patient_id, recorded_at, id);
+DO $$
+BEGIN
+    IF (SELECT relrowsecurity FROM pg_class WHERE oid = 'ehr.allergy_intolerances'::regclass) THEN
+        ALTER TABLE ehr.allergy_intolerances FORCE ROW LEVEL SECURITY;
+    END IF;
+END
+$$;
+
+CREATE UNIQUE INDEX ix_allergy_intolerances_one_no_known_allergy ON ehr.allergy_intolerances (patient_id) WHERE code = 'no-known-allergy' AND clinical_status = 'active';
+
+INSERT INTO ehr.__ef_migrations_history (migration_id, product_version)
+VALUES ('20261121224028_OneNoKnownAllergy', '10.0.13');
+
+COMMIT;
+

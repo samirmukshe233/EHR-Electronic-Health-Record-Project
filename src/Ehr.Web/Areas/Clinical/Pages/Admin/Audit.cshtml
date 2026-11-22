@@ -80,7 +80,16 @@ else
                         }
                         <td>
                             @e.Reason
-                            @if (e.Reason is null && e.Details is null)
+                            @if (e.Sensitive)
+                            {
+                                @* A write to a sensitive item: that it changed and who changed it, never its values. *@
+                                <span class="sc-tag sc-tag--warning">Sensitive</span> <span>A sensitive item changed. Its values aren't shown here.</span>
+                            }
+                            else if (e.TableName == "chart_history")
+                            {
+                                <span class="sc-muted">A copy for the lists' history. Its values aren't shown here: see the entry's own event.</span>
+                            }
+                            else if (e.Reason is null && e.Details is null)
                             {
                                 <span class="sc-table__muted">—</span>
                             }

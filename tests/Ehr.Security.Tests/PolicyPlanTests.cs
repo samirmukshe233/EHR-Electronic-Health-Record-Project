@@ -29,7 +29,8 @@ public class PolicyPlanTests(MigratedDatabase database) : IClassFixture<Migrated
     {
         var clinician = await Accounts.StaffAsync(database, StaffRoles.Clinician);
 
-        var plan = await PlanAsync(clinician, $"SELECT * FROM ehr.{table}");
+        // Every column the runtime roles may read: all of them, but for audit events' details (10-grants.sql).
+        var plan = await PlanAsync(clinician, table == "audit_events" ? "SELECT id, action FROM ehr.audit_events" : $"SELECT * FROM ehr.{table}");
 
         Assert.Contains("InitPlan", plan);
         Assert.DoesNotContain("ehr.is_", plan);

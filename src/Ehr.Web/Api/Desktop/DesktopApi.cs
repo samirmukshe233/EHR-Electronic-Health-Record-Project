@@ -1,6 +1,7 @@
 using System.Data;
 using System.Security.Claims;
 using Ehr.Data;
+using Ehr.Data.Patients;
 using Ehr.Domain.Accounts;
 using Ehr.Domain.Authorization;
 using Ehr.Domain.Phi;
@@ -78,10 +79,14 @@ public static class DesktopApi
         return Results.Ok(charts.Select(chart => new CachedChart(
             chart.Patient.Id, $"{chart.Patient.GivenName} {chart.Patient.FamilyName}", chart.Patient.Mrn,
             chart.Patient.BirthDate, chart.Patient.Gender,
-            chart.Allergies.Select(a => new CachedAllergy(a.Display, a.Reaction, a.Criticality)).ToList(),
+            chart.Allergies.Where(a => a.Code != AllergyIntolerance.NoKnownAllergy).Select(a => new CachedAllergy(a.Display, a.Reaction, a.Criticality)).ToList(),
             chart.Medications.Select(m => new CachedMedication(m.Display, m.Dosage)).ToList(),
             chart.Conditions.Select(c => new CachedCondition(c.Display, c.OnsetDate)).ToList(),
-            chart.Visits.Select(v => new CachedVisit(v.PeriodStart, v.Reason, v.SystolicMmHg, v.DiastolicMmHg, v.HeartRatePerMinute)).ToList())).ToList());
+            chart.Visits.Select(v => new CachedVisit(v.PeriodStart, v.Reason, v.SystolicMmHg, v.DiastolicMmHg, v.HeartRatePerMinute)).ToList(),
+            // The offline copy never holds sensitive items: the chart read left them out, and says how many.
+            chart.SensitiveHidden,
+            // "No known allergies" is its own state, not an allergy in the list.
+            chart.Allergies.Any(a => a.Code != AllergyIntolerance.NoKnownAllergy) ? "listed" : chart.Allergies.Count > 0 ? "none-known" : "not-recorded")).ToList());
     }
 
     static async Task<IResult> SignOutAsync(ClaimsPrincipal user, DesktopSessions sessions, CancellationToken cancellationToken)

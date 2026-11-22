@@ -8,7 +8,9 @@ namespace Ehr.Domain.Orders;
 // UC 1 Place an order (Tahseen Arnan). Called inside the page's database transaction (DatabaseTransactionFilter). The
 // catalog isn't PHI, so it is read here; the patient and their orders are read through PhiReader. Who may sign is the
 // order page's rule and the database's (a clinician, as themselves, for a patient on their panel: db/policies/30-rls.sql),
-// and the database also sets the time, records the write, and refuses a duplicate without a reason (60-orders.sql).
+// and the database also sets the time, records the write, and refuses a duplicate without a reason (60-orders.sql). A
+// signed order is never edited: it is discontinued, with a reason, or changed, which signs a new order and discontinues
+// the old one as replaced.
 public sealed class ClinicalOrders(EhrDbContext db)
 {
     // The savepoint the insert runs in, so the request's transaction outlives a refused duplicate.
@@ -48,10 +50,16 @@ public sealed class ClinicalOrders(EhrDbContext db)
         return (found, errors);
     }
 
-    // Signs the order: the database sets the signer and the time. A blank reason is none. Null when the database refused
-    // it as a duplicate without a reason, one signed at the same moment as another; the order page then warns as for any
-    // duplicate. Only in the page's own transaction, READ COMMITTED, which the signing trigger requires.
-    public async Task<Order?> SignAsync(Guid patient, OrderCatalogItem item, string details, string? duplicateReason, CancellationToken cancellationToken)
+    // Signs the order: the database sets the signer and the time. A blank reason is none. Duplicate when the database
+    // refused it as a duplicate without a reason, one signed at the same moment as another; the order page then warns as
+    // for any duplicate. Only in the page's own transaction, READ COMMITTED, which the signing trigger requires.
+    //
+    // A change (`replaces`) signs the new order and discontinues the one it replaces, for `changeReason`, in one
+    // savepoint: both happen or neither does, and the database checks that again when the transaction commits. Gone
+    // when the order to replace is no longer active, because someone discontinued or changed it first; nothing is saved.
+    public async Task<(Order? Order, SignRefusal? Refusal)> SignAsync(
+        Guid patient, OrderCatalogItem item, string details, string? duplicateReason, CancellationToken cancellationToken,
+        Guid? replaces = null, string? changeReason = null)
     {
         var order = new Order
         {
@@ -62,22 +70,105 @@ public sealed class ClinicalOrders(EhrDbContext db)
             Details = details,
             Status = OrderStatus.Active,
             DuplicateReason = string.IsNullOrWhiteSpace(duplicateReason) ? null : duplicateReason.Trim(),
+            ReplacesOrderId = replaces,
         };
         var transaction = db.Database.CurrentTransaction!;
         await transaction.CreateSavepointAsync(Savepoint, cancellationToken);
         db.AddRange(order);
+        SignRefusal? refusal = null;
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            if (replaces is { } replaced && !await UpdateAsync(replaced, patient, item.Type, changeReason ?? ReplacedReason, order.Id, cancellationToken))
+            {
+                refusal = SignRefusal.Gone;
+            }
         }
         catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            db.Entry((object)order).State = EntityState.Detached;
+            refusal = SignRefusal.Duplicate;
+        }
+        catch (DbUpdateException e) when (replaces is not null && e.InnerException is PostgresException { SqlState: PostgresErrorCodes.CheckViolation })
+        {
+            // The signing trigger: the order to replace isn't an active order of this patient and type any more.
+            refusal = SignRefusal.Gone;
+        }
+
+        db.Entry((object)order).State = EntityState.Detached;
+        if (refusal is not null)
+        {
             await transaction.RollbackToSavepointAsync(Savepoint, cancellationToken);
-            return null;
+            return (null, refusal);
         }
 
         await transaction.ReleaseSavepointAsync(Savepoint, cancellationToken);
-        return order;
+        return (order, null);
     }
+
+    // What a replaced order's reason says when the clinician gave none.
+    public const string ReplacedReason = "Replaced by a changed order";
+
+    // Discontinues an active order, with the reason: the database sets who and when, and holds the update to that one
+    // change (db/policies/60-orders.sql). False when the order is no longer active, or isn't one this clinician may
+    // discontinue; nothing is saved then. Only in the page's own transaction.
+    public async Task<bool> DiscontinueAsync(Guid order, Guid patient, string type, string reason, CancellationToken cancellationToken)
+    {
+        var transaction = db.Database.CurrentTransaction!;
+        await transaction.CreateSavepointAsync(Savepoint, cancellationToken);
+        if (await UpdateAsync(order, patient, type, reason, replacedBy: null, cancellationToken))
+        {
+            await transaction.ReleaseSavepointAsync(Savepoint, cancellationToken);
+            return true;
+        }
+
+        await transaction.RollbackToSavepointAsync(Savepoint, cancellationToken);
+        return false;
+    }
+
+    // The one update of an order there is: active to revoked, with the reason and, for a change, the order that
+    // replaced it. Writes those three columns of the row with this ID and reads nothing. The patient and type only
+    // fill the stand-in entity: they aren't sent and aren't checked here. The caller already read the order as this
+    // patient's through PhiReader, and row-level security and the trigger decide whether the update may happen.
+    // False when it didn't.
+    async Task<bool> UpdateAsync(Guid id, Guid patient, string type, string reason, Guid? replacedBy, CancellationToken cancellationToken)
+    {
+        // A stand-in for the row, with its key: only the properties marked below are sent.
+        var order = new Order { Id = id, PatientId = patient, Type = type, CatalogCode = "", Details = "{}", Status = OrderStatus.Active };
+        var entry = db.Attach((object)order);
+        order.Status = OrderStatus.Revoked;
+        order.DiscontinueReason = reason.Trim();
+        order.ReplacedByOrderId = replacedBy;
+        entry.Property(nameof(Order.Status)).IsModified = true;
+        entry.Property(nameof(Order.DiscontinueReason)).IsModified = true;
+        entry.Property(nameof(Order.ReplacedByOrderId)).IsModified = replacedBy is not null;
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // No row: not an order this clinician may discontinue.
+            return false;
+        }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.CheckViolation })
+        {
+            // The trigger: the order isn't active any more.
+            return false;
+        }
+        finally
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+}
+
+// Why an order wasn't signed.
+public enum SignRefusal
+{
+    // The patient has an active order for the item, and no reason was given.
+    Duplicate,
+
+    // The order a change replaces is no longer active.
+    Gone,
 }

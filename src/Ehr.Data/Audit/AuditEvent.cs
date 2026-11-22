@@ -34,6 +34,12 @@ public class AuditEvent
     // The stated reason, for emergency access.
     public string? Reason { get; set; }
 
-    // What changed, as JSON: the old and new values of the columns a write changed.
+    // What changed, as JSON: the old and new values of the columns a write changed. The runtime roles can't read this
+    // column: admins get it through ehr.shown_audit_details, which leaves out a sensitive item's (AuditLog).
     public string? Details { get; set; }
+
+    // A write to a sensitive item (a diagnosis or medication marked sensitive). The audit page says that it changed
+    // and who changed it, never its values, which stay here in Details. Set by the write-audit trigger, which also
+    // marks an item's earlier events when the item becomes sensitive.
+    public bool Sensitive { get; set; }
 }

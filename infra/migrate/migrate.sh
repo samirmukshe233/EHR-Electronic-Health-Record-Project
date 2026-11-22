@@ -5,6 +5,7 @@
 #   1. db/policies/00-roles.sql  the runtime roles, then their passwords from the environment
 #   2. EF Core migrations        the schema from db/migrations, through the bundle built into this image
 #   3. db/policies/*.sql         everything else (grants, row-level security, triggers), in file-name order
+#   4. db/reference/*.sql        the reference data (the codes chart entries are picked from), in file-name order
 set -eu
 
 export PGHOST="${PGHOST:-onprem-db}" PGDATABASE="${PGDATABASE:-ehr}" PGUSER=ehr_owner PGPASSWORD="$EHR_OWNER_PASSWORD"
@@ -26,6 +27,12 @@ EHR_MIGRATIONS_CONNECTION="Host=$PGHOST;Database=$PGDATABASE;Username=$PGUSER$ss
 echo "Policies"
 for file in /policies/*.sql; do
   [ "$file" = /policies/00-roles.sql ] && continue
+  echo "  $(basename "$file")"
+  sql --file "$file"
+done
+
+echo "Reference data"
+for file in /reference/*.sql; do
   echo "  $(basename "$file")"
   sql --file "$file"
 done

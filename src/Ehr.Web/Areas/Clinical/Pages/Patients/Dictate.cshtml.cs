@@ -26,6 +26,9 @@ public class DictateModel(PhiReader phi, PatientAssignments assignments) : PageM
 
     public Patient Patient { get; private set; } = null!;
 
+    // The patient's current allergies, for the banner: part of the same recorded read as the patient.
+    public IReadOnlyList<AllergyIntolerance> Allergies { get; private set; } = [];
+
     public async Task<IActionResult> OnGetAsync(Guid id)
     {
         if (!await assignments.IsOnPanelAsync(id, HttpContext.RequestAborted))
@@ -33,11 +36,14 @@ public class DictateModel(PhiReader phi, PatientAssignments assignments) : PageM
             return RedirectToPage("Chart", Search.ChartRouteValues(id));
         }
 
-        var patient = await phi.PatientAsync(id, HttpContext.RequestAborted);
-        if (patient is null)
+        var header = await phi.HeaderAsync(id, HttpContext.RequestAborted);
+        if (header is null)
         {
             return NotFound();
         }
+
+        var patient = header.Patient;
+        Allergies = header.Allergies;
 
         if (DraftId is { } idOfDraft)
         {

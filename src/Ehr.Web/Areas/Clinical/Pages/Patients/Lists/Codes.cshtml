@@ -1,0 +1,9 @@
+@page "/codes"
+@model Ehr.Web.Areas.Clinical.Pages.Patients.Lists.CodesModel
+@{
+    Layout = null;
+}
+@foreach (var code in Model.Codes)
+{
+    <option value="@code.Display" label="@(code.Kind == Ehr.Data.Patients.ClinicalCodeKind.Condition ? code.Code : null)"></option>
+}

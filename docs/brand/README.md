@@ -25,6 +25,11 @@ Everything needed to brand SwiftChart: the guide below, the tokens, fonts, logos
 - Follow the system's light or dark setting by default; `[data-theme]` on `<html>` overrides it.
 - Where to apply it: the shared stylesheet both web apps load (`src/Ehr.Design/wwwroot/css/ehr.css`), the desktop app's (`src/Ehr.Desktop/frontend/app.css`), and the desktop icons (`src/Ehr.Desktop/src-tauri/icons/`, replaced by `assets/App-icons/desktop/`).
 
+Components added to the shared stylesheet since the kit, in its style:
+
+- `sc-btn--compact` as a link above a chart list ("Add allergy"), and the "Change" link after an entry (`sc-list__actions`): entries are changed or given another status, never deleted, so no list has a delete action.
+- `sc-list__actions`: a record line's own actions, as plain links after the line's text, such as an active order's "Change" and "Discontinue…". Links, not buttons, because each opens a page; a destructive one ends in "…" and its page's button is the danger button, which names the action ("Discontinue order").
+
 ---
 
 # Brand guide
@@ -61,6 +66,7 @@ Copy already in the apps that sets the tone:
 Rules:
 
 - **A notice about a state starts with the state**, then a colon: "Read-only:", "Emergency access:". The word carries the meaning; the color only supports it.
+- **A notice that answers an action takes the focus** when its page opens ("Saved:", "Not saved:", "Order signed:"): `tabindex="-1"` and `data-focus-on-load`, which the clinical pages' script follows, so the keyboard and a screen reader start from what just happened. A form that comes back with mistakes puts the cursor in the first field to fix instead.
 - **Dictation proposes; the clinician decides.** Say "proposed" and "awaiting your review", never "diagnosed", "decided" or "filled in for you". Say what was not carried over and why ("dictation never places orders or changes the allergy list").
 - **Clinician screens can be terse**, using MRN and standard clinical abbreviations. **The portal is for patients**: spell labels out ("Medical record number", "Date of birth"), explain results in plain language, and never show internal IDs or audit details.
 - **Dates** in clinician views and tables are `YYYY-MM-DD`, with 24-hour times (`2026-11-15 14:05`). The portal writes a result's date out for patients ("Nov 2, 2026"). Say "UTC" when a time is in UTC.
@@ -113,7 +119,7 @@ SwiftChart has no icon set of its own yet, and the apps use none today. When ico
 
 ### Clinician web app (on-site)
 
-The main product, for clinicians at the clinic. App bar: `appbar` with the reversed lockup on the left, then the main navigation (Patients, with its "/" shortcut, and Quick text), and on the right the signed-in name and "Sign out". The current nav item gets a 2px `accent` underline. Under it, the patient banner on every patient page: name, MRN, date of birth and gender. Where the page already reads the patient's allergies (the chart and the order form), the banner shows them too: high-criticality ones as a danger chip, "No known allergies", or "No allergy information recorded" in `ink-muted`. On the other patient pages (notes, dictation and its review) the banner has no allergy area, rather than a "none recorded" the page hasn't checked. Dense layout (`body-sm` tables, 36px controls) at `width-content`. One primary button per screen: "Sign note…" on the note editor, "Confirm and sign note" on the review page. A signed note shows a "Signed · read-only" tag beside its title.
+The main product, for clinicians at the clinic. App bar: `appbar` with the reversed lockup on the left, then the main navigation (Patients, with its "/" shortcut, and Quick text), and on the right the signed-in name and "Sign out". The current nav item gets a 2px `accent` underline. Under it, the patient banner on every patient page: name, MRN, date of birth and gender. Where the page reads the patient's allergies (the chart, the order form, the entry forms, the history of the chart's lists, the discontinued orders, and the note, dictation and review pages), the banner shows them too: high-criticality ones as a danger chip, "No known allergies", or "No allergy information recorded" in `ink-muted`. A patient page that doesn't read them has no allergy area, rather than a "none recorded" the page hasn't checked. Dense layout (`body-sm` tables, 36px controls) at `width-content`. One primary button per screen: "Sign note…" on the note editor, "Confirm and sign note" on the review page. A signed note shows a "Signed · read-only" tag beside its title.
 
 ### Off-site access (cloud copy)
 
@@ -130,6 +136,18 @@ Same tokens and components as the web app, inside a native window. Use the dark 
 ### Dictation
 
 Controls: "Dictate" (Alt+Shift+D) as the primary button, then "Stop" and "Cancel". The status line under them is a live region in `body-sm` ("Recording. Speak your note, then select Stop."), with a `danger` dot while recording. The transcript is a bordered panel: final text in `ink`, words still being recognized in `ink-muted` italic, and unsure passages under `highlight-unclear`, explained once by a notice ("Highlighted passages may be wrong…"). Proposed fields (History, Assessment, Plan) sit one per row, each with its status as a tag ("Awaiting review" warning, "Left empty" and "Not dictated yet" neutral, "Proposing…" info) and any check under it in `warning` text. Selecting or focusing a field paints its source words with `highlight-source`. Orders and allergy changes heard in the dictation are listed under "Not carried over from dictation", never filled in.
+
+### Sensitive items
+
+Some of a chart is more private than the rest: mental-health and substance-use diagnoses, some others by their code, and anything a clinician marks. These are never on screen by accident.
+
+- **Left out, not blurred.** A page doesn't receive sensitive items until someone asks. In their place an info notice says how many are hidden and offers the way to see them: "Sensitive items hidden: 2 diagnoses or medications are not shown. Show sensitive items". The link is a plain link at the end of the notice.
+- **Asking is recorded, and the page says so.** Once shown, the notice reads "Sensitive items shown: your view of them is recorded." with "Hide sensitive items". Never show them without that sentence.
+- **Tagged where they appear.** Each sensitive entry carries a "Sensitive" tag in the warning tone (`sc-tag sc-tag--warning`), after its text and before its actions.
+- **Never in the patient banner, a notification, an email or a page title.** The banner shows allergies only.
+- **In a form,** "Sensitive" is a checkbox with a hint under it that says what marking does. Where the system marks an item by rule, the hint says so; the clinician can't clear it.
+- **Offline,** the desktop app doesn't keep sensitive items. Where they would be, a muted line says how many aren't kept and where to see them.
+- **For a patient's proxy,** sensitive items don't exist unless the patient has allowed them: no count and no notice.
 
 ### Emergency access
 

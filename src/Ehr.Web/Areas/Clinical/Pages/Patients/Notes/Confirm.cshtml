@@ -7,7 +7,7 @@
 }
 @* The patient, in the banner under the app bar. The note pages read no allergies, so the banner shows none. *@
 @section Banner {
-    <partial name="_PatientBanner" model="new PatientBanner(Model.Patient)" />
+    <partial name="_PatientBanner" model="new PatientBanner(Model.Patient, Model.Allergies)" />
 }
 <div class="sc-pagehead">
     <p><a asp-page="Edit" asp-route-patientId="@Model.Patient.Id" asp-route-draftId="@Model.Draft.Id">Return to editor</a></p>

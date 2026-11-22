@@ -46,11 +46,16 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
         [("ehr_read", "patient_assignments")] = ["SELECT"],
         [("ehr_app", "break_glass_accesses")] = ["SELECT", "INSERT"],
         [("ehr_read", "break_glass_accesses")] = ["SELECT"],
-        [("ehr_app", "allergy_intolerances")] = ["SELECT"],
+        // Chart lists: clinicians add and change entries, and nothing deletes one. Their history is the database's to write.
+        [("ehr_app", "allergy_intolerances")] = ["SELECT", "INSERT", "UPDATE"],
+        [("ehr_app", "chart_history")] = ["SELECT"],
+        [("ehr_read", "chart_history")] = ["SELECT"],
+        [("ehr_app", "clinical_codes")] = ["SELECT"],
+        [("ehr_read", "clinical_codes")] = ["SELECT"],
         [("ehr_read", "allergy_intolerances")] = ["SELECT"],
-        [("ehr_app", "medication_statements")] = ["SELECT"],
+        [("ehr_app", "medication_statements")] = ["SELECT", "INSERT", "UPDATE"],
         [("ehr_read", "medication_statements")] = ["SELECT"],
-        [("ehr_app", "conditions")] = ["SELECT"],
+        [("ehr_app", "conditions")] = ["SELECT", "INSERT", "UPDATE"],
         [("ehr_read", "conditions")] = ["SELECT"],
         [("ehr_app", "ai_note_reviews")] = ["SELECT", "INSERT", "UPDATE"],
         [("ehr_read", "ai_note_reviews")] = ["SELECT"],
@@ -61,7 +66,8 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
         [("ehr_app", "clinical_drafts")] = ["SELECT", "INSERT", "UPDATE"],
         // UC 14 adds replica draft reads under the same private-author/active-panel RLS as the primary.
         [("ehr_read", "clinical_drafts")] = ["SELECT"],
-        // UC 1: orders are append-only; the catalog is read only.
+        // UC 1: an order is never edited or deleted. Discontinuing one updates three of its columns, which is a column
+        // grant (ExpectedColumnPrivileges), not a table one. The catalog is read only.
         [("ehr_app", "orders")] = ["SELECT", "INSERT"],
         [("ehr_read", "orders")] = ["SELECT"],
         [("ehr_app", "order_catalog_items")] = ["SELECT"],
@@ -72,8 +78,9 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
         [("ehr_read", "observations")] = ["SELECT"],
         [("ehr_app", "patient_enrollments")] = ["SELECT", "INSERT", "UPDATE"],
         [("ehr_read", "patient_enrollments")] = ["SELECT"],
-        [("ehr_app", "audit_events")] = ["SELECT", "INSERT"],
-        [("ehr_read", "audit_events")] = ["SELECT"],
+        // Read by column (ExpectedColumnPrivileges): every one but details, the values a write changed.
+        [("ehr_app", "audit_events")] = ["INSERT"],
+        [("ehr_read", "audit_events")] = [],
         [("ehr_app", "__ef_migrations_history")] = [],
         [("ehr_read", "__ef_migrations_history")] = [],
     };
@@ -163,12 +170,25 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.patients")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.staff_users")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "INSERT INTO ehr.allergy_intolerances (id, patient_id, display, clinical_status, recorded_at) VALUES (gen_random_uuid(), gen_random_uuid(), 'x', 'active', now())")]
-    [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.medication_statements SET display = 'changed'")]
+    // Chart lists are added to and changed (ChartListSecurityTests), never deleted; their history and the reference
+    // codes are never written at runtime.
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.medication_statements")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.allergy_intolerances")]
+    [InlineData("ehr_read", MigratedDatabase.ReadPassword, "UPDATE ehr.medication_statements SET display = 'changed'")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.chart_history SET after = '{}'")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.chart_history")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "INSERT INTO ehr.chart_history (id, patient_id, table_name, row_id, changed_at, after) VALUES (gen_random_uuid(), gen_random_uuid(), 'conditions', gen_random_uuid(), now(), '{}')")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.clinical_codes SET display = 'changed'")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.clinical_codes")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.conditions")]
     [InlineData("ehr_read", MigratedDatabase.ReadPassword, "INSERT INTO ehr.encounters (id, patient_id, status, class_code, period_start) VALUES (gen_random_uuid(), gen_random_uuid(), 'finished', 'AMB', now())")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.observations SET status = 'cancelled'")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.audit_events SET reason = 'changed'")]
     [InlineData("ehr_app", MigratedDatabase.AppPassword, "DELETE FROM ehr.audit_events")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "SELECT details FROM ehr.audit_events")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "SELECT * FROM ehr.audit_events")]
+    [InlineData("ehr_read", MigratedDatabase.ReadPassword, "SELECT details FROM ehr.audit_events")]
+    [InlineData("ehr_app", MigratedDatabase.AppPassword, "UPDATE ehr.audit_events SET sensitive = true")]
     [InlineData("ehr_read", MigratedDatabase.ReadPassword, "INSERT INTO ehr.audit_events (id, occurred_at, action, source) VALUES (uuidv7(), now(), 'read', 'cloud')")]
     public async Task Runtime_roles_are_refused_outside_their_grants(string role, string password, string sql)
     {
@@ -207,8 +227,36 @@ public class RuntimeRoleTests(MigratedDatabase database) : IClassFixture<Migrate
         await database.ApplyAsync();
     }
 
+    // Grants on single columns, which has_table_privilege doesn't see: each one a runtime role holds beyond its table
+    // grants. This repeats db/policies/10-grants.sql on purpose, as ExpectedPrivileges does. A column grant made
+    // anywhere else, or not listed here, fails.
+    static readonly Dictionary<(string Role, string Table, string Privilege), string[]> ExpectedColumnPrivileges = new()
+    {
+        // UC 1: discontinuing an order.
+        [("ehr_app", "orders", "UPDATE")] = ["discontinue_reason", "replaced_by_order_id", "status"],
+        // Audit events without details: admins get those from ehr.shown_audit_details, never a sensitive item's.
+        [("ehr_app", "audit_events", "SELECT")] = ["action", "actor_id", "id", "occurred_at", "patient_id", "reason", "row_id", "sensitive", "source", "table_name"],
+        [("ehr_read", "audit_events", "SELECT")] = ["action", "actor_id", "id", "occurred_at", "patient_id", "reason", "row_id", "sensitive", "source", "table_name"],
+    };
+
     async Task AssertExactPrivilegesAsync()
     {
+        var columns = await QueryAsync(
+            """
+            SELECT r.role, c.relname, p.privilege, string_agg(a.attname, ' ' ORDER BY a.attname)
+            FROM unnest(@roles) AS r(role)
+            CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'REFERENCES']) AS p(privilege)
+            JOIN pg_class c ON c.relnamespace = 'ehr'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm')
+            JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+            WHERE has_column_privilege(r.role, c.oid, a.attnum, p.privilege) AND NOT has_table_privilege(r.role, c.oid, p.privilege)
+            GROUP BY r.role, c.relname, p.privilege
+            """,
+            reader => (Key: (reader.GetString(0), reader.GetString(1), reader.GetString(2)), Columns: reader.GetString(3)),
+            ("roles", RuntimeRoles));
+        Assert.Equal(
+            ExpectedColumnPrivileges.Select(expected => $"{expected.Key}: {string.Join(' ', expected.Value.Order(StringComparer.Ordinal))}").Order(),
+            columns.Select(actual => $"{actual.Key}: {actual.Columns}").Order());
+
         foreach (var ((role, table), expected) in ExpectedPrivileges)
         {
             var actual = await QueryAsync(

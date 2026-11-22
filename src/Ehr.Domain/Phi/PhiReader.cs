@@ -4,6 +4,7 @@ using Ehr.Data.Orders;
 using Ehr.Data.Patients;
 using Ehr.Domain.Audit;
 using Ehr.Domain.Orders;
+using Ehr.Domain.Patients;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ehr.Domain.Phi;
@@ -33,7 +34,9 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
     // visits, up to `visits`, newest first. It is one view of one patient, so it is one recorded read of the patient,
     // however many rows the sections hold: the same event a list of patients records for each. Draft and signed-note
     // reads have their own table/row events, also accepted by the cloud audit queue (CloudAuditEvents).
-    public async Task<PatientChart?> ChartAsync(Guid id, int visits, CancellationToken cancellationToken)
+    public async Task<PatientChart?> ChartAsync(
+        Guid id, int visits, CancellationToken cancellationToken, Guid? discontinued = null, bool sensitive = false,
+        (string Table, Guid Id)? saved = null, Guid? ordered = null)
     {
         var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (patient is null)
@@ -42,6 +45,8 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         }
 
         var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
+        // Sensitive medications and diagnoses are read either way, and left out below unless asked for: the chart
+        // says how many it left out, without another query.
         var medications = await db.MedicationStatements.AsNoTracking()
             .Where(m => m.PatientId == id && m.Status == MedicationStatementStatus.Active)
             .OrderBy(m => m.Display).ThenBy(m => m.Id)
@@ -56,15 +61,84 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             .Take(visits)
             .ToListAsync(cancellationToken);
         var orders = await ActiveOrders(id, catalogCode: null).ToListAsync(cancellationToken);
+        // Only when the discontinue page sent the clinician here: that order's name, when it is this patient's and
+        // discontinued.
+        var discontinuedName = discontinued is null ? null : await (
+            from order in db.Orders.AsNoTracking()
+            join item in db.OrderCatalogItems on order.CatalogCode equals item.Code
+            where order.Id == discontinued && order.PatientId == id && order.Status == OrderStatus.Revoked
+            select item.Display).FirstOrDefaultAsync(cancellationToken);
+        // Only when the order form sent the clinician here: when the order just signed replaced one (a change), the
+        // name of the order it replaced, when both are this patient's.
+        var replacedName = ordered is null ? null : await (
+            from order in db.Orders.AsNoTracking()
+            join old in db.Orders on order.ReplacesOrderId equals (Guid?)old.Id
+            join item in db.OrderCatalogItems on old.CatalogCode equals item.Code
+            where order.Id == ordered && order.PatientId == id && old.PatientId == id
+            select item.Display).FirstOrDefaultAsync(cancellationToken);
 
-        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+        // Only when the entry form sent the clinician here: the entry just saved, when it is this patient's. Found among
+        // the lists already read when it is current, sensitive ones included (they are left out below); otherwise, as an
+        // entry given another status, by one more query.
+        var savedEntry = saved is { } wanted ? await SavedEntryAsync(id, wanted.Table, wanted.Id, allergies, medications, conditions, sensitive, cancellationToken) : null;
+
+        // Only when "No known allergies" is the list's state: who recorded it, from its history's first row. Seeded
+        // entries have no history, and say only when.
+        var noneKnown = allergies.Count > 0 && allergies.All(a => a.Code == AllergyIntolerance.NoKnownAllergy) ? allergies[0] : null;
+        var noneKnownBy = noneKnown is null ? null : await (
+            from change in db.ChartHistory.AsNoTracking()
+            join staff in db.StaffUsers on change.ChangedById equals staff.Id
+            where change.PatientId == id && change.RowId == noneKnown.Id && change.Before == null
+            select staff.DisplayName).FirstOrDefaultAsync(cancellationToken);
+
+        var hidden = 0;
+        if (!sensitive)
+        {
+            hidden = medications.RemoveAll(m => m.Sensitive) + conditions.RemoveAll(c => c.Sensitive);
+        }
+
+        // One event for one view: a read, or a read that showed sensitive items.
+        audit.Record(sensitive ? AuditActions.ReadSensitive : AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+
         await db.SaveChangesAsync(cancellationToken);
-        return new PatientChart(patient, allergies, medications, conditions, encounters, orders);
+        return new PatientChart(patient, allergies, medications, conditions, encounters, orders)
+        {
+            DiscontinuedName = discontinuedName,
+            ReplacedName = replacedName,
+            SensitiveHidden = hidden,
+            SensitiveShown = sensitive,
+            Saved = savedEntry,
+            NoKnownAllergiesRecordedBy = noneKnownBy,
+        };
     }
 
-    // UC 1 (Tahseen Arnan): the order form's view of a patient (OrderForm). One view of one patient, so one recorded read
-    // of the patient, as the chart's is, whatever orders the duplicate check finds.
-    public async Task<OrderForm?> OrderFormAsync(Guid id, string? catalogCode, CancellationToken cancellationToken)
+    // The chart's view of an entry just saved (SavedEntry), or null when it isn't one of this patient's.
+    async Task<SavedEntry?> SavedEntryAsync(
+        Guid patient, string table, Guid entry, List<AllergyIntolerance> allergies, List<MedicationStatement> medications, List<Condition> conditions,
+        bool sensitive, CancellationToken cancellationToken)
+    {
+        switch (table)
+        {
+            case ChartListWords.Allergies:
+                var allergy = allergies.FirstOrDefault(a => a.Id == entry)
+                    ?? await db.AllergyIntolerances.AsNoTracking().SingleOrDefaultAsync(a => a.Id == entry && a.PatientId == patient, cancellationToken);
+                return allergy is null ? null : new SavedEntry(table, ChartLists.DisplayOf(allergy), allergy.ClinicalStatus, allergies.Contains(allergy), Hidden: false);
+            case ChartListWords.Medications:
+                var medication = medications.FirstOrDefault(m => m.Id == entry)
+                    ?? await db.MedicationStatements.AsNoTracking().SingleOrDefaultAsync(m => m.Id == entry && m.PatientId == patient, cancellationToken);
+                return medication is null ? null : new SavedEntry(table, medication.Display, medication.Status, medications.Contains(medication), medication.Sensitive && !sensitive);
+            case ChartListWords.Diagnoses:
+                var condition = conditions.FirstOrDefault(c => c.Id == entry)
+                    ?? await db.Conditions.AsNoTracking().SingleOrDefaultAsync(c => c.Id == entry && c.PatientId == patient, cancellationToken);
+                return condition is null ? null : new SavedEntry(table, condition.Display, condition.ClinicalStatus, conditions.Contains(condition), condition.Sensitive && !sensitive);
+            default:
+                return null;
+        }
+    }
+
+    // A patient and their current allergies, for the banner of a patient page that isn't the chart (a note, dictation):
+    // one recorded read of the patient, as PatientAsync is.
+    public async Task<PatientHeader?> HeaderAsync(Guid id, CancellationToken cancellationToken)
     {
         var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (patient is null)
@@ -73,11 +147,131 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
         }
 
         var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
-        List<ActiveOrder> duplicates = catalogCode is null ? [] : await ActiveOrders(id, catalogCode).ToListAsync(cancellationToken);
+        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+        await db.SaveChangesAsync(cancellationToken);
+        return new PatientHeader(patient, allergies);
+    }
+
+    // The form for one entry of a chart list: the patient, their allergies for the banner and, when changing an entry,
+    // that entry, which must be this patient's. One recorded read of the patient: of sensitive items, when the entry
+    // is sensitive, since the form shows it.
+    public async Task<ChartEntryForm?> ChartEntryAsync(Guid id, string? table, Guid? entry, CancellationToken cancellationToken)
+    {
+        var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient is null)
+        {
+            return null;
+        }
+
+        var form = new ChartEntryForm(patient, await CurrentAllergies(id).ToListAsync(cancellationToken));
+        if (entry is not null)
+        {
+            form = table switch
+            {
+                "allergy_intolerances" => form with { Allergy = await db.AllergyIntolerances.AsNoTracking().SingleOrDefaultAsync(a => a.Id == entry && a.PatientId == id, cancellationToken) },
+                "medication_statements" => form with { Medication = await db.MedicationStatements.AsNoTracking().SingleOrDefaultAsync(m => m.Id == entry && m.PatientId == id, cancellationToken) },
+                "conditions" => form with { Condition = await db.Conditions.AsNoTracking().SingleOrDefaultAsync(c => c.Id == entry && c.PatientId == id, cancellationToken) },
+                _ => form,
+            };
+        }
+
+        var showsSensitive = form.Medication?.Sensitive == true || form.Condition?.Sensitive == true;
+        audit.Record(showsSensitive ? AuditActions.ReadSensitive : AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+
+        await db.SaveChangesAsync(cancellationToken);
+        return form;
+    }
+
+    // The history of changes to a patient's allergies, medications and diagnoses, newest first, with who made each.
+    // Changes to sensitive entries are left out unless asked for, which is recorded, as on the chart.
+    public async Task<ChartHistory?> ChartHistoryAsync(Guid id, int limit, bool sensitive, CancellationToken cancellationToken)
+    {
+        var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient is null)
+        {
+            return null;
+        }
+
+        // The banner's allergies, in the same recorded read.
+        var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
+
+        // An entry that is sensitive now is sensitive throughout its history, whatever it was when a change was made:
+        // a medication added unmarked and marked later doesn't stay readable here. So the entries are asked about, not
+        // the old rows, and their changes are left out in the query itself, before the limit.
+        List<Guid> sensitiveEntries =
+        [
+            .. await db.Conditions.AsNoTracking().Where(c => c.PatientId == id && c.Sensitive).Select(c => c.Id).ToListAsync(cancellationToken),
+            .. await db.MedicationStatements.AsNoTracking().Where(m => m.PatientId == id && m.Sensitive).Select(m => m.Id).ToListAsync(cancellationToken),
+        ];
+        var history = db.ChartHistory.AsNoTracking().Where(change => change.PatientId == id);
+        var hidden = sensitive || sensitiveEntries.Count == 0
+            ? 0
+            : await history.CountAsync(change => sensitiveEntries.Contains(change.RowId), cancellationToken);
+        var changes = await (
+            from change in history
+            join staff in db.StaffUsers on change.ChangedById equals staff.Id into changers
+            from staff in changers.DefaultIfEmpty()
+            where sensitive || !sensitiveEntries.Contains(change.RowId)
+            orderby change.ChangedAt descending, change.Id descending
+            select new ChartChange(change.TableName, change.RowId, change.ChangedAt, staff == null ? null : staff.DisplayName, change.Before, change.After))
+            .Take(limit + 1).ToListAsync(cancellationToken);
+        var more = changes.Count > limit;
+        changes = [.. changes.Take(limit)];
+
+        // One event for one view: a read, or a read that showed sensitive items.
+        audit.Record(sensitive ? AuditActions.ReadSensitive : AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+        await db.SaveChangesAsync(cancellationToken);
+        return new ChartHistory(patient, allergies, changes, more, hidden, sensitive);
+    }
+
+    // UC 1 (Tahseen Arnan): the order form's view of a patient (OrderForm). One view of one patient, so one recorded read
+    // of the patient, as the chart's is, whatever orders the duplicate check finds. For a change, `replaces` is the
+    // order being replaced: it comes back when it is an active order of this patient, and isn't counted as a duplicate.
+    public async Task<OrderForm?> OrderFormAsync(Guid id, string? catalogCode, Guid? replaces, CancellationToken cancellationToken)
+    {
+        var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient is null)
+        {
+            return null;
+        }
+
+        var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
+        var replaced = replaces is null ? null : await ActiveOrders(id, catalogCode: null, only: replaces).SingleOrDefaultAsync(cancellationToken);
+        List<ActiveOrder> duplicates = catalogCode is null
+            ? []
+            : await ActiveOrders(id, catalogCode, except: replaces).ToListAsync(cancellationToken);
 
         audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
         await db.SaveChangesAsync(cancellationToken);
-        return new OrderForm(patient, allergies, duplicates);
+        return new OrderForm(patient, allergies, duplicates, replaced);
+    }
+
+    // UC 1: a patient's discontinued orders, newest first, each with who discontinued it, when and why, and the order
+    // that replaced it when it was changed. One view of one patient: one recorded read of the patient.
+    public async Task<DiscontinuedOrders?> DiscontinuedOrdersAsync(Guid id, int limit, CancellationToken cancellationToken)
+    {
+        var patient = await db.Patients.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient is null)
+        {
+            return null;
+        }
+
+        // The banner's allergies, in the same recorded read.
+        var allergies = await CurrentAllergies(id).ToListAsync(cancellationToken);
+
+        var orders = await (
+            from order in db.Orders.AsNoTracking()
+            join item in db.OrderCatalogItems on order.CatalogCode equals item.Code
+            join staff in db.StaffUsers on order.DiscontinuerId equals staff.Id
+            where order.PatientId == id && order.Status == OrderStatus.Revoked
+            orderby order.DiscontinuedAt descending, order.Id
+            select new DiscontinuedOrder(order.Id, order.Type, item.Display, order.Details, order.SignedAt, order.DiscontinuedAt!.Value,
+                staff.DisplayName, order.DiscontinueReason!, order.ReplacedByOrderId != null))
+            .Take(limit + 1).ToListAsync(cancellationToken);
+
+        audit.Record(AuditActions.Read, patient.Id, PatientsTable, patient.Id);
+        await db.SaveChangesAsync(cancellationToken);
+        return new DiscontinuedOrders(patient, allergies, [.. orders.Take(limit)], orders.Count > limit);
     }
 
     // The allergies a patient has now, the high-risk ones first.
@@ -86,11 +280,13 @@ public sealed class PhiReader(EhrDbContext db, AuditRecorder audit, UserContext 
             .Where(a => a.PatientId == id && a.ClinicalStatus == AllergyClinicalStatus.Active)
             .OrderBy(a => a.Criticality == AllergyCriticality.High ? 0 : 1).ThenBy(a => a.Display).ThenBy(a => a.Id);
 
-    // A patient's active orders, of one catalog item or of all, newest first, with only the fields that are shown.
-    IQueryable<ActiveOrder> ActiveOrders(Guid id, string? catalogCode) =>
+    // A patient's active orders, of one catalog item or of all, newest first, with only the fields that are shown:
+    // just the one order, or all but one, when asked.
+    IQueryable<ActiveOrder> ActiveOrders(Guid id, string? catalogCode, Guid? only = null, Guid? except = null) =>
         from order in db.Orders.AsNoTracking()
         join item in db.OrderCatalogItems on order.CatalogCode equals item.Code
         where order.PatientId == id && order.Status == OrderStatus.Active && (catalogCode == null || order.CatalogCode == catalogCode)
+            && (only == null || order.Id == only) && (except == null || order.Id != except)
         orderby order.SignedAt descending, order.Id
         select new ActiveOrder(order.Id, order.Type, item.Display, order.Details, order.SignedAt);
 
