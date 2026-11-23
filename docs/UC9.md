@@ -23,9 +23,22 @@ case has more than one test, the first is the primary one; the others cover the 
 Unprefixed `test_*.py` files are in `src/Ehr.Dictation/sidecar/tests/`, and unprefixed `*Tests.cs` files in
 `tests/Ehr.Web.Tests/`.
 
+## On screen
+
+`tests/Ehr.Web.Tests/DictationBrowserTests.cs` checks what the clinician sees, in Chromium driven by Playwright, with a
+fake microphone and the stub dictation service (no real microphone, voice or model):
+
+| Case | What the browser test checks |
+|---|---|
+| TC-UC9-01 | While recording, the status says so and the transcript builds; a passage too noisy to trust is marked "Say this again: too much background noise." |
+| TC-UC9-02 | Cancel says "Temporary dictation discarded. The manual draft was kept; no AI text was approved." and clears the transcript. |
+| TC-UC9-04 | With the connection down, recording carries on and the page says the transcript is paused; when it returns, the transcript catches up with each sentence once. |
+| UC 9 step 1 alternative | A blocked microphone says how to allow it, and nothing starts on the server. |
+
+Playwright's Chromium is installed by CI. On a machine without it these tests are skipped with the command that installs
+it.
+
 ## Limits
 
-- TC-UC9-04 checks the sidecar's side of resuming: a chunk sent again is ignored, a chunk that skips ahead is told which
-  to send, and the transcript carries on. The page's own retry after a dropped request isn't tested in a browser.
 - TC-UC9-06's accuracy is the committed eval run, made on a developer Mac (it says so), not on the clinic server. The
   gate has no accepted baseline yet, so "no lower than the baseline" has nothing to compare with until one is accepted.
