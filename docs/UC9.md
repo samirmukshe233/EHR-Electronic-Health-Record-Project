@@ -11,14 +11,19 @@ the transcript between the page and the sidecar.
 The numbered test cases are the ones in the SE document (Assignment 4, sections 7.2 and 7.3), with the same IDs. Where a
 case has more than one test, the first is the primary one; the others cover the same case at another layer.
 
-| ID | Test case | Requirements | Tests |
-|---|---|---|---|
-| TC-UC9-01 | Successful flow: dictate and see the transcript as you speak | FR-07, FR-10, FR-32, NFR-14 | `src/Ehr.Dictation/sidecar/tests/test_sessions.py`: `test_chunks_in_order_build_a_live_transcript`; also `tests/Ehr.Web.Tests/DictationApiTests.cs`: `A_clinician_dictates_and_gets_the_fields_as_pending_proposals`, and `DictationPageTests.cs`: `The_page_token_drives_a_whole_dictation_to_pending_fields` |
-| TC-UC9-02 | Alternative flow: cancel discards the dictation | FR-13 | `test_sessions.py`: `test_cancel_discards_audio_and_transcript` |
-| TC-UC9-03 | Invalid input: audio that isn't audio, or can't be decoded, is refused | FR-10 | `test_sessions.py`: `test_bytes_that_are_not_audio_are_refused_as_not_audio`; also `test_api.py`: `test_bytes_that_are_not_audio_are_refused_at_stop`, and `DictationApiTests.cs`: `Anything_but_audio_is_refused_with_415`, `Audio_that_cannot_be_decoded_is_refused_with_422` |
-| TC-UC9-04 | Exceptional condition: the connection drops and the transcript resumes | FR-07, FR-10 | `test_sessions.py`: `test_after_a_dropped_connection_the_transcript_resumes_where_it_left_off`; also `test_a_chunk_sent_again_is_ignored_and_one_that_skips_ahead_is_refused`, and `DictationApiTests.cs`: `A_chunk_out_of_order_is_answered_with_the_one_to_send_next` |
-| TC-UC9-05 | NFR-07: dictated words never leave the team's server or reach the logs | NFR-07 | `test_logging.py`: `test_a_dictation_logs_none_of_its_words`; also `test_audio.py`: `test_nothing_is_written_to_disk`, and `DictationApiTests.cs`: `Nothing_is_saved_by_a_whole_dictation` |
-| TC-UC9-06 | NFR-14: English dictation accuracy and live-transcript speed | NFR-14, FR-07 | Accuracy: `eval/tests/test_gate.py`: `test_a_score_below_the_accepted_baseline_fails`, and CI's "Check the committed eval results" step (`.github/workflows/ci.yml`), which checks `eval/results/latest.json`. Speed: `test_sessions.py`: `test_a_chunk_is_answered_in_time_while_medasr_is_busy_and_the_next_one_catches_up`, `test_stop_answers_within_its_budget_and_the_result_follows` |
+Each case also has its own file in `tests/Ehr.Web.Tests/TestCases/UC9/`, with the Assignment 4 fields in a header
+comment and an xUnit test: a functional case runs through the web app as the dictation page drives it, and a
+non-functional one checks the stack's definition or the committed eval results. Where part of a case runs outside
+`dotnet test` (the models, or the Python dictation service), a `.md` beside the file gives the commands and the results.
+
+| ID | Test case | Requirements | Case file | Tests |
+|---|---|---|---|---|
+| TC-UC9-01 | Successful flow: dictate and see the transcript as you speak | FR-07, FR-10, FR-32, NFR-14 | `TC_UC9_01_SuccessfulFlow.cs` | `src/Ehr.Dictation/sidecar/tests/test_sessions.py`: `test_chunks_in_order_build_a_live_transcript`; also `tests/Ehr.Web.Tests/DictationApiTests.cs`: `A_clinician_dictates_and_gets_the_fields_as_pending_proposals`, and `DictationPageTests.cs`: `The_page_token_drives_a_whole_dictation_to_pending_fields` |
+| TC-UC9-02 | Alternative flow: cancel discards the dictation | FR-13 | `TC_UC9_02_AlternativeFlow.cs` | `test_sessions.py`: `test_cancel_discards_audio_and_transcript` |
+| TC-UC9-03 | Invalid input: audio that isn't audio, or can't be decoded, is refused | FR-10 | `TC_UC9_03_InvalidInput.cs` | `test_sessions.py`: `test_bytes_that_are_not_audio_are_refused_as_not_audio`; also `test_api.py`: `test_bytes_that_are_not_audio_are_refused_at_stop`, and `DictationApiTests.cs`: `Anything_but_audio_is_refused_with_415`, `Audio_that_cannot_be_decoded_is_refused_with_422` |
+| TC-UC9-04 | Exceptional condition: the connection drops and the transcript resumes | FR-07, FR-10 | `TC_UC9_04_ExceptionalCondition.cs` | `test_sessions.py`: `test_after_a_dropped_connection_the_transcript_resumes_where_it_left_off`; also `test_a_chunk_sent_again_is_ignored_and_one_that_skips_ahead_is_refused`, and `DictationApiTests.cs`: `A_chunk_out_of_order_is_answered_with_the_one_to_send_next` |
+| TC-UC9-05 | NFR-07: dictated words never leave the team's server or reach the logs | NFR-07 | `TC_UC9_05_Nfr07_LocalModels.cs`, `TC_UC9_05_Nfr07_LocalModels.md` | `test_logging.py`: `test_a_dictation_logs_none_of_its_words`; also `test_audio.py`: `test_nothing_is_written_to_disk`, and `DictationApiTests.cs`: `Nothing_is_saved_by_a_whole_dictation` |
+| TC-UC9-06 | NFR-14: English dictation accuracy and live-transcript speed | NFR-14, FR-07 | `TC_UC9_06_Nfr14_EnglishAccuracy.cs`, `TC_UC9_06_Nfr14_EnglishAccuracy.md` | Accuracy: `eval/tests/test_gate.py`: `test_a_score_below_the_accepted_baseline_fails`, and CI's "Check the committed eval results" step (`.github/workflows/ci.yml`), which checks `eval/results/latest.json`. Speed: `test_sessions.py`: `test_a_chunk_is_answered_in_time_while_medasr_is_busy_and_the_next_one_catches_up`, `test_stop_answers_within_its_budget_and_the_result_follows` |
 
 Unprefixed `test_*.py` files are in `src/Ehr.Dictation/sidecar/tests/`, and unprefixed `*Tests.cs` files in
 `tests/Ehr.Web.Tests/`.
