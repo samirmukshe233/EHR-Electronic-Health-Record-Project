@@ -283,9 +283,19 @@ internal static partial class RenderBenchmark
         }
         finally
         {
-            if (Directory.Exists(queue))
+            // Best effort: on Windows the cloud app's queue file can still be open here, and Windows refuses to delete an
+            // open file (Linux and macOS don't). The folder is in the temp directory; leaving it beats losing every
+            // result measured.
+            try
             {
-                Directory.Delete(queue, recursive: true);
+                if (Directory.Exists(queue))
+                {
+                    Directory.Delete(queue, recursive: true);
+                }
+            }
+            catch (IOException error)
+            {
+                Console.Error.WriteLine($"Couldn't delete the off-site audit queue's temporary folder {queue}: {error.Message}");
             }
         }
     }
