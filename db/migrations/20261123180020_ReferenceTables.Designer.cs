@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Ehr.Migrations
 {
     [DbContext(typeof(EhrDbContext))]
-    [Migration("20261118120345_InboxItems")]
-    partial class InboxItems
+    [Migration("20261123180020_ReferenceTables")]
+    partial class ReferenceTables
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -526,72 +526,6 @@ namespace Ehr.Migrations
                         .HasDatabaseName("ix_change_log_transaction_id");
 
                     b.ToTable("change_log", "ehr");
-                });
-
-            modelBuilder.Entity("Ehr.Data.Inbox.InboxItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<DateTimeOffset?>("DoneAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("done_at");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("kind");
-
-                    b.Property<Guid?>("PatientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("patient_id");
-
-                    b.Property<Guid>("RecipientId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("recipient_id");
-
-                    b.Property<Guid?>("SourceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("source_id");
-
-                    b.Property<string>("SourceTable")
-                        .HasMaxLength(63)
-                        .HasColumnType("character varying(63)")
-                        .HasColumnName("source_table");
-
-                    b.Property<string>("Summary")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("summary");
-
-                    b.HasKey("Id")
-                        .HasName("pk_inbox_items");
-
-                    b.HasIndex("PatientId")
-                        .HasDatabaseName("ix_inbox_items_patient_id");
-
-                    b.HasIndex("RecipientId", "CreatedAt")
-                        .HasDatabaseName("ix_inbox_items_recipient_id_created_at")
-                        .HasFilter("done_at IS NULL");
-
-                    b.HasIndex("RecipientId", "DoneAt")
-                        .HasDatabaseName("ix_inbox_items_recipient_id_done_at")
-                        .HasFilter("done_at IS NOT NULL");
-
-                    b.ToTable("inbox_items", "ehr", t =>
-                        {
-                            t.HasCheckConstraint("ck_inbox_items_kind", "kind IN ('message', 'result', 'refill-request', 'emergency-access-review')");
-
-                            t.HasCheckConstraint("ck_inbox_items_source", "(source_table IS NULL) = (source_id IS NULL)");
-                        });
                 });
 
             modelBuilder.Entity("Ehr.Data.Orders.Order", b =>
@@ -1254,6 +1188,11 @@ namespace Ehr.Migrations
 
                     b.HasIndex("PatientId")
                         .HasDatabaseName("ix_allergy_intolerances_patient_id");
+
+                    b.HasIndex(new[] { "PatientId" }, "ix_allergy_intolerances_one_no_known_allergy")
+                        .IsUnique()
+                        .HasDatabaseName("ix_allergy_intolerances_one_no_known_allergy")
+                        .HasFilter("code = 'no-known-allergy' AND clinical_status = 'active'");
 
                     b.ToTable("allergy_intolerances", "ehr", t =>
                         {
@@ -2323,22 +2262,6 @@ namespace Ehr.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_staff_user_tokens_staff_users_user_id");
-                });
-
-            modelBuilder.Entity("Ehr.Data.Inbox.InboxItem", b =>
-                {
-                    b.HasOne("Ehr.Data.Patients.Patient", null)
-                        .WithMany()
-                        .HasForeignKey("PatientId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_inbox_items_patients_patient_id");
-
-                    b.HasOne("Ehr.Data.Accounts.StaffUser", null)
-                        .WithMany()
-                        .HasForeignKey("RecipientId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_inbox_items_staff_users_recipient_id");
                 });
 
             modelBuilder.Entity("Ehr.Data.Orders.Order", b =>
